@@ -1,0 +1,1076 @@
+/* Live
+------------------------------------------------------------- */
+
+.yellowCardBG {
+    background: transparent url("../images/icon/icon_yellowcard.jpg") no-repeat 0 0;
+    background-size: 9px;
+    float: left;
+    font-size: 8px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 12px;
+    width: 9px;
+    height: 13px;
+    margin-right: 3px;
+}
+
+.redCardBG {
+    background: transparent url("../images/icon/icon_redcard.jpg") no-repeat 0 0;
+    background-size: 9px;
+    color: #fff;
+    float: left;
+    font-size: 8px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 12px;
+    width: 9px;
+    height: 13px;
+    margin-right: 3px;
+}
+
+.scores div.cardContainer {
+    clear: left;
+    float: left;
+    left: 50%;
+    margin: 0px;
+    padding: 0px;
+    position: relative;
+    text-align: center;
+}
+
+div.live_content span.upcoming_date {
+    font-weight: normal;
+    font-size: 11px;
+}
+
+.live_rate:hover {
+    border-collapse: separate;
+    border-color: #FFF8CC #C1C1C1 #C1C1C1 #FCF0A2;
+    border-style: solid;
+    border-width: 2px;
+    cursor: pointer;
+    height: 20px;
+    line-height: 20px;
+}
+
+.live_game_ticker_main {
+    padding: 2px 0 0 0;
+}
+
+div.live_game_ticker {
+    border-bottom: 1px solid #ffffff;
+}
+
+div.live_game_ticker_scroll_box {
+    float: left;
+    border-right: 1px solid #000000;
+    height: 34px;
+    min-width: 158px;
+    padding: 8px 5px 0 5px;
+    font-weight: bold;
+}
+
+div.live_game_ticker_scroll_box_b {
+    margin-top: 3px;
+}
+
+div.live_quotelist_content {
+    background-color: #efefef;
+    position: relative;
+}
+
+div.live_quotelist {
+    border-bottom: 1px solid #d2d2d2;
+    padding: 3px 5px 3px 25px;
+    overflow: hidden;
+}
+
+div.live_quotelist_l, div.live_quotelist_r {
+    float: left;
+    overflow: hidden;
+}
+
+div.live_quotelist_l {
+    line-height: 24px;
+    width: 40%;
+}
+
+div.live_quotelist_r {
+    width: 60%;
+}
+
+div.live_quotelist_rate2 {
+    float: left;
+    line-height: 20px;
+    min-height: 15px;
+    width: 33.2%;
+}
+
+div.live_quotelist_rate_c {
+    cursor: pointer;
+    margin-left: 2px;
+    overflow: hidden;
+    padding: 0 5px;
+    width: 85%;
+}
+
+div.live_quotelist_rate_c_l, div.live_quotelist_rate_c_r {
+    float: left;
+}
+
+div.live_quotelist_rate_c_l {
+    width: 65%;
+}
+
+div.live_quotelist_rate_c_r {
+    text-align: right;
+    width: 35%;
+}
+
+.live_time_to_start {
+    background: url(../images/live_countdown/bg.png) repeat-x left;
+    width: 25px;
+    height: 11px;
+    line-height: 11px;
+    margin: 0px auto;
+}
+
+.live_time_to_start img.countdown {
+    line-height: 11px;
+    margin: 0px 0px 1px 1px;
+}
+
+.scoreboard {
+    clear: both;
+}
+
+.live_cards {
+    width: 25px;
+    font-weight: normal;
+    cursor: pointer;
+    float: left;
+    margin-top: 5px
+}
+
+.xzero_rollover {
+    display: none;
+    position: absolute;
+    width: 16px;
+    height: 38px;
+    margin-left: -8px;
+}
+
+.live_row:hover .xzero_rollover {
+    display: block;
+}
+
+
+/* inline styles from protected/views/live/game.php
+----------------------------------------------------*/
+
+.live_header {
+    padding: 5px 0 5px 0;
+    height: 26px;
+}
+
+.live_cards_home {
+    height: 12px;
+    margin-bottom: 2px;
+}
+
+.live_cards_away {
+    clear: both;
+    height: 14px;
+}
+
+.bets_overlay {
+    position: absolute;
+    left: 72px;
+    width: 368px;
+    text-align: center;
+    line-height: 26px;
+    margin: 5px 0px;
+    background-color: #E0E0E0;
+}
+
+#group_2 .bets_overlay,
+/* .widget-sport2 .bets_overlay,*/
+
+#group_23 .bets_overlay,
+/* .widget-sport23 .bets_overlay,*/
+
+{
+    left: 94px;
+    width: 386px;
+}
+
+#group_12 .bets_overlay,
+/* .widget-sport12 .bets_overlay,*/
+
+#group_11 .bets_overlay,
+/* .widget-sport11 .bets_overlay,*/
+
+#group_15 .bets_overlay,
+/* .widget-sport15 .bets_overlay*/
+
+{
+    left: 102px;
+    width: 376px;
+}
+
+#group_2 .live_header, #group_6 .live_header, #group_11 .live_header, #group_12 .live_header, #group_15 .live_header, #group_23 .live_header {
+    height: 45px;
+    float: right;
+}
+
+.live_row_head, .live_row {
+    display: block;
+}
+
+.live_row {
+    background: transparent url(../images/live_row_xzero.jpg) repeat-y 0 0;
+}
+
+.live_row_container {
+    border-bottom: 1px solid #ccc;
+    padding: 4px 0;
+}
+
+.live_td {
+    display: table-cell;
+    table-layout: fixed;
+}
+
+.live_group1, .live_group2 {
+    line-height: 13px;
+    padding: 0 0 0 10px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.live_group1 a, .live_group2 a {
+    display: block;
+    float: left;
+    width: 11px;
+    height: 11px;
+    margin: 0 2px 0 0;
+}
+
+.live_results_games {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+    width: 38px;
+    padding: 4px 3px 0;
+}
+
+.live_odds_container {
+    text-align: center;
+    vertical-align: middle;
+    width: 53px;
+    padding: 0 1px 0 0;
+}
+
+
+/*.live_game {
+    text-align: right;
+    vertical-align: middle;
+    width: 15px;
+    padding: 0 5px;
+}*/
+
+.live_buttons1 {
+    float: left;
+    cursor: pointer;
+    margin: 1px 0 0 3px;
+}
+
+.live_buttons2 {
+    float: left;
+    cursor: pointer;
+    margin: 0;
+    padding: 0 0 1px 0;
+}
+
+.ticker_league_header a {
+    position: absolute;
+    display: block;
+    text-align: center;
+    right: 15px;
+    width: 14px;
+    height: 12px;
+}
+
+.ticker_league_header {
+    margin-top: 8px;
+    line-height: 20px;
+    height: 20px;
+    padding-left: 15px;
+    font-size: 12px;
+    position: relative;
+}
+
+.scores_10 div.ticker_league_header {
+    margin-top: 8px;
+    padding-left: 15px;
+}
+
+.ticker_service_1, .ticker_service_0 {
+    float: left;
+    height: 22px;
+    line-height: 22px;
+    width: 16px;
+    margin-left: 24px;
+}
+
+.widget-sport2 .ticker_service_1 {
+    background: url(../images/scoreboard/tennisball_small.png) no-repeat center;
+}
+
+.widget-sport11 .ticker_service_1 {
+    background: url(../images/scoreboard/baseball_bat.png) no-repeat center;
+}
+
+
+/* TENNIS */
+
+.scores_2 div.live_game_ticker_main {
+    background: #fff url(../images/scoreboard/sb_tennis.jpg) no-repeat 0 0;
+    padding: 4px 8px 12px 8px;
+    /*width: 658px;*/
+    margin: 0 auto;
+    border: 1px solid white;
+}
+
+.ticker_message {
+    line-height: 20px;
+    overflow: hidden;
+    text-align: left;
+    padding: 6px 12px 6px 14px;
+    border-bottom: 1px solid #000000;
+    border-top: 1px solid rgba(131, 131, 131, 1);
+    position: relative;
+}
+
+
+/*icehockey*/
+
+.scores_10 div.live_game_ticker_main {
+    background-image: url(../images/scoreboard/sb_icehockey.jpg);
+    background-repeat: no-repeat;
+    font-family: Helvetica, Arial, sans-serif;
+    font-weight: bold;
+    color: #ffffff;
+    padding: 4px 8px 12px 8px;
+    margin: 0 auto;
+    border: 1px solid white;
+}
+
+
+/*basketball*/
+
+.scores_12 div.live_game_ticker_main, .scores_6 div.live_game_ticker_main {
+    background-image: url(../images/scoreboard/sb_basketball.jpg);
+    background-repeat: no-repeat;
+    font-family: Helvetica, Arial, sans-serif;
+    font-weight: bold;
+    color: #ffffff;
+    padding: 4px 8px 12px 8px;
+    margin: 0 auto;
+    border: 1px solid white;
+}
+
+.live_messages_wrapper a {
+    display: block;
+    position: relative;
+    float: right;
+    margin: 4px 0 0 0;
+    padding: 0;
+    width: 10px;
+    height: 12px;
+    cursor: pointer;
+}
+
+.live_messages_wrapper a.open {
+    background: transparent url(../images/icon/icon_arrow_btn_d2.png) no-repeat center center;
+}
+
+.live_messages_wrapper a.close {
+    background: transparent url(../images/icon/icon_arrow_btn_r2.png) no-repeat center center;
+}
+
+
+/* override! */
+
+.scores_12 div.live_game_ticker_main div.live_game_ticker, .scores_6 div.live_game_ticker_main div.live_game_ticker, .scores_2 div.live_game_ticker_main div.live_game_ticker, .scores_11 div.live_game_ticker_main div.live_game_ticker, .scores_10 div.live_game_ticker_main div.live_game_ticker {
+    background: rgba(33, 33, 33, 0.66);
+    background: linear-gradient(to bottom, rgba(33, 33, 33, 0.66) 0%, rgba(0, 0, 0, 0.66) 100%);
+}
+
+.scores_12 div.live_game_ticker, .scores_6 div.live_game_ticker, .scores_2 div.live_game_ticker, .scores_11 div.live_game_ticker, .scores_10 div.live_game_ticker {
+    border: 1px solid #000;
+    border-radius: 6px;
+    box-shadow: inset 0px 3px 3px rgba(255, 255, 255, 0.33);
+    margin: 0 0 8px 0;
+}
+
+.live_game_ticker_head_12, .live_game_ticker_head_6, .live_game_ticker_head_2, .live_game_ticker_head_11, .live_game_ticker_head_10 {
+    background-image: none !important;
+    background-repeat: no-repeat;
+    font-family: Helvetica, Arial, sans-serif;
+    font-weight: bold;
+    color: white;
+    height: auto;
+    overflow: hidden;
+}
+
+.set_header {
+    height: 14px;
+    line-height: 14px;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+
+/** LOOOK HERE*/
+
+.scores_12 .set_header div:last-child, .scores_12 .set_sport div:last-child, .scores_6 .set_header div:last-child, .scores_6 .set_sport div:last-child, .scores_2 .set_header div:last-child, .scores_2 .set_sport div:last-child, .scores_11 .set_header div:last-child, .scores_11 .set_sport div:last-child, .scores_10 .set_header div:last-child, .scores_10 .set_sport div:last-child {
+    width: 0px;
+}
+
+.scores_12 .set_sport, .scores_6 .set_sport, .scores_10 .set_sport {
+    height: 22px;
+    line-height: 22px;
+    font-size: 14px;
+}
+
+.live_messages_content {
+    background: transparent;
+    box-shadow: inset 0px 3px 3px 0px rgba(255, 255, 255, 0.33);
+    border-radius: 6px 6px 6px 6px;
+    max-height: 237px;
+    overflow: hidden;
+}
+
+.ticker_scrollarea {
+    position: relative;
+    max-height: 203px;
+    overflow: hidden;
+}
+
+.live_messages_content.closed {
+    height: 33px;
+}
+
+.right_set_header {
+    float: right;
+    margin-right: 15px;
+}
+
+.ticker_player {
+    float: left;
+    padding-left: 14px;
+}
+
+.live_messages_wrapper {
+    padding: 6px 12px 6px 14px;
+    overflow: hidden;
+    border-bottom: 1px solid #000000;
+    border-top: 1px solid rgba(131, 131, 131, 1);
+    position: relative;
+}
+
+.right_set_header div, .ticker_right div {
+    float: left;
+    width: 30px;
+    border-left: 1px solid black;
+    box-shadow: -1px 0px 0px #61473A;
+    text-align: center;
+}
+
+.team_row {
+    height: 22px;
+    line-height: 22px;
+    font-size: 14px;
+}
+
+.live_messages_container {
+    background: rgba(77, 77, 77, 0.75);
+    background: linear-gradient(to bottom, rgba(77, 77, 77, 0.75) 0%, rgba(21, 21, 21, 1) 100%);
+    border-radius: 6px 6px 6px 6px;
+    border: 1px solid rgba(0, 0, 0, 0.66);
+    box-shadow: 0px 6px 12px 0px rgba(0, 0, 0, 1);
+    ;
+    margin-top: 9px;
+    color: #fff;
+}
+
+.live_messages_wrapper:first-child, .ticker_scrollarea:first-child {
+    border-top: none !important;
+}
+
+.ticker_scrollarea:last-child, .ticker_scrollarea:last-child {
+    border-bottom: none !important;
+}
+
+.first_ticker_message {
+    line-height: 20px;
+    float: left;
+}
+
+div.hspacer {
+    width: 10px;
+}
+
+.hz {
+    background: rgba(255, 255, 255, 0.33);
+}
+
+
+/*helpers*/
+
+.pull-right {
+    float: right;
+}
+
+.pull-left {
+    float: left;
+}
+
+
+/* StartscreenBets
+-----------------------------------*/
+
+.live_row:nth-child(even) {
+    background-color: #d9d9d9;
+}
+
+.live_head_1_1 {
+    width: 313px;
+}
+
+.live_head_1_2 {
+    text-align: center;
+    vertical-align: middle;
+    width: 53px;
+    padding: 0 1px 0 0;
+}
+
+.live_head_1_3 {
+    width: 40px;
+}
+
+.live_head_1_4 {
+    width: 60px;
+}
+
+.live_sport_icon {
+    width: 37px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.live_sport_icon img {
+    margin: 5px 0 0 0;
+}
+
+.live_game_time {
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+    width: 71px;
+}
+
+.live_cards_top {
+    height: 13px;
+    margin: 0 0 1px 0;
+}
+
+.live_cards_bottom {
+    height: 13px;
+}
+
+
+
+.live_frame {
+    text-align: right;
+    width: 35px;
+    vertical-align: middle;
+    padding: 0 5px 0 0;
+}
+
+.live_group_name_2 {
+    width: 132px;
+    padding: 2px 0 0 0;
+    vertical-align: middle;
+}
+
+.live_results_games span {
+    display: block;
+    font-size: 9px;
+    font-weight: normal;
+    height: 10px;
+}
+
+.live_buttons_container_2 {
+    text-align: right;
+    vertical-align: middle;
+    width: 60px;
+}
+
+.live_buttons1 {
+    float: left;
+    cursor: pointer;
+    height: 15px;
+    width: 15px;
+    margin: 1px 0 0 3px;
+}
+
+.live_buttons2 {
+    float: left;
+    cursor: pointer;
+    margin: 0;
+    padding: 1px 0 0 0;
+}
+
+.liveticker_extern_closed, .liveticker_extern_open {
+    background-color: #1f2223;
+    position: relative;
+}
+
+.liveticker_extern_closed, .liveticker_half_open:not(.liveticker_extern_open) {
+    height: 130px;
+    width: 100%;
+    overflow: hidden;
+}
+
+.liveticker_half_open:not(.liveticker_extern_open) {
+    height: 170px;
+}
+
+.liveticker_extern_closed iframe, .liveticker_extern_closed .liveticker_extern_closed_iframe, .liveticker_half_open:not(.liveticker_extern_open) iframe, .liveticker_half_open:not(.liveticker_extern_open) .liveticker_extern_closed_iframe {
+    width: 100%;
+    height: 100px;
+    overflow: hidden;
+}
+
+.liveticker_half_open:not(.liveticker_extern_open) iframe, .liveticker_half_open:not(.liveticker_extern_open) .liveticker_extern_closed_iframe {
+    height: 140px;
+}
+
+.liveticker_extern_open iframe {
+    width: 100%;
+    height: 360px;
+}
+
+.liveticker_extern_closed .gameBetradar, .liveticker_half_open:not(.liveticker_extern_open) .gameBetradar {
+    height: 100px;
+    overflow: hidden;
+}
+
+.liveticker_half_open:not(.liveticker_extern_open) .gameBetradar {
+    height: 140px;
+}
+
+.liveticker_extern_button {
+    right: 10px;
+    bottom: 2px;
+    height: 20px;
+    position: absolute;
+    z-index: 1000;
+}
+
+.liveticker_extern_button .close, .liveticker_extern_button .close_inactive {
+    width: 20px;
+    height: 13px;
+    line-height: 20px;
+    float: right;
+    margin-right: 10px;
+}
+
+.liveticker_extern_button .open, .liveticker_extern_button .open_inactive {
+    width: 20px;
+    height: 13px;
+    line-height: 20px;
+    float: right;
+}
+
+.liveticker_extern_button .open a, .liveticker_extern_button .open_inactive a, .liveticker_extern_button .close a, .liveticker_extern_button .close_inactive a {
+    width: 20px;
+    height: 13px;
+    display: block;
+}
+
+.liveticker_extern_button .open {
+    background-image: url(../images/scoreboard/button_open_active.png);
+    cursor: pointer;
+}
+
+.liveticker_extern_button .open_inactive {
+    background-image: url(../images/scoreboard/button_open_inactive.png);
+}
+
+.liveticker_extern_button .close {
+    background-image: url(../images/scoreboard/button_close_active.png);
+    cursor: pointer;
+}
+
+.liveticker_extern_button .close_inactive {
+    background-image: url(../images/scoreboard/button_close_inactive.png);
+}
+
+.liveticker_extern_open .liveticker_extern_button .close, .liveticker_extern_open .liveticker_extern_button .open_inactive {
+    display: block;
+}
+
+.liveticker_extern_open .liveticker_extern_button .close_inactive, .liveticker_extern_open .liveticker_extern_button .open {
+    display: none;
+}
+
+.liveticker_extern_closed .liveticker_extern_button .close, .liveticker_extern_closed .liveticker_extern_button .open_inactive {
+    display: none;
+}
+
+.liveticker_extern_closed .liveticker_extern_button .close_inactive, .liveticker_extern_closed .liveticker_extern_button .open {
+    display: block;
+}
+
+.liveticker_close_button {
+    position: absolute;
+    display: block;
+    border: 1px solid #6a6a6a;
+    background-color: #383838;
+    text-align: center;
+    top: 5px;
+    right: 5px;
+    width: 14px;
+    height: 12px;
+    padding-top: 2px;
+    cursor: pointer;
+    z-index: 1000;
+}
+
+.right_set_header_icehockey, .ticker_right {
+    float: right;
+    margin-right: 16px;
+}
+
+.right_set_header_icehockey div {
+    float: left;
+    width: 40px;
+    text-align: center;
+    margin-left: 1px;
+}
+
+.scores_10 .right_set_header div, .scores_10 .ticker_right div {
+    float: left;
+    width: 40px;
+    border-left: 1px solid black;
+    box-shadow: -1px 0px 0px #616467;
+    text-align: center;
+}
+
+.right_set_header_icehockey div:first-child, .right_set_header_icehockey div:last-child {
+    border-left: 1px solid black;
+    box-shadow: -1px 0px 0px #616467;
+    margin-left: 0px;
+}
+
+.right_set_header_icehockey div.score, .ticker_right div.score {
+    border-left: 1px solid black;
+    box-shadow: -1px 0px 0px #616467;
+}
+
+.right_set_header_icehockey div.score {
+    width: 55px;
+}
+
+.ticker_right div.score {
+    width: 56px;
+}
+
+
+/* lifesports css - new layout for handball and following sports */
+
+.ticker.live_sports {
+    font-family: Helvetica, "Helvetica Neue", Arial, sans-serif;
+    color: white;
+    font-size: 12px;
+    line-height: 12px;
+    position: relative;
+    /* layout */
+    max-width: 658px;
+    min-width: 593px;
+    padding: 1px 10px 10px 10px;
+    margin: 0 auto;
+    min-height: 81px;
+    border: 1px solid white;
+    overflow: hidden;
+    text-align: center;
+    background-color: white;
+    background-repeat: no-repeat;
+    background-position: center 12px;
+    /* sports */
+    /* topbar */
+    /* button close */
+}
+
+.ticker.live_sports h1, .ticker.live_sports h2, .ticker.live_sports h3, .ticker.live_sports h4, .ticker.live_sports h5, .ticker.live_sports h6 {
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.ticker.live_sports.sport15 {
+    background-image: url(../images/livesports/handball.png);
+}
+
+.ticker.live_sports.sport23 {
+    background-image: url(../images/livesports/volleyball.png);
+}
+
+.ticker.live_sports .bar {
+    height: 1em;
+    margin: 0 -10px 4px -10px;
+    padding: 0.2em;
+    background: black;
+}
+
+.ticker.live_sports .btn_close {
+    display: inline-block;
+    background-image: url(../images/icon/close.png);
+    background-repeat: no-repeat;
+    background-position: center center;
+    color: white;
+    width: 1em;
+    height: 1em;
+    line-height: 1em;
+    float: right;
+    opacity: 0.5;
+}
+
+.ticker.live_sports .btn_close:hover {
+    opacity: 1;
+}
+
+.ticker.live_sports .scoreboard_display {
+    background-size: 100%;
+    background-image: linear-gradient(rgba(18, 17, 22, 0.3), rgba(18, 17, 22, 0.66));
+    border-radius: 5px;
+    *position: relative;
+    *zoom: 1;
+    border: 1px solid black;
+    padding: 7px 0;
+    overflow: hidden;
+    height: 75px;
+    clear: both;
+}
+
+.ticker.live_sports .scoreboard_display:before, .ticker.live_sports .scoreboard_display:after {
+    content: "";
+    display: table;
+}
+
+.ticker.live_sports .scoreboard_display:after {
+    clear: both;
+}
+
+.ticker.live_sports .scoreboard_display .event {
+    *position: relative;
+    *zoom: 1;
+    padding: 0 8px;
+    font-size: 12px;
+}
+
+.ticker.live_sports .scoreboard_display .event:before, .ticker.live_sports .scoreboard_display .event:after {
+    content: "";
+    display: table;
+}
+
+.ticker.live_sports .scoreboard_display .event:after {
+    clear: both;
+}
+
+.ticker.live_sports .scoreboard_display .event h2:first-child {
+    text-align: left;
+    float: left;
+    width: 33%;
+}
+
+.ticker.live_sports .scoreboard_display .player {
+    width: 25%;
+    float: left;
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 62.5px;
+    vertical-align: middle;
+}
+
+.ticker.live_sports .scoreboard_display .player + .player {
+    float: right;
+}
+
+.ticker.live_sports .scoreboard_display.list .player {
+    width: 33%;
+    float: left;
+    position: relative;
+    top: 20px;
+    margin-left: 8px;
+    font-size: 14px;
+    line-height: 22px;
+    text-align: left;
+}
+
+.ticker.live_sports .scoreboard_display.list .player + .player {
+    clear: left;
+}
+
+.ticker.live_sports .scoreboard_display .scores_new {
+    position: absolute;
+    width: 100%;
+    margin-top: -5px;
+}
+
+.ticker.live_sports .scoreboard_display .scores_new .result {
+    font-size: 30px;
+    font-weight: bold;
+    line-height: 37.5px;
+    text-shadow: 0px 0px 3px black;
+}
+
+.ticker.live_sports .scoreboard_display .scores_new .time {
+    font-weight: bold;
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new {
+    position: relative;
+    margin: 0;
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new li {
+    display: inline-block;
+    font-size: 14px;
+    width: 32px;
+    text-align: center;
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new li:last-child {
+    width: 64px;
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new.head {
+    display: block;
+    margin: 6px 0 0 0;
+    float: none;
+    background: rgba(18, 17, 22, 0.66);
+    text-align: right;
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new.head li {
+    font-weight: bold;
+    display: inline-block;
+    font-size: 11px;
+    vertical-align: middle;
+    line-height: 16px;
+    margin-left: -3px;
+    border-left: 1px solid transparent;
+    border-right: 1px solid transparent;
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new.head li:last-child {
+    margin-right: 8px;
+    font-weight: 400;
+    border-left: 1px solid rgba(124, 117, 109, 0.8);
+    box-shadow: -1px 0 0 0 rgba(0, 0, 0, 0.75);
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new.head li:first-child {
+    border-left: 1px solid rgba(124, 117, 109, 0.8);
+    box-shadow: -1px 0 0 0px rgba(0, 0, 0, 0.75);
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new.tipp1, .ticker.live_sports .scoreboard_display.list ul.scores_new.tipp2 {
+    width: 50%;
+    float: right;
+    display: block;
+    text-align: right;
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new.tipp1 li, .ticker.live_sports .scoreboard_display.list ul.scores_new.tipp2 li {
+    font-weight: bold;
+    display: inline-block;
+    line-height: 22px;
+    margin-left: -3px;
+    border-left: 1px solid rgba(124, 117, 109, 0.8);
+    border-right: 1px solid rgba(0, 0, 0, 0.75);
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new.tipp1 li:last-child, .ticker.live_sports .scoreboard_display.list ul.scores_new.tipp2 li:last-child {
+    margin-right: 8px;
+    border-right: 1px solid transparent;
+}
+
+.ticker.live_sports .scoreboard_display.list ul.scores_new.tipp1 li:first-child, .ticker.live_sports .scoreboard_display.list ul.scores_new.tipp2 li:first-child {
+    box-shadow: -1px 0 0 0px rgba(0, 0, 0, 0.75);
+}
+
+/* fix for handball */
+
+.handball div.live_bets {
+    width: 37px;
+}
+
+.handball div.live_sc_std {
+    width: 113px;
+}
+
+.handball div.live_sc_ng {
+    width: 143px;
+}
+
+#group_15 div.live_head_3, .widget-sport15 div.live_head_3 {
+    width: 40px;
+}
+
+.handball div.live_empty {
+    width: 37px !important;
+    margin-top: 6px;
+    margin-left: 1px;
+}
+
+.live_clickable {
+    cursor: pointer;
+}
+
+
+
+/*Keyframes General*/
+
+@keyframes BLINK {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+
+/*BLINK*/
+
+.live_clickable .overlay_wrapper span span {
+    color: #000;
+    display: inline;
+    vertical-align: baseline;
+    animation-name: BLINK;
+    animation-duration: 1.65s;
+    animation-timing-function: ease-in-out;
+    /*animation-delay:2s;*/
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+ }

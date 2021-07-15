@@ -1,0 +1,38 @@
+.cc_banner-wrapper {
+    position: fixed;
+    width: 100%;
+    height: 50px;
+    bottom: 0;
+    padding-top: 20px;
+    overflow: hidden;
+    background: rgba(34, 34, 34, 0.85);
+    z-index: 9001;
+}
+.cc_container {
+    color: #fff;
+    font-size: 14px;
+    width: 680px;
+    margin: 0 auto;
+}
+.cc_container::-moz-selection {
+    background: #ff5e99;
+    color: #fff;
+    text-shadow: none
+}
+.cc_container a{
+    color: #fff;
+    text-decoration: underline;
+}
+.privacyReadmore{
+    float: right
+}
+.privacyReadmore{
+    height: 24px;
+    background: #f5d400;
+    opacity: 0.7;
+    padding: 2px;
+    cursor: pointer;
+}
+.privacyReadmore img{
+    filter: invert(1);
+}

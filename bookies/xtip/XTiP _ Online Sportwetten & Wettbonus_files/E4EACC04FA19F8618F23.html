@@ -1,0 +1,183 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0109)https://api.zanox.ws/xhtml/2011-03-01/applications/iframe/E4EACC04FA19F8618F23?mediaslot=296BDC683A288A316DD9 -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script src="./zanox.js.download" type="text/javascript" charset="utf-8"></script>
+        <script type="text/javascript" charset="utf-8">
+            zanox.runsInIframe = true;
+        </script>
+    </head>
+    <body style="margin:0px;padding:0px;" marginwidth="0" marginheight="0">
+        <div class="zx_mediaslot zx_296BDC683A288A316DD9">
+                <div id="ZXE4EACC04FA19F8618F23" class="zx_app_E4EACC04FA19F8618F23"><script type="text/javascript">
+function objectToString(o){
+    
+    if( !o )
+        return false;
+        
+    var parse = function(_o){
+        
+        var a = [], t;
+        
+        for(var p in _o) {
+            
+            if( typeof p != "undefined" && p != "undefined" && typeof p != null && p !== null && p != "null" ) { 
+            
+                if(_o.hasOwnProperty(p)){
+                    
+                    if( !_o[p] || typeof _o[p] == "undefined" || _o[p] != "undefined" || typeof _o[p] != null || _o[p] !== null || _o[p] != "null" ) {
+                        continue;
+                    }
+                    
+                    t = _o[p];
+                    
+                    if(t && typeof t == "object") {
+                        
+                        a[a.length]= p + ":{ " + arguments.callee(t).join(", ") + "}";
+                         
+                    } else {
+                        
+                        if( typeof t != "undefined" && t != "undefined" && typeof t != null && t !== null && t != "null" ) {
+                        
+                            var objstr = t.toString(); 
+                          
+                            if(typeof t == "string"){    
+                                
+                                a[a.length] = [ p + ": \"" + objstr + "\"" ];
+                                    
+                            } else {
+                            
+                                a[a.length] = [ p + ": " + objstr ];
+                            
+                            }
+                           
+                        }
+                    }
+                }
+            
+            }
+        }
+        
+        return a;
+    }
+    
+    return "{" + parse(o).join(", ") + "}";
+}
+
+ zanox.setCallback("E4EACC04FA19F8618F23", function(data) {
+    var settings = data.app.settings;
+    var adspaceId = settings['programName'];
+    var pageType = settings['pageType'];
+    var country = settings['ad4matCountry'];
+	if(!country) return;
+    var country2 = settings['ad4matCountry2'];
+    var productId = "";
+    var catId = "";
+    var search_name = "";
+    var sprd = "false";
+    var quantity = "";
+	var revenue = "";
+	var orderid = "";	
+	var currency = "";	
+
+	function resultsProductIdsCommaSeperated (products) {
+
+		if(!products || !products.length) return '';
+
+		var productsString = '';
+		for ( var i = 0; i < products.length; i++)
+		{
+			if (products[i].identifier != null)
+			{
+				productsString += encodeURIComponent(products[i].identifier);
+				if (i < (products.length - 1)) productsString += ',';
+            }
+        }
+        return productsString;
+    }
+	
+	function sumUpQuantity (quantity) {	  
+			var countQuantity = 0;
+				if (quantity.length) {
+				for (i = 0; i < quantity.length; i++) {
+				countQuantity += parseFloat(quantity[i].quantity);
+				}
+			}
+			return countQuantity;
+		}
+	
+	
+    switch (pageType) {
+      case "home":
+      var catId = "home";
+
+      break;
+      case "category":
+      var catId = encodeURIComponent(settings['category_categoryName']); 
+
+      break;
+      case "generic":
+	  
+      break;
+      case "product":
+      var productId = settings['product_productId'];
+	  var catId = encodeURIComponent(settings['product_categoryName']);
+
+      break;
+      case "basket":
+		var productId = resultsProductIdsCommaSeperated(settings['basket_products']); 
+		
+      break;
+      case "search":
+      var searchName = objectToString(settings['search_searchString']);
+      break;
+
+	  case "checkout":
+	  var sprd = "true";
+
+	  var quantity = sumUpQuantity(settings["checkout_products"]);
+	  var revenue = settings['checkout_Revenue'];
+	  var orderid = settings['checkout_OrderId'];
+	  var currency = settings['checkout_Currency'];
+	  break;
+  }
+
+var country1 = country;
+
+
+
+/*
+if(window.location.protocol == "https:" && (country != "www.ad4mat.de" || country != "ad4mat.de")){
+	var country = "www.ad4mat.net"; 
+}
+*/
+	 
+if(country == "www.ad4mat.de" || country == "ad4mat.de"){
+	var country = "www.ad4mat.de"; 
+	var country1 = "www.ad4mat.de"; 
+}else{
+	if(window.location.protocol == "https:"){
+		var country = "www.ad4mat.net"; 
+	}
+}	 
+	 
+	 
+	 
+
+if (settings["disabled"] != null && (settings["disabled"] === true || settings["disabled"] === "true")) {
+            return;
+        }
+
+        if (settings["" + pageType + "_disabled"] != null && (settings["" + pageType + "_disabled"] === true || settings["" + pageType + "_disabled"] === "true")) {
+            return;
+        }
+
+   var myScripts = ( window.location.protocol == "https:" ? "https:" : "http:") + "//"+country+"/ads/js/ck_tracker.php?productId="+productId+"&catId="+catId+"&searchName="+escape(searchName)+"&mt=1&adspaceId="+escape(adspaceId)+"&sprd="+escape(sprd)+"&country="+country1+"&country2="+country2+"&quantity="+quantity+"&revenue="+escape(revenue)+"&orderId="+escape(orderid)+"&currency="+currency;
+
+   zanox.load( myScripts );
+
+
+});
+</script></div>
+        </div>
+    
+</body></html>

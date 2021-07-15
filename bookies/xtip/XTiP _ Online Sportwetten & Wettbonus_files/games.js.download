@@ -1,0 +1,3824 @@
+/* 
+ * Games.js handles the functionality related to the Games widgets (Live/Upcoming/Favourite Games)
+ *
+ * Functions in this file are categorised as follows:
+ * --------------------------------------------------
+ * - Declare Variables
+ * - General/Common Functions
+ * - Complete Reload
+ * - Switch Page
+ * - Switch Sport
+ * - Opening new widget
+ * - Live Bets in Left Menu
+ * - OTHER functions
+ * - Document ready
+ *
+ * ======================================================================
+ * DECLARE VARIABLES
+ * ======================================================================
+ */
+/* 
+ * declare object with all the open widgets and their parameters
+ * open_game_widgets = {
+ *     '[widget 1 ID]' : { parameters object }
+ *     '[widget N ID]' : { parameters object }
+ * }
+ */
+var console_logging = false; // whether to use console.logs or not
+
+var open_games_widgets = {}; // populated immediately on document.ready (at the bottom of this file)
+
+/* Reload (AJAX calls) timeouts (in milliseconds) */
+var timeouts = {
+    success: 165000, // wait 165 sec after success ajax call
+    error: 20000, // wait 20 sec after error in ajax call
+    not_found: 30000, // wait 30 sec if ajax call wasn't done because object not found
+    livemenu_and_counters: 165000, // wait 165 sec to reload left menu sports and games in left menu and the widget live tabs counters
+};
+var reload_timeouts = []; // will be used to store ongoing timeouts
+
+/* ======================================================================
+ * GENERAL/COMMON FUNCTIONS
+ * ======================================================================
+ */
+
+ /* debugging console logs which can be turned on/off */ 
+function _console_log(log){
+    if (console_logging == true) console.log(log);
+}
+
+/* Convert Array to Object */
+function array_to_object(arr)
+{
+    var rv = {};
+    for (var i = 0; i < arr.length; ++i)
+        rv[i] = arr[i];
+    return rv;
+}
+
+/* 
+ * Get all array combinations - Array recursion
+ * Example: Input array [[a,b], [c,z], [d,e,f]]
+ *          Output array [acd, bcd, azd, bzd, ace, bce, aze, ... etc]
+ */
+function array_combinations(array) {
+    if (array.length == 1) {
+        return array[0];
+    } 
+    else {
+        var result = [];
+        var allCasesOfRest = array_combinations(array.slice(1));  // recur with the rest of array
+        for (var i = 0, ilen = allCasesOfRest.length; i < ilen; i++)
+        {
+          for (var j = 0, jlen = array[0].length; j < jlen; j++) {
+            result.push(array[0][j] + allCasesOfRest[i]);
+          }
+        }
+        return result;
+    }
+}
+
+/* Get Current Date and Time 
+ * @return dd/mm/yyyy H:i:s
+ */
+function get_current_datetime()
+{
+    var currentdate = new Date(); 
+    var datetime = currentdate.getDate() + "/"
+                   + (currentdate.getMonth()+1)  + "/" 
+                   + currentdate.getFullYear() + " "  
+                   + currentdate.getHours() + ":"  
+                   + currentdate.getMinutes() + ":" 
+                   + currentdate.getSeconds();
+    return datetime;
+}
+
+/* 
+ * Main content loader
+ *
+ * @param action - 'show' or 'hide' loader
+ * @param action_id - a unique id to identify the action which called the loader
+ * @param callback_function - optional
+ */
+function main_content_loader(action, action_id, callback_function)
+{
+    var loader = $("#main #loader_container");
+
+    if (action == 'show')
+    {
+        // create loader if it doesnt exist in page
+        if (loader.length == 0)
+        {
+            $("#main").prepend('<div id="loader_container" class="container"></div>');
+            loader = $("#main #loader_container");
+        }
+        
+        // show loader if it is hidden
+        if (loader.is(":hidden"))
+        {
+            loader.slideDown("fast", function()
+            {
+                // execute callback function
+                if (callback_function !== undefined && callback_function != "") callback_function();            
+            }); 
+        } 
+
+        // add an identifier class to the loader, to be used when deciding whether to hide the loader or not (below)
+        if (action_id !== undefined && action_id != '') 
+        {
+            loader.addClass("js-loader-"+action_id);    
+        }     
+    }
+
+    else if (action == 'hide')
+    {
+        if (loader.length > 0)
+        {
+            // remove the previously-set identifying class for this action id
+            if (action_id !== undefined && action_id != '') 
+            {
+                loader.removeClass("js-loader-"+action_id);
+                loader = $("#main #loader_container");
+            } 
+
+            // if loader has other loading process active (by looking at the identifying classes added above), do not hide
+            var hide_loader = true;
+            var loader_classes = loader.attr("class");
+            var re = /js-loader/g;
+            var match = loader_classes.match(re);
+            if (match != null && match.length > 0)
+            {                
+                hide_loader = false;
+            }
+
+            if (hide_loader && loader.is(":visible"))
+            {
+                loader.slideUp("fast", function()
+                { 
+                    $(this).remove(); 
+
+                    // execute callback function
+                    if (callback_function !== undefined && callback_function != "") callback_function();   
+                });
+            }
+        }
+    }
+}
+
+/* Widget Loader/Content transition effect
+ *
+ * - when switching pages/sports:
+ *                 - before process (ajax): hide content, show loader
+ *                 - after process (ajax): hide loader, show content
+ *
+ * @param - widget_id - the widget id in which the action is taking place
+ * @param - action - "before_process" or "after_process" (see comment above)
+ * @param - loader_selector - the selector (.class or #id) for the loader to show/hide
+ * @param - content_selector - the selector (.class or #id) for the content to show/hide
+ * @param - dom_changed - true or false - if function called after ajax success (DOM was changed)
+ */
+function widget_loader_transition(widget_id, action, loader_selector, content_selector, dom_changed)
+{
+    var loader = $("#"+widget_id+" "+loader_selector);
+    var content = $("#"+widget_id+" "+content_selector);
+
+    // BEFORE process - hide content, show loader
+    if (action == "before_process")
+    {
+        content.fadeTo("fast", 0); // fadeOut but unhide content
+        loader.fadeIn("fast"); // fadeIn loader
+    }
+
+    // AFTER process - hide loader, show content
+    else if (action == "after_process")
+    {
+        // if DOM was changed, restore loader/content states before process
+        if (dom_changed == true)
+        {
+            loader.show();
+            content.css({"opacity":0});            
+        }
+
+        loader.fadeOut("fast");
+        content.fadeTo("fast", 1);
+    }
+}
+
+/*
+ * Check if game widgets enabled in page (if container .widgets-wrapper exists in the DOM)
+ *
+ * @return true or false
+ */
+function check_if_game_widgets_enabled()
+{
+    if ($(".widget-container").length > 0) 
+    {
+        return true;
+    }
+    else 
+    {
+        return false;
+    }
+}
+
+/* get all open widgets inside the page as objects
+ *
+ * @param filter_parameters - optional - object {} - return only the widgets with these data-* attributes
+ *                           - if not set, function returns all open widgets
+ * @return object {} - each widget as an object
+ */
+function get_open_widgets(filter_parameters)
+{ 
+    var filtered_widgets = {};
+    var all_widgets = $("#main").find(".js-games-widget");
+    all_widgets = (all_widgets.length > 0) ? all_widgets : [];
+
+    if (all_widgets.length > 0)
+    {
+        // if there are filter parameters set, only return the widgets with the matching parameters
+        if (typeof filter_parameters == "object")
+        {     
+            // for each widget
+            all_widgets.each(function()
+            {
+                var widget = $(this);
+                var widget_id = widget.attr("id");
+                var unmatched_parameters = false;
+                // check if a data-* attribute doesn't match the given parameters
+                $.each(filter_parameters, function(key, value)
+                { 
+                    // if value has multiple possibilities
+                    if (Array.isArray(value)) {
+                        var possibilities_match = false;
+                        $.each(value, function(i, val){
+                            if (widget.attr("data-"+key) == val) {
+                                possibilities_match = true;
+                            }
+                        });
+                        if (possibilities_match == false) unmatched_parameters = true;
+                    }
+
+                    // if value has only one possibility
+                    else {
+                        if (widget.attr("data-"+key) != value) {
+                            unmatched_parameters = true;
+                        }
+                    }
+                });
+                // if all parameters match, add to filtered array
+                if (unmatched_parameters == false) filtered_widgets[widget_id] = widget;
+            }); // end: for each widget        
+        }
+
+        // else: return all widgets available
+        else 
+        {
+            all_widgets.each(function()
+            {
+                var widget_id = $(this).attr("id");
+                filtered_widgets[widget_id] = $(this);
+            });
+        }
+    }
+ 
+    return filtered_widgets;
+}
+
+/* Get an array of a single parameter value from each open widget
+ * - based on the get_open_widgets() above
+ *
+ * @param return_parameter - which single data-* parameter from each widget to return 
+ *                         - ex: "sport_id" -> an array with all open sport IDs
+ * @param filter_parameters - object {} - return only the widgets with these data-* attributes
+ *                           - if not set, function returns all open widgets
+ *
+ * @return array - an array with all the open widgets' return_parameter
+ */
+function get_open_widgets_single_parameter(return_parameter, filter_parameters)
+{
+    if (return_parameter === undefined) return false;
+
+    var widgets_parameter_values = [];    
+    var open_widgets = get_open_widgets(filter_parameters);
+
+    // get the return_parameter of each open widget
+    $.each(open_widgets, function(widget_id, widget)
+    {
+        var parameter_value = widget.attr("data-"+return_parameter);
+        widgets_parameter_values.push(parameter_value);
+    });
+
+    return widgets_parameter_values;
+}
+
+/*
+ * Get Single Widget Parameters
+ * The function gets the parameters from the widget container's data-attributes.
+ *
+ * @param widget - the widget container as an object
+ *
+ * @return object - all the parameters as an object {}
+ * @return array - all the parameters as an array []
+ * @return string - all the parameters as a one-line string
+ */
+function get_current_widget_parameters(widget)
+{
+    if (widget === undefined || widget.length == 0) return false;
+
+    var parameters_object = {}; // the parameters stored in a object - to be used in ajax)
+    var parameters_array = []; // the parameters stored in an array
+    var parameters_string = ""; // this is the string-version of the array, to be used for easy-comparison
+
+    // get each (data-*) attribute of the widget
+    var widget_attributes = widget[0].attributes;
+    if (widget_attributes.length > 0)
+    {
+        // for each attribute, store in array and string
+        $.each(widget_attributes, function(index, value)
+        {
+            var attr_name = value.name;
+            var attr_value = value.value;
+
+            // get only the data-* attributes
+            if (attr_name.indexOf("data-") > -1)
+            {
+                // store the parameter name rather than the attribute name
+                var parameter_name = attr_name.replace('data-','');
+
+                // store empty value rather than "undefined"
+                if (attr_value === undefined) attr_value = "";
+
+                // add values to array
+                parameters_object[parameter_name] = attr_value;
+                parameters_array[parameter_name] = attr_value;
+                // add values to string
+                parameters_string += "&" + parameter_name + "=" + attr_value;
+            }
+        });
+    }
+    // end: get each attribute of the widget
+
+    return {
+        object: parameters_object, 
+        array: parameters_array, 
+        string: parameters_string
+    };
+}
+
+/* 
+ * Store the current open games widgets' parameters in the open_games_widgets object {}.
+ *
+ * - open_games_widgets {} has to be declared before calling this function. Currently it is declared at the bottom of this file (document.ready) 
+ *
+ * - @param clear_data_first - true or false, if true: empty the object first
+ * - @param widget - optional - object - if widget is passed, only the data from that widget is stored
+ */
+function store_open_widgets_attr_data(clear_data_first, widget)
+{
+    if (open_games_widgets === undefined || typeof open_games_widgets !== 'object') return false;
+
+    if (clear_data_first != false) open_games_widgets = {}; // empty data already set
+
+    if (widget !== undefined && widget.length > 0)
+    {
+        var widget_id = widget.attr("id");
+        var widgets = {}; // to match return in get_open_widgets() used below
+        widgets[widget_id] = widget;
+    }
+    else 
+    {
+        var widgets = get_open_widgets();
+    }
+
+    $.each(widgets, function(widget_id, widget)
+    {
+        open_games_widgets[widget_id] = {}; // store widget ID
+
+        var parameters = get_current_widget_parameters(widget).object;
+
+        // store widget's parameters
+        $.each(parameters, function(key, value)
+        {
+            open_games_widgets[widget_id][key] = value;
+        });
+    });   
+}
+
+/* 
+ * Change games widget's single/multiple parameters in open_games_widgets object {}.
+ * - to change one parameter - 'key' and 'value' are required.
+ * - to change multiple parameters - 'multiple' is required.
+ *
+ * @param widget - widget as an object (if not provided, widget_id is needed)
+ * @param widget_id - (if not provided, widget as an object is needed)
+ * @param key - string (one parameter)
+ * @param value - string (one parameter)
+ * @param multiple - object { 'key1':'value1',
+ *                            'key2':'value2', etc } 
+ * @param widget_delete - remove widget's entry
+ */
+function change_open_widgets_attr_data(widget, widget_id, key, value, multiple, widget_delete)
+{
+    if (widget === undefined && widget_id === undefined) return false;
+
+    if (widget !== undefined && widget.length > 0)
+    {
+        var widget_id = widget.attr("id");
+    }
+    else if (widget_id !== undefined && widget_id != "")
+    {
+        var widget = $("#"+widget_id);
+        if (widget.length == 0) return false;
+    }
+
+    if (open_games_widgets[widget_id] === undefined) return false;
+
+    // if set to delete, remove widget's entry and other widget related data
+    if (widget_delete == true) 
+    {
+        delete open_games_widgets[widget_id];
+        reset_widget_games_data(widget_id, true);
+    }
+
+    // Changing MULTIPLE parameters
+    if (typeof multiple === 'object')
+    {
+        $.each(multiple, function(key, value)
+        {
+            widget.attr("data-"+key, value);
+
+            if (key == "sport_id") games_widget_change_active_sports_class(widget, value); // on sport change, change widget class (.widget-sportX)
+
+            if (open_games_widgets[widget_id] !== undefined)
+                open_games_widgets[widget_id][key] = value;
+        });
+    }
+
+    // Changing a SINGLE parameter
+    else if (key !== undefined && key != ""
+             && value !== undefined && value != "")
+    {
+        widget.attr("data-"+key, value);
+
+        if (key == "sport_id") games_widget_change_active_sports_class(widget, value); // on sport change, change widget class (.widget-sportX)
+
+        if (open_games_widgets[widget_id] !== undefined)
+            open_games_widgets[widget_id][key] = value;
+    }  
+}
+
+/*
+ * Function which updates the widget's .widget-sportX class when the widget sport is changed.
+ *
+ * @param widget - object
+ * @param new_sport_id
+ */
+function games_widget_change_active_sports_class(widget, new_sport_id)
+{
+    var widget_classes = widget.attr("class");
+    if (widget_classes.length != 0)
+    {
+        var re = /(widget-sport\d+)/g; // find and return all the .widget-sportX classes
+        var current_sport_classes = widget_classes.match(re);
+        for (var i=0, len = current_sport_classes.length; i<len; i++)
+        {
+            widget.removeClass(current_sport_classes[i]); // remove all .widget-sportX classes
+        }
+    } 
+
+    widget.addClass("widget-sport"+new_sport_id); // add new .widget-sportX class   
+}
+
+/*
+ * Hide Games Widgets
+ *
+ * @param - widgets - widgets as an object to hide
+ * @param - selector - if object is not passed, use this selector instead
+ * @param - animation - true or false - it true, slideUp() is used. Otherwise hide()
+ * @param - animation_speed - optional
+ * @param - force_hide - if set to true, widget should remain hidden
+ *                     - if set to false, widget is hidden, but if games are
+ *                       available on page load, widget is shown
+ * @param - widget_delete - true or false - delete widget after hiding it
+ * @param - callback function - optional
+ */
+function hide_games_widgets(widgets, selector, animation, animation_speed, force_hide, widget_delete, callback_function)
+{
+    // determine which object to hide and prepare them in an object
+    if ((widgets === undefined || widgets == "") && selector !== undefined && selector != '')
+    {
+        widgets = $(selector);
+        if (widgets.length == 0) return false;
+    }
+    var widgets_to_hide = {};
+    $.each(widgets, function(index, widget)
+    {
+        widgets_to_hide[index] = $(widget);
+    });
+
+    var hide_action = (force_hide == true) ? "forced_hidden" : "hidden";
+
+    // for each widget
+    var widgets_count = Object.keys(widgets_to_hide).length;
+    var count = 0;
+    $.each(widgets_to_hide, function(index, widget)
+    {      
+        // Hide without animation
+        if (animation == false || widget.is(":hidden"))
+        {
+            count++;
+
+            widget.hide().addClass("widget-hidden"); // hide object
+
+            // update widget's attributes (visibility to 'hidden')
+            change_open_widgets_attr_data(widget, '', "visibility", hide_action, '', widget_delete);
+
+            if (widget_delete == true) widget.remove(); // delete it
+
+            if (force_hide == true) {
+                empty_widget_from_games(widget);
+                if (widget.attr("id") == "widget_live_tabbed") { empty_gameids_cont("livegroup"); }
+            } // remove all games from widget
+
+            // execute callback function
+            if (count == widgets_count && callback_function !== undefined && callback_function != "") callback_function();
+        }  
+        
+        // Hide with animation (SlideUp)
+        else
+        {
+            var speed = (animation_speed !== undefined && animation_speed != '') ? animation_speed : "normal";
+            widget.slideUp(speed, function()
+            {
+                widget.addClass("widget-hidden");
+
+                // update widget's attributes (visibility to 'hidden')
+                change_open_widgets_attr_data(widget, '', "visibility", hide_action, '', widget_delete);
+
+                if (widget_delete == true) widget.remove(); // delete it
+
+                if (force_hide == true) {
+                    empty_widget_from_games(widget);
+                    if (widget.attr("id") == "widget_live_tabbed") { empty_gameids_cont("livegroup"); }
+                } // remove all games from widget
+
+                count++;
+                // execute callback function after last item is hidden
+                if (count == widgets_count && callback_function !== undefined && callback_function != "") callback_function();          
+            });
+        }
+
+    });  
+    // end: for each widget 
+}
+
+function empty_widget_from_games(widget) {
+    widget.find(".live_gamecontainer, .live_row").remove();
+}
+
+/*
+ * Show (Unhide) Games Widgets
+ *
+ * @param - widgets - widgets as an object to show
+ * @param - selector - if 'widgets' object is not passed, use this selector instead
+ * @param - animation - true or false - it true, slideDown() is used. Otherwise show()
+ * @param - animation_speed - optional
+ * @param - reload - boolean - if true, reload widget
+ * @param - callback function - optional
+ */
+function show_games_widgets(widgets, selector, animation, animation_speed, reload, callback_function)
+{
+    // determine which object to show and prepare them in an object
+    if ((widgets === undefined || widgets == "") && selector !== undefined && selector != '')
+    {
+        widgets = $(selector);
+        if (widgets.length == 0) return false;
+    }
+    var widgets_to_show = {};
+    $.each(widgets, function(index, widget)
+    {
+        widgets_to_show[index] = $(widget);
+    });
+
+    // for each widget
+    var widgets_count = Object.keys(widgets_to_show).length;
+    var count = 0;
+    $.each(widgets_to_show, function(index, widget)
+    {
+        var widget = $(this);
+
+        // if reload widget
+        if (reload == true) {
+            // reload all widgets with visibility set to visible
+            var modified_parameters = {
+                "visibility": "visible"
+            };
+            games_widget_complete_reload(widget, modified_parameters, true, true, callback_function, true);
+        }
+
+        // show only if widget contains games
+        else if (widget.find(".widget-games-group").children().length > 0)
+        {
+            // Show without animation
+            if (animation == false || widget.is(":visible"))
+            {
+                count++;
+
+                widget.show().removeClass("widget-hidden"); // show object
+
+                // update widget's attributes (visibility to 'visible')
+                change_open_widgets_attr_data(widget, '', "visibility", "visible");
+
+                games_remove_bet_locks(widget); // remove bet locks
+
+                // execute callback function
+                if (count == widgets_count && callback_function !== undefined && callback_function != "") callback_function();
+            }  
+            
+            // Show with animation (SlideDown)
+            else
+            {
+                var speed = (animation_speed !== undefined && animation_speed != '') ? animation_speed : "normal";
+                widget.slideDown(speed, function()
+                {
+                    widget.removeClass("widget-hidden");
+
+                    // update widget's attributes (visibility to 'visible')
+                    change_open_widgets_attr_data(widget, '', "visibility", "visible");
+
+                    games_remove_bet_locks(widget); // remove bet locks
+
+                    count++;
+                    // execute callback function after last item is hidden
+                    if (count == widgets_count && callback_function !== undefined && callback_function != "") callback_function();          
+                });
+            }
+        } // end: show only if widget contains games
+
+        // if widget doesn't contain games, change visibility from "forced_hidden" to just "hidden" - so if on complete reload, games are available, widget would show
+        else 
+        {
+            // update widget's attributes (visibility to 'hidden')
+            change_open_widgets_attr_data(widget, '', "visibility", "hidden");
+        }
+
+    });  
+    // end: for each widget 
+}
+
+/*
+ * Hide all games widgets 
+ * -- set all "visible" and "hidden" widgets to "force_hidden"
+ *
+ * @param - true or false - if true, hide only the tabbed and single widgets (with sports nav tabs and non-custom)
+ * @param - callback function - optional
+ */
+function hide_all_games_widgets(tabbed_widgets, callback_function)
+{
+    // bypass for case of grouped widgets on page where all should be hidden
+    if (controllerID == 'videostreams') {
+        
+        videostreams_hide_widgets();
+        if (callback_function !== undefined && callback_function != "") {
+            callback_function();
+        }
+        
+    } else {
+        
+        var filter_parameters = {};
+        if (tabbed_widgets == true)
+        {
+            filter_parameters['widget_type'] = ['tabbed', 'single'];
+        }
+        filter_parameters['visibility'] = ['visible','hidden'];
+        var widgets_to_hide = get_open_widgets(filter_parameters);
+
+        // if there are open widgets
+        if (Object.keys(widgets_to_hide).length > 0)
+        {
+            hide_games_widgets(widgets_to_hide, '', true, "normal", true, '', function()
+            {
+                if (callback_function !== undefined && callback_function != "") callback_function(); // callback function
+            });
+        } 
+        else 
+        {       
+            if (callback_function !== undefined && callback_function != "") callback_function(); // callback function
+        }
+    }
+}
+
+/*
+ * Show all (hidden) games widgets (reload them)
+ * -- set all "forced_hidden" widgets to "visible" (to 'hidden' if it doesn't contain games)
+ *
+ * @param - true or false - if true, show only the tabbed widgets (with sports nav tabs)
+ * @param - callback function - optional
+ */
+function show_all_games_widgets(tabbed_widgets, callback_function)
+{
+    // bypass for case of grouped widgets on page where all should be hidden
+    if (controllerID == 'videostreams') {
+        
+        videostreams_show_widgets();
+        if (callback_function !== undefined && callback_function != ""){
+            callback_function();
+        }
+        
+    } else {
+        
+        var filter_parameters = {};
+        if (tabbed_widgets == true)
+        {
+            filter_parameters['widget_type'] = 'tabbed';
+        } 
+        filter_parameters['visibility'] = ['forced_hidden'];
+
+        var widgets_to_show = get_open_widgets(filter_parameters);
+
+        // if there are hidden widgets
+        if (Object.keys(widgets_to_show).length > 0)
+        {
+            var count = 0;
+            $.each(widgets_to_show, function(index, widget) {
+                count++;
+                var callback = (count == Object.keys(widgets_to_show).length) ? callback_function : '';
+                // reload all widgets with visibility set to visible
+                var modified_parameters = {
+                    "visibility": "visible"
+                };
+                games_widget_complete_reload(widget, modified_parameters, true, true, callback, true);
+            });
+        } 
+        else 
+        {       
+            if (callback_function !== undefined && callback_function != "") callback_function(); // callback function
+        }  
+    }
+}
+
+/*
+ * Hide all sportsbook leagues
+ *
+ * @param - callback function - optional
+ */
+function hide_all_sportsbook_leagues(callback_function)
+{
+    var leagues_container = $("#container_bets");
+    if (leagues_container.length == 0) return false;
+
+    if (leagues_container.is(":visible"))
+    {
+        leagues_container.slideUp("fast", function()
+        {
+            if (callback_function !== undefined && callback_function != "") callback_function(); // callback function
+        });
+    }  
+}
+
+/*
+ * Show all (hidden) sportsbook leagues
+ *
+ * @param - callback function - optional
+ */
+function show_all_sportsbook_leagues(callback_function)
+{
+    var leagues_container = $("#container_bets");
+    if (leagues_container.length == 0) return false;
+
+    if (leagues_container.is(":hidden"))
+    {
+        leagues_container.slideDown("normal", function()
+        {
+            games_remove_bet_locks(leagues_container); // remove bet locks
+
+            if (callback_function !== undefined && callback_function != "") callback_function(); // callback function
+        });
+    }   
+}
+
+/*
+ * Exta page elements (ex: banner)
+ * - not directly related to the games widgets but exist in the main section of the site
+ *
+ * @return object {} - with all the elements as objects
+ */
+function main_extra_page_elements()
+{
+    // add more elements to this object
+    var elements = {};
+
+    var main_banner = $("#main #banner"); // main rotating banner
+    if (main_banner.length > 0) elements[0] = main_banner;
+
+    var startscreen = $("#container_startscreen"); // startscreen old container (for last minute page)
+    if (startscreen.length > 0) elements[1] = startscreen;
+
+    var oddswidget = $(".widget-oddswidget"); // cms / generic content
+    if (oddswidget.length > 0) elements[2] = oddswidget;
+
+    var cms_content = $(".container.generic_content"); // cms / generic content
+    if (cms_content.length > 0) elements[3] = cms_content;
+
+    return elements;
+}
+
+/*
+ * Hide other page elements (ex: banner)
+ * -- specify extra page elements to show/hide during opening of leagues/widgets
+ *
+ * @param - action - 'show' or 'hide'
+ * @param - action_id - optional - assign an identifying class when hiding elements,
+ *                      in order to target the same elements when calling same function
+ *                      to show them again.
+ * @param - callback function - optional
+ */
+function handle_extra_page_elements(action, action_id, callback_function)
+{
+    var elements = main_extra_page_elements();
+
+    var no_of_elements = Object.keys(elements).length;
+
+    // for each element
+    $.each(elements, function(index, object)
+    {
+        // show elements
+        if (action == 'show' && object.is(":hidden") && !object.hasClass(".js-keep-open"))
+        {
+            // if an action_id is specified (ie. show only the objects with this id)
+            var show_object = true;
+            if (action_id !== undefined && action_id != '') 
+            {
+                if (!object.hasClass("js-"+action_id)) show_object = false;
+            }
+
+            if (show_object)
+            {
+                object.slideDown("fast", function()
+                {
+                    // show oddswidget
+                    if (object.hasClass("widget-oddswidget")) {
+                        object.find(".js-games-widget").each(function(){
+                            change_open_widgets_attr_data($(this), '', "visibility", 'visible'); // only the child widgets need to be updated (the parent oddswidget will be reloaded in the check_if_no_widgets_visible function)
+                        });
+                    }
+
+                    if (action_id !== undefined && action_id != '') 
+                    {
+                        if (object.hasClass("js-"+action_id)) object.removeClass("js-"+action_id); // remove identifying class
+                    }
+
+                    if ( ((index+1) == no_of_elements)
+                     && callback_function !== undefined && callback_function != "" )
+                        callback_function(); // execute callback function after last element is shown
+                });
+
+            }
+        }
+
+        // hide elements
+        else if (action == 'hide' && object.is(":visible") && !object.hasClass(".js-keep-open"))
+        {
+            object.slideUp("fast", function()
+            {
+                // hide oddswidget
+                if (object.hasClass("widget-oddswidget")) {
+                    object.find(".js-games-widget").add(object).each(function(){
+                        change_open_widgets_attr_data($(this), '', "visibility", 'forced_hidden');
+                    });
+                }
+
+                if (action_id !== undefined && action_id != '') $(this).addClass("js-"+action_id);
+
+                if ( ((index+1) == no_of_elements)
+                 && callback_function !== undefined && callback_function != "" )
+                    callback_function(); // execute callback function after last element is shown
+            });
+        }
+    }); // end: for each element
+}
+
+/* 
+ * Close single widget
+ *
+ * @param event - when passed, this prevents default action
+ * @param clicked_object - the clicked object which called this function (ex: the close icon). Function then searched for the parent widget, and closes it
+ * @param widget_id - the id of the widget (if clicked_object not applicable/available) close the widget with this ID
+ */
+function close_games_widget(event, clicked_object, widget_id)
+{
+    if (event !== undefined) event.preventDefault();
+
+    // if clicked object is available, get parent widget's id
+    if (clicked_object !== undefined && clicked_object.length > 0)
+    {
+        var widget = clicked_object.parents(".js-games-widget");
+        widget_id = widget.attr("id");
+    }
+    // if available get widget from ID
+    else if (widget_id === undefined || widget_id == "")
+    {
+        return false; 
+    }
+
+    // prepare games to remove from the widget
+    var widget_games = open_games_widgets[widget_id].selected_games;
+    if (widget_games === undefined || widget_games.length == 0) return false;
+
+    var games_to_delete = [];
+    for (var i = 0, len = widget_games.length; i < len; i++) {
+        games_to_delete.push(widget_games[i]);
+    }
+
+    //remove each game from the widget
+    for (var i = 0, len = games_to_delete.length; i < len; i++)
+    {
+        var widget = $("#"+widget_id);
+        var gameid = games_to_delete[i];
+        var game_row = widget.find("#mc-game_container_"+gameid);
+        var game_menu_item = get_leftmenu_livegame_item(gameid);       
+        remove_gamerow_from_custom_widget(game_row, gameid, widget, widget_id, game_menu_item, false);
+    }
+}
+
+/* 
+ * Initialise close widget button click event
+ *
+ * @param specific_widget - object - optional - if set, only click actions inside this widget are initialised 
+ */
+function initialise_closewidget_click_actions(specific_widget)
+{
+    // initialise click actions only in a specific widget
+    if (specific_widget !== undefined && specific_widget != "" && specific_widget.length > 0) {
+        var click_objects = specific_widget.find(".widget-close-icon");
+    }
+    // initialse click actions in ALL available widgets
+    else {
+        var click_objects = $("#main").find(".js-games-widget .widget-close-icon");
+    }
+
+    for (var i = 0, l = click_objects.length; i<l; i++) {
+        var widget_id = $(click_objects[i]).parents(".js-games-widget").attr("id");
+        $(click_objects[i]).unbind('click'); // first remove event handlers from previous initialisation of this function (to prevent duplicate actions)
+        $(click_objects[i]).click(function(event)
+        {
+            close_games_widget(event, $(this), widget_id);
+        });
+    }
+}
+
+
+/*
+ * Remove bets' locks
+ * 
+ * @param container - the container as an object in which to remove locks
+ * @param container_selector - if the container object is not provided, use this selector
+ */
+function games_remove_bet_locks(container, container_selector)
+{
+    if ((container === undefined || container == "" || container.length == 0)
+        && (container_selector !== undefined && container_selector != ""))
+    {
+        var container = $(container_selector);
+        if (container.length == 0) return false;
+    }
+    else { return false; }
+
+    container.find(".sportbet_rate_locked").removeClass("sportbet_rate_locked");
+    container.find(".sportbet_rate_over").removeClass("sportbet_rate_over");
+
+    return true;
+}
+
+
+/*
+ * ======================================================================
+ * COMPLETE RELOAD
+ * ======================================================================
+ */
+
+/* function which completely reloads a widget
+ *
+ * @param widget - object - the widget container as an object
+ * @param modified_parameters - object {} - (optional) array with parameter values which need to
+ *                                          be updated before AJAX call
+ * @param slide_down_animation - true or false - if true, reloaded widget (which was hidden) slides down (animation)
+ * @param show_main_loader - true or false - whether to show the MAIN loader (at the top of the page) before ajax complete
+ * @param - success_callback_function - optional - function to be fired after ajax success
+ * @param - force_reload - boolean - applies to when refreshing a forced_hidden widget. only if set to true, widget will be reloaded
+ */
+function games_widget_complete_reload(widget, modified_parameters, slide_down_animation, show_main_loader, success_callback_function, force_reload)
+{
+    if (widget === undefined || widget.length == 0) return false;
+    var widget_id = widget.attr("id");
+    var widget_type = widget.attr("data-widget_type");
+    
+    // check for custom groups(multiple widgets in group that reload as whole) and redirect actions execution..
+    if (widget_type == 'videostreams_live' || widget_type == 'videostreams_upcoming') {
+        videostreams_widget_complete_reload(widget, modified_parameters, slide_down_animation, show_main_loader, success_callback_function, force_reload);
+        return;
+    }
+    
+    // for widgets with custom games (selected from left menu), send an array with all the selected games
+    var games_ids = "";
+    if (widget_type == "single_custom")
+    {
+        if (open_games_widgets[widget_id] !== undefined && open_games_widgets[widget_id].selected_games !== undefined)
+        {
+            games_ids = open_games_widgets[widget_id].selected_games;
+        }
+    }
+
+    // add class to widget, to ensure that only one reload process is started for this widget
+    widget.addClass("reload_process_active");
+
+    // get current parameters before reload from the widget container's data-attributes
+    var get_current_parameters = get_current_widget_parameters(widget);
+    var current_parameters = get_current_parameters.object;
+
+    // Parameters before AJAX request (to compare with parameters after AJAX request)
+    var state_before_ajax = (get_current_parameters !== false) ? get_current_parameters.string : "";
+
+    // add action parameter
+    current_parameters["action"] = "complete_reload";
+
+    // do not reload a forced_hidden widget, unless 'force_reload' is true
+    if (current_parameters["visibility"] == "forced_hidden" && force_reload != true) return false;
+
+    // modified parameters before ajax call
+    if (modified_parameters !== undefined && (typeof modified_parameters == "object"))
+    {      
+        $.each(modified_parameters, function(key, value) { current_parameters[key] = value; });
+    }
+
+    // sports nav tabs - get x-offset offset (needed for re-setting position after reload)   
+    if (current_parameters["widget_type"] == "tabbed")
+    {
+        var sports_tabs = widget.find(".widget-sports-nav-slide-wrapper ul");
+        var sportstabs_x_offset = 0;
+        if (sports_tabs.length > 0){
+            var sportstabs_x_offset = sports_tabs.css('margin-left');
+            sportstabs_x_offset = parseInt(sportstabs_x_offset);
+        }
+    }
+
+    if (show_main_loader) main_content_loader('show', 'widget-reload-'+widget_id); // show loader
+
+    $.ajax({
+        type: "POST",
+        cache: false,
+        data: {
+            parameters: current_parameters,
+            games_ids: games_ids
+        },
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/completereload',
+        dataType: "html",
+        error: function()
+        {
+            if (show_main_loader) main_content_loader('hide', 'widget-reload-'+widget_id); // hide loader
+
+            clearTimeout(reload_timeouts[widget_id]); // stop any same processes already started
+            reload_timeouts[widget_id] = setTimeout( function() { initialise_widget_complete_reload(widget_id); }, timeouts.error);
+
+            return false;
+        },
+        success: function(htmlcontent)
+        {    
+            if (show_main_loader) main_content_loader('hide', 'widget-reload-'+widget_id); // hide loader
+
+            // Parameters after AJAX request (but before new content)
+            // if these parameters don't match with those BEFORE AJAX request, state of content has changed in between AJAX process. In this case, do not perform complete reload
+            var get_parameters_after_ajax = get_current_widget_parameters(widget);
+            var state_after_ajax = (get_parameters_after_ajax !== false) ? get_parameters_after_ajax.string : "";
+
+            if (state_before_ajax !== state_after_ajax)
+            {
+                _console_log(get_current_datetime() + " - Widget #"+widget_id+": reload mismatch");
+                clearTimeout(reload_timeouts[widget_id]); // stop any same processes already started
+                reload_timeouts[widget_id] = setTimeout( function() { initialise_widget_complete_reload(widget_id); }, timeouts.error);
+
+                return false;
+            }
+
+            _console_log(get_current_datetime() + " - Widget #"+widget_id+": Complete Reload - Sport: "+current_parameters['sport_id']+" Page: "+current_parameters['page']);
+            
+            // replace existing content with returned html
+            widget.replaceWith(htmlcontent);
+            var reloaded_widget = $("#"+widget_id);
+
+            // store updated widget's parameters in open_games_widget {}
+            store_open_widgets_attr_data(false, reloaded_widget);
+
+            // if it's a live custom widget, re-add selected games to widgets data object
+            if (widget_type == "single_custom") {
+                store_selected_gameid_in_widgets_data(widget_id, games_ids);
+                refresh_gameids_custom_widgets();
+            }
+
+            // if it's a live tabbed widget, update live left menu sports' counters
+            if (current_parameters['game_category'] == "live" && current_parameters['widget_type'] == "tabbed") sync_leftmenu_live_counters(reloaded_widget);
+
+            // re-start click functionality (since DOM was changed)
+            var reinit_params = [];
+            reinit_params["action"] = "reload";
+            reinit_params["game_category"] = current_parameters['game_category'];
+            reinit_params["specific_widget"] = reloaded_widget;
+            reinit_params["sportstabs_x_offset"] = sportstabs_x_offset;
+            reinitialise_functions_widget_dom_changed(reinit_params);
+            
+            // restore live games states (headers, dropdowns)
+            if ((current_parameters['game_category'] == "live" || current_parameters['game_category'] == "oddswidget") && current_parameters['visibility'] == "visible") restoreView(widget_id);
+
+            // add class to reloaded container (since DOM was changed), to ensure that only one reload process is started for this widget
+            reloaded_widget.addClass("reload_process_active");
+
+            // slide down (if enabled, and if visible)
+            var updated_widget_visibility = reloaded_widget.attr("data-visibility");
+            if (slide_down_animation == true && updated_widget_visibility == "visible")
+            {
+                reloaded_widget.hide(); // first hide reloaded widget
+                reloaded_widget.slideDown("fast"); // then slide down
+            }
+
+            // show/hide 'no games' message if there aren't/are other visible widgets
+            check_if_no_widgets_visible('show_message');
+
+            // execute callback function
+            if (success_callback_function !== undefined && success_callback_function != "") success_callback_function();
+
+            // repeat process after some time
+            clearTimeout(reload_timeouts[widget_id]); // stop any same processes already started
+            reload_timeouts[widget_id] = setTimeout( function() { initialise_widget_complete_reload(widget_id); }, timeouts.success);
+        }
+    });    
+}
+
+/* function which completely reloads search widget
+ *
+ */
+function search_widget_complete_reload(widgets_to_reload) {
+    var term = new RegExp('[\?&]' + 'term' + '=([^&#]*)').exec(window.location.href);
+    if(term && term.length == 2) {
+        term = term[1];
+    } else {
+        return;
+    }
+    $.ajax({
+        type: "POST",
+        cache: false,
+        data: {
+            term: term
+        },
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=site/search',
+        dataType: "html",
+        error: function()
+        {
+            //if (show_main_loader) main_content_loader('hide', 'widget-reload-'+widget_id); // hide loader
+            //clearTimeout(reload_timeouts[widget_id]); // stop any same processes already started
+            //reload_timeouts[widget_id] = setTimeout( function() { initialise_widget_complete_reload(widget_id); }, timeouts.error);
+            return false;
+        },
+        success: function(htmlcontent) {
+            if(controllerID == 'site' && actionID == 'search' && $('#main').has('.elasticsearch--results').length) {
+                if($(htmlcontent).filter('.elasticsearch--results').length == 0) {
+                    return false;
+                }
+                $("#main").html(htmlcontent);
+
+                //If there are no more matches to show, live or upcoming, then redirec to home age
+                if($("#main").find(".js-games-widget").length == 0){
+                    window.location.href = '/';
+                }
+                Bets.remarkBets();
+                widgets_to_reload.each(function () {
+                    if (controllerID == 'site' && actionID == 'search' && $('#main').has('.elasticsearch--results').length) {
+                        var widget = $(this);
+                        var widget_id = widget.attr("id");
+                        var widget_type = widget.attr("data-widget_type");
+
+                        // for widgets with custom games (selected from left menu), send an array with all the selected games
+                        var games_ids = "";
+                        if (widget_type == "single_custom") {
+                            if (open_games_widgets[widget_id] !== undefined && open_games_widgets[widget_id].selected_games !== undefined) {
+                                games_ids = open_games_widgets[widget_id].selected_games;
+                            }
+                        }
+
+                        widget.addClass("reload_process_active");
+
+                        // get current parameters before reload from the widget container's data-attributes
+                        var get_current_parameters = get_current_widget_parameters(widget);
+                        var current_parameters = get_current_parameters.object;
+
+                        // Parameters before AJAX request (to compare with parameters after AJAX request)
+                        var state_before_ajax = (get_current_parameters !== false) ? get_current_parameters.string : "";
+
+                        // add action parameter
+                        current_parameters["action"] = "complete_reload";
+
+                        // do not reload a forced_hidden widget, unless 'force_reload' is true
+                        if (current_parameters["visibility"] == "forced_hidden" && force_reload != true) return true;
+
+                        // sports nav tabs - get x-offset offset (needed for re-setting position after reload)
+                        if (current_parameters["widget_type"] == "tabbed") {
+                            var sports_tabs = widget.find(".widget-sports-nav-slide-wrapper ul");
+                            var sportstabs_x_offset = 0;
+                            if (sports_tabs.length > 0) {
+                                var sportstabs_x_offset = sports_tabs.css('margin-left');
+                                sportstabs_x_offset = parseInt(sportstabs_x_offset);
+                            }
+                        }
+
+                        //if (show_main_loader) main_content_loader('show', 'widget-reload-'+widget_id); // show loader
+
+
+                        if (widget.attr("data-oddswidget") == "true" && widget.attr("data-oddswidget_params") === undefined) {
+                            return; // if widget is inside oddswidget, don't reload. Reload only the parent oddswidget
+                        }
+
+                        // replace existing content with returned html
+                        widget.replaceWith(htmlcontent);
+                        var reloaded_widget = $("#" + widget_id);
+
+                        // store updated widget's parameters in open_games_widget {}
+                        store_open_widgets_attr_data(false, reloaded_widget);
+
+                        // if it's a live custom widget, re-add selected games to widgets data object
+                        if (widget_type == "single_custom") {
+                            store_selected_gameid_in_widgets_data(widget_id, games_ids);
+                            refresh_gameids_custom_widgets();
+                        }
+
+                        // if it's a live tabbed widget, update live left menu sports' counters
+                        if (current_parameters['game_category'] == "live" && current_parameters['widget_type'] == "tabbed") sync_leftmenu_live_counters(reloaded_widget);
+
+                        // re-start click functionality (since DOM was changed)
+                        var reinit_params = [];
+                        reinit_params["action"] = "reload";
+                        reinit_params["game_category"] = current_parameters['game_category'];
+                        reinit_params["specific_widget"] = reloaded_widget;
+                        reinit_params["sportstabs_x_offset"] = sportstabs_x_offset;
+                        reinitialise_functions_widget_dom_changed(reinit_params);
+
+                        // restore live games states (headers, dropdowns)
+                        if ((current_parameters['game_category'] == "live" || current_parameters['game_category'] == "oddswidget") && current_parameters['visibility'] == "visible") restoreView(widget_id);
+
+                        // add class to reloaded container (since DOM was changed), to ensure that only one reload process is started for this widget
+                        reloaded_widget.addClass("reload_process_active");
+
+                        // slide down (if enabled, and if visible)
+                        var updated_widget_visibility = reloaded_widget.attr("data-visibility");
+
+                        // show/hide 'no games' message if there aren't/are other visible widgets
+                        check_if_no_widgets_visible('show_message');
+
+                        // repeat process after some time
+                        clearTimeout(reload_timeouts[widget_id]); // stop any same processes already started
+                    }
+                });
+                reload_timeouts['search_widgets'] = setTimeout(function () {
+                    initialise_widget_complete_reload();
+                }, timeouts.success);
+            }
+        }
+    });
+}
+
+function videostreams_widget_complete_reload(widget, modified_parameters, slide_down_animation, show_main_loader, success_callback_function, force_reload)
+{
+    var settingVideoStreamsDataWrId = [];
+        settingVideoStreamsDataWrId['videostreams_live'] = "liveVideoStreamsWr";
+        settingVideoStreamsDataWrId['videostreams_upcoming'] = "upcomingVideoStreamsWr";
+    var settingVideoStreamsWidgetTypeFilterVal = [];
+        settingVideoStreamsWidgetTypeFilterVal['videostreams_live'] = "section[data-widget_type='videostreams_live']";
+        settingVideoStreamsWidgetTypeFilterVal['videostreams_upcoming'] = "section[data-widget_type='videostreams_upcoming']";
+    var settingVideoStreamsDataEndpoint = [];
+        settingVideoStreamsDataEndpoint['videostreams_live'] = "/videostreams/livevideostreams";
+        settingVideoStreamsDataEndpoint['videostreams_upcoming'] = "/videostreams/upcomingvideostreams";
+        
+    var $videoStreamsDataWrObj;
+    var $allVideoStreamsObjs;
+    var $allVideoStreamsObjsAvailableForReload;
+    // first widget data to determine if is live or upcoming
+    var games_ids = "";
+    var widget_id;
+    var widget_type;
+    var game_category;
+    var current_parameters = [];
+    
+    // cover for already removed widgets because of no-data
+    if (typeof widget != 'object') { // case where widget param is passed as string for reload from no-data
+        // check for reloads with only widget type passed
+        if (widget == 'videostreams_upcoming') {
+            widget_id = 'widget_videostreams_upcoming__1';
+            widget_type = 'videostreams_upcoming';
+            game_category = 'upcoming';
+            current_parameters['game_category'] = 'upcoming';
+        } else {
+            widget_id = 'widget_videostreams_live_1';
+            widget_type = 'videostreams_live';
+            game_category = 'live';
+            current_parameters['game_category'] = 'live';
+        }
+        
+        $videoStreamsDataWrObj = $("#" + settingVideoStreamsDataWrId[widget_type]);
+        $allVideoStreamsObjs = $videoStreamsDataWrObj.find(settingVideoStreamsWidgetTypeFilterVal[widget_type]);
+        $allVideoStreamsObjsAvailableForReload = $allVideoStreamsObjs.filter(":not(.reload_process_active)");
+        
+    } else {
+        
+        widget_id = widget.attr("id");
+        widget_type = widget.attr("data-widget_type");
+        game_category = widget.attr("data-game_category");
+        // check for matching widget type settings, otherwise do not process
+        if (typeof settingVideoStreamsDataWrId[widget_type] == 'undefined'
+            || typeof settingVideoStreamsWidgetTypeFilterVal[widget_type] == 'undefined'
+            || typeof settingVideoStreamsDataEndpoint[widget_type] == 'undefined'
+        ) {
+            return false;
+        }
+        
+        $videoStreamsDataWrObj = $("#" + settingVideoStreamsDataWrId[widget_type]);
+        $allVideoStreamsObjs = $videoStreamsDataWrObj.find(settingVideoStreamsWidgetTypeFilterVal[widget_type]);
+        $allVideoStreamsObjsAvailableForReload = $allVideoStreamsObjs.filter(":not(.reload_process_active)");
+        // check if widgets are avaibale for reload(in case blocked by other reload) - just ignore, pass, other reload will do the job
+        if ($allVideoStreamsObjsAvailableForReload.length == 0) {
+            return false;
+        }
+        // reload has started, update ALL GROUP widgets classes flags for `active reload`
+        $allVideoStreamsObjs.addClass("reload_process_active");
+        // managing parameters.., reload part is group of widgets, but
+        // is enough to get and send current widget parameters data, 
+        // they are all the same for live/upcoming anyway..
+        var get_current_parameters = get_current_widget_parameters(widget);
+        current_parameters = get_current_parameters.object;
+        // Parameters before AJAX request (to compare with parameters after AJAX request)
+        var state_before_ajax = (get_current_parameters !== false) ? get_current_parameters.string : "";
+        // add action parameter
+        current_parameters["action"] = "complete_reload";
+        // do not reload a forced_hidden widget, unless 'force_reload' is true
+        if (current_parameters["visibility"] == "forced_hidden" && force_reload != true) {
+            return false;
+        };
+        // modified parameters before ajax call
+        if (modified_parameters !== undefined && (typeof modified_parameters == "object")) {      
+            $.each(modified_parameters, function(key, value) {
+                current_parameters[key] = value;
+            });
+        }
+
+        if (show_main_loader) {
+            main_content_loader('show', 'widget-reload-'+widget_id); // show loader
+        }
+    }
+    
+    $.ajax({
+        type: "POST",
+        cache: false,
+        data: {
+//            parameters: current_parameters,
+//            games_ids: games_ids
+        },
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + settingVideoStreamsDataEndpoint[widget_type],
+        dataType: "html",
+        error: function()
+        {
+            console.log(error);
+            // timeouts operations on widget_id are okay because will also apply on whole group
+            clearTimeout(reload_timeouts[widget_id]); // stop any same processes already started
+            reload_timeouts[widget_id] = setTimeout(function() { 
+                videostreams_widget_complete_reload(widget_type);  
+            }, timeouts.error);
+
+            return false;
+        },
+        success: function(htmlcontent)
+        {
+            // Parameters after AJAX request (but before new content)
+            // if these parameters don't match with those BEFORE AJAX request, state of content 
+            // has changed in between AJAX process. In this case, do not perform complete reload
+//            var get_parameters_after_ajax = get_current_widget_parameters(widget);
+//            var state_after_ajax = (get_parameters_after_ajax !== false) ? get_parameters_after_ajax.string : "";
+//            
+//            if (state_before_ajax !== state_after_ajax) {
+//                _console_log(get_current_datetime() + " - Widget #"+widget_id+": reload mismatch");
+//                clearTimeout(reload_timeouts[widget_id]); // stop any same processes already started
+//                reload_timeouts[widget_id] = setTimeout(function() {
+//                    initialise_widget_complete_reload(widget_id);
+//                }, timeouts.error);
+//
+//                return false;
+//            }
+            
+            // replace existing content with returned html
+            $videoStreamsDataWrObj.html(htmlcontent);
+//            Bets.remarkBets(); // remark selected odds - CALLED IN INIT FUNCTIONS
+            // reload widgets objects
+            $videoStreamsDataWrObj = $("#" + settingVideoStreamsDataWrId[widget_type]);
+            $allVideoStreamsObjs = $videoStreamsDataWrObj.find(settingVideoStreamsWidgetTypeFilterVal[widget_type]);
+            $allVideoStreamsObjsAvailableForReload = $allVideoStreamsObjs.filter(":not(.reload_process_active)");
+            // check for any data on screen for no-data scenarion to show info
+            videostreams_check_nodata();
+            
+            var reinit_params = [];
+            reinit_params["action"] = "reload";
+            reinit_params["game_category"] = current_parameters['game_category'];
+            reinit_params["specific_widget"] = $allVideoStreamsObjs;
+            reinitialise_functions_widget_dom_changed(reinit_params);
+
+            if ((current_parameters['game_category'] == "live" 
+                    || current_parameters['game_category'] == "oddswidget")
+                && current_parameters['visibility'] == "visible"
+            ) {
+                restoreView(widget_id);
+            };
+            // show/hide 'no games' message if there aren't/are other visible widgets
+            check_if_no_widgets_visible('show_message');
+            // execute callback function
+            if (success_callback_function !== undefined && success_callback_function != "") {
+                success_callback_function();
+            }
+            // repeat process after some time
+            clearTimeout(reload_timeouts[widget_id]); // stop any same processes already started
+            reload_timeouts[widget_id] = setTimeout(
+                function() {
+                    videostreams_widget_complete_reload(widget_type);
+                }, timeouts.success);
+            
+        },
+        complete: function(data)
+        {
+            if (show_main_loader) {
+                main_content_loader('hide', 'widget-reload-'+widget_id); 
+            }
+        }
+    });    
+}
+
+function videostreams_hide_widgets()
+{
+    // no need for now hiding of speciofic widget group (live, upcoming..)
+    // is used for xtra so all should be hidden
+    var $videoStreamsResultsObj = $("#videoStreamsResults");
+    
+    $videoStreamsResultsObj.slideUp("fast", function() {
+        
+    });
+}
+
+function videostreams_show_widgets()
+{
+    // no need for now showing of speciofic widget group (live, upcoming..)
+    // is used for xtra so all should be hidden
+    var $videoStreamsResultsObj = $("#videoStreamsResults");
+    
+    $videoStreamsResultsObj.show();
+}
+
+function videostreams_check_nodata()
+{
+    var $videoStreamNoDataSec = $("#videoStreamsResults #videoStreamsNoDataWr");
+    var $videoStreamLiveSec = $("#videoStreamsResults #liveVideoStreams");
+    var $videoStreamUpcomingSec = $("#videoStreamsResults #upcomingVideoStreams");
+    
+    if (($videoStreamLiveSec.length == 0 || $videoStreamLiveSec.text().trim().length == 0)
+        && ($videoStreamUpcomingSec.length == 0 || $videoStreamUpcomingSec.text().trim().length == 0)
+    ) {
+        $videoStreamLiveSec.hide();
+        $videoStreamUpcomingSec.hide();
+        $videoStreamNoDataSec.show();
+    } else {
+        $videoStreamLiveSec.show();
+        $videoStreamUpcomingSec.show();
+        $videoStreamNoDataSec.hide();
+    }
+}
+
+/* initialise widget complete reload
+ *
+ * if NO specified_widget_id is set (on page load, or after new widgets are loaded), the function looks for all open widgets (.js-games-widget) which do not have a reload process already started, and starts this process for each.
+ *     - once initialised, the function repeats independently for EACH widget after a defined period (by passing the widget id as parameter to this function) 
+ *
+ * if a specified_widget_id is set, the function only reloads the specified widget
+ *
+ * @param specified_widget_id
+ */
+function initialise_widget_complete_reload(specified_widget_id) {
+    /* =======================================
+     * Determine which widget()s to reload
+     * ======================================= */
+
+    // if NO specified_widget_id is set, the function looks for all open widgets to reload (which do not have a reload process already started)
+    var widgets_to_reload = $("#main").find(".js-games-widget:not(.reload_process_active)");
+
+    // if a specified_widget_id is set, the function only reloads the specified widget
+    if (specified_widget_id !== undefined && specified_widget_id != "") {
+        // if container exists
+        if ($("#" + specified_widget_id).length == 1) {
+            widgets_to_reload = $("#" + specified_widget_id);
+        }
+        // if container doesnt exist, stop function
+        else {
+            return false;
+        }
+    }
+
+    // if there are no live containers, check again some time later
+    if (widgets_to_reload.length == 0) {
+        clearTimeout(reload_timeouts["check_for_widgets_to_reload_later"]); // stop any same processes already started
+        reload_timeouts["check_for_widgets_to_reload_later"] = setTimeout(function () {
+            initialise_widget_complete_reload();
+        }, timeouts.not_found);
+    }
+
+    /* =======================================
+     * For each widget to reload
+     * ======================================= */
+    if(controllerID == 'site' && actionID == 'search' && $('#main').has('.elasticsearch--results').length) {
+        search_widget_complete_reload(widgets_to_reload);
+    } else {
+        widgets_to_reload.each(function () {
+            var widget = $(this);
+
+            if (widget.attr("data-oddswidget") == "true" && widget.attr("data-oddswidget_params") === undefined) {
+                return; // if widget is inside oddswidget, don't reload. Reload only the parent oddswidget
+            }
+            else if(widget.data("widget_type") == "custom_league")
+            {
+                var groupid = widget.parents(".sportsbook_league_container").data("group-id");
+                Bets.selectGroup(groupid, '', "true");
+                //reload_timeouts[specified_widget_id] = setTimeout( function() { initialise_widget_complete_reload(specified_widget_id); }, timeouts.success);
+            }
+            else
+            {
+                games_widget_complete_reload(widget);
+            }
+        });
+    }
+    // end: for each widget to reload
+}
+
+/*
+ * ======================================================================
+ * SWITCH PAGE
+ * ======================================================================
+ */
+
+/* function which switches pages in widgets 
+ *
+ * @param widget - object - the widget container as an object
+ * @param target_page - int - the new page number
+ * @param modified_parameters - object {} - (optional) array with parameter values which need to
+ *                                          be updated before AJAX call
+ * @param - success_callback_function - optional - function to be fired after ajax success
+ */
+function games_widget_switch_page(widget, target_page, modified_parameters, success_callback_function)
+{
+    if (widget === undefined || widget.length == 0 || target_page === undefined) return false;
+    var widget_id = widget.attr("id");
+
+    // get current parameters before reload from the widget container's data-attributes (and set defaults)
+    var get_current_parameters = get_current_widget_parameters(widget);
+    var current_parameters = get_current_parameters.object;
+
+    // if target page is the same as current page, function doesn't apply
+    var current_page = current_parameters["page"];
+    if (target_page == current_page) return false; 
+
+    // update current parameters' "page" to target page
+    current_parameters["page"] = target_page;
+
+    // add action parameter
+    current_parameters["action"] = "switch_page";
+
+    // modified parameters before ajax call
+    if (modified_parameters !== undefined && (typeof modified_parameters == "object"))
+    {      
+        $.each(modified_parameters, function(key, value) { 
+            current_parameters[key] = value; 
+            change_open_widgets_attr_data(widget, '', key, value);
+        });
+    } 
+
+    // add class to widget to prevent duplicate action at once
+    widget.addClass("action_switchpage_active");
+
+    // fade out current games, and fade in loader
+    widget_loader_transition(widget_id, "before_process", ".widget-loader", ".widget-games-group", false);
+
+    $.ajax({
+        type: "POST",
+        cache: false,
+        data: {
+            parameters: current_parameters
+        },
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/switchpage',
+        dataType: "html",
+        error: function()
+        {
+            // fade in current games, and fade out loader
+            widget_loader_transition(widget_id, "after_process", ".widget-loader", ".widget-games-group", false);
+
+            widget.removeClass("action_switchpage_active"); // remove action class once ajax complete
+        },
+        success: function(htmlcontent)
+        {    
+            _console_log(get_current_datetime() + " - " + current_parameters["game_category"]+": New Page: "+target_page);
+
+            // update widget attributes
+            change_open_widgets_attr_data(widget, '', "page", target_page);
+
+            // update widget page active class
+            widget.find(".widget-pagination .widget-page-link").removeClass("active");
+            widget.find(".widget-pagination .widget-page-link-"+target_page).addClass("active");
+
+            // disable prev/next page links accordingly
+            var number_of_pages = widget.find(".widget-pagination").attr("data-number-of-pages");
+            widget.find(".widget-pagination .widget-page-link").removeClass("disabled"); // first reset buttons
+            if (target_page == "1") widget.find(".widget-pagination .widget-page-link-prev").addClass("disabled"); // disable prev button
+            if (target_page == number_of_pages) widget.find(".widget-pagination .widget-page-link-next").addClass("disabled"); // disable next button
+
+            destroyActiveBetradarWidgetsObjects(widget_id); // stop any betradar open processes in the widget
+
+            // replace widget game group content (only the widget game group content - not the whole widget container) with new returned html content
+            widget.find(".widget-games-group").replaceWith(htmlcontent);
+            var updated_widget = $("#"+widget_id);
+
+            // fade in new games, and fade out loader
+            widget_loader_transition(widget_id, "after_process", ".widget-loader", ".widget-games-group", true);
+
+            updated_widget.removeClass("action_switchpage_active"); // remove action class once ajax complete
+
+            // re-start click functionality (since DOM was changed)
+            var reinit_params = [];
+            reinit_params["action"] = "switchpage";
+            reinit_params["game_category"] = current_parameters['game_category'];
+            reinit_params["specific_widget"] = updated_widget;
+            reinitialise_functions_widget_dom_changed(reinit_params);
+
+            // execute callback function
+            if (success_callback_function !== undefined && success_callback_function != "") success_callback_function();
+        }
+    });
+}
+
+ /* the onclick functionality of pagination for the widgets.
+ * It is initialised on page load, and whenever the DOM (html content) of the widgets changes (example: new widget was loaded via JS/AJAX)
+ *
+ * @param specific_widget - object - optional - if set, only click actions inside this widget are initialised
+ */
+function initialise_switchpage_click_actions(specific_widget)
+{
+    // initialise click actions only in a specific widget
+    if (specific_widget !== undefined && specific_widget != "" && specific_widget.length > 0) {
+        var click_objects = specific_widget.find(".widget-pagination .widget-page-link");
+    }
+    // initialse click actions in ALL available widgets
+    else {
+        var click_objects = $("#main").find(".js-games-widget .widget-pagination .widget-page-link");
+    }
+
+    click_objects.unbind('click'); // first remove event handlers from previous initialisation of this function (to prevent duplicate actions)
+    click_objects.click(function(event)
+    {
+        event.preventDefault(); // stop default link action
+
+        // if disabled, do nothing
+        if ($(this).hasClass("disabled")) return false;
+
+        var widget = $(this).parents(".js-games-widget"); // the widget container which contains all the content and parameters
+        if (widget.length == 0) return false; // if widget container doesn't exist, stop function
+
+        // target page
+        var target_page = $(this).attr("data-target-page");
+        // if no target page is set, function doesn't apply
+        if (target_page === undefined || target_page == "") return false;
+
+        // handle prev/next links
+        var current_page = $(this).parents("ul").find(".widget-page-link.active").attr("data-target-page"); 
+        current_page = parseFloat(current_page);
+
+            // go to previous page
+            if (target_page == "prev")
+            {
+                target_page = current_page-1;
+            }
+
+            // go to next page
+            if (target_page == "next")
+            {
+                target_page = current_page+1;
+            }
+      
+        // switch page
+        games_widget_switch_page(widget, target_page);
+    });
+
+} // end: initialise_switchpage_click_actions()
+
+/*
+ * ======================================================================
+ * SWITCH SPORTS
+ * ======================================================================
+ */
+
+/* function which switches sports in widgets 
+ *
+ * @param widget - object - the widget container as an object
+ * @param target_sport_id - int - the new sport id
+ * @param modified_parameters - object {} - (optional) array with parameter values which need to
+ *                                          be updated before AJAX call
+ * @param - success_callback_function - optional - function to be fired after ajax success
+ */
+function games_widget_switch_sport(widget, target_sport_id, modified_parameters, success_callback_function)
+{
+    if (widget === undefined || widget.length == 0 || target_sport_id === undefined) return false;
+    var widget_id = widget.attr("id");
+
+    // get current parameters before reload from the widget container's data-attributes (and set defaults)
+    var get_current_parameters = get_current_widget_parameters(widget);
+    var current_parameters = get_current_parameters.object;
+
+    // if target sport id is the same as current sport id, function doesn't apply
+    var current_sport_id = current_parameters["sport_id"];
+    if (target_sport_id == current_sport_id) return false; 
+
+    // update current parameters' "sport_id" to target page
+    current_parameters["sport_id"] = target_sport_id;
+
+    // add action parameter
+    current_parameters["action"] = "switch_sport";
+
+    // modified parameters before ajax call
+    if (modified_parameters !== undefined && (typeof modified_parameters == "object"))
+    {      
+        $.each(modified_parameters, function(key, value) { 
+            current_parameters[key] = value;
+            change_open_widgets_attr_data(widget, '', key, value); 
+        });
+    }
+
+    // add class to widget to prevent duplicate action at once
+    widget.addClass("action_switchsport_active");
+
+    // fade out current games, and fade in loader
+    widget_loader_transition(widget_id, "before_process", ".widget-loader", ".widget-games-group", false);
+
+    $.ajax({
+        type: "POST",
+        cache: false,
+        data: {
+            parameters: current_parameters
+        },
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/switchsport',
+        dataType: "html",
+        error: function()
+        {
+            // fade in current games, and fade out loader
+            widget_loader_transition(widget_id, "after_process", ".widget-loader", ".widget-games-group", false);
+
+            widget.removeClass("action_switchsport_active"); // remove action class once ajax complete
+        },
+        success: function(htmlcontent)
+        {
+            _console_log(get_current_datetime() + " - " + current_parameters["game_category"]+": New Sport: "+target_sport_id);
+
+            // update widget attributes
+            var multiple = { 'sport_id' : target_sport_id, 
+                             'page' : 1 };
+            change_open_widgets_attr_data(widget, '', '', '', multiple);
+
+            // update widget sports nav tabs active class
+            change_widget_sports_active_class(widget, target_sport_id);
+
+            destroyActiveBetradarWidgetsObjects(widget_id); // stop any betradar open processes in the widget
+
+            // replace widget content (only the widget content - not the whole widget container) with new returned html content
+            widget.find(".widget-content").replaceWith(htmlcontent);
+            var updated_widget = $("#"+widget_id);
+
+            // fade in new games, and fade out loader
+            widget_loader_transition(widget_id, "after_process", ".widget-loader", ".widget-games-group", true);
+
+            updated_widget.removeClass("action_switchsport_active"); // remove action class once ajax complete
+
+            // re-start click functionality (since DOM was changed)
+            var reinit_params = [];
+            reinit_params["action"] = "switchsport";
+            reinit_params["game_category"] = current_parameters['game_category'];
+            reinit_params["specific_widget"] = updated_widget;
+            reinitialise_functions_widget_dom_changed(reinit_params);
+
+            // update live odds since a sport was changed
+            if (updated_widget.attr("data-game_category") == "live" && updated_widget.attr("data-visibility") == "visible") updateFeed(false);
+
+            // execute callback function
+            if (success_callback_function !== undefined && success_callback_function != "") success_callback_function();
+        }
+    });
+}
+
+/* the onclick functionality of switching between sports for the widgets.
+ * It is initialised on page load, and whenever the DOM (html content) of the widgets changes (example: new widget was loaded via JS/AJAX)
+ *
+ * @param specific_widget - object - optional - if set, only click actions inside this widget are initialised
+ */
+function initialise_switchsport_click_actions(specific_widget)
+{
+    // initialise click actions only in a specific widget
+    if (specific_widget !== undefined && specific_widget != "" && specific_widget.length > 0) {
+        var click_objects = specific_widget.find(".widget-sports-nav .widget-sport-link");
+    }
+    // initialse click actions in ALL available widgets
+    else {
+        var click_objects = $("#main").find(".js-games-widget .widget-sports-nav .widget-sport-link");
+    }
+
+    // use this array for click tracking later with the call to trackIT()
+    var sports = {
+        1:  'football',
+        2:  'tennis',
+        10: 'ice hockey',
+        12: 'basketball',
+        15: 'handball',
+        23: 'volleyball'
+    };
+
+    click_objects.unbind('click'); // first remove event handlers from previous initialisation of this function (to prevent duplicate actions)
+    click_objects.click(function(event)
+    {
+        event.preventDefault(); // stop default link action
+
+        // target sport id
+        var target_sport_id = $(this).attr("data-target-sport-id");
+        // if no target sport id is set, function doesn't apply
+        if (target_sport_id === undefined || target_sport_id == "") return false;
+        var widget = $(this).parents(".js-games-widget"); // the widget container which contains all the content and parameters
+
+        if (widget.length == 0) return false; // if widget container doesn't exist, stop function
+
+        var sport_name = sports[target_sport_id] ? sports['target_sport_id'] : 'unknown sport';
+        trackIT('click: live games tab', 'live games tab sport changed', sport_name);
+
+        var widget_id = widget.attr("id");
+        var game_category = widget.attr("data-game_category");
+        
+        // switch sport
+        games_widget_switch_sport(widget, target_sport_id, "", function()
+        {
+            // callback - on change of sport, perform other actions on the widgets
+            modify_tabbed_widgets_after_sports_switch(target_sport_id, game_category, widget_id, function()
+            {
+                // callback 2 - on widget reload, scroll to the clicked link's widget
+                scroll_to_a_container($("#"+widget_id));
+            });
+        });
+
+    });
+
+} // end: initialise_switchsports_click_actions()
+
+/* Change Widget Sports Tabs Active Class
+ * - used mostly when switching between sports tabs
+ *
+ * @param - widget - object - the widget container as an object
+ * @param - sport_id - the newly-active sports id
+ */
+function change_widget_sports_active_class(widget, sport_id)
+{
+    // function requires an existing widget and a sport id
+    if (widget === undefined || widget.length == 0 || sport_id === undefined) return false;
+
+    // remove other active classes
+    widget.find(".widget-sports-nav .widget-sport-link").removeClass("active");
+
+    // check if sports tab existst for the newly-active sports id
+    widget.find(".widget-sports-nav .widget-sport-link-"+sport_id).addClass("active");
+}
+
+
+/* Perform actions on widgets after a sports change on a widget
+ *
+ * Case 1 - if upcoming widget which changed sport results in a "no games"
+ *          message (after filtering duplicates), if same sport is available
+ *          in Favourites, load it with "maximised" state
+ * Case 2 - if sports change was fired from LIVE nav tabs, also change the
+ *          sport of other tabbed widgets (if hidden, try reloading it)
+ * Case 3 - if on any widget sport change, another widget is hidden, try
+ *          reloading it with the new sport
+ *
+ * @param target_sport_id - int - the sport id which was loaded in the widget which fired this function
+ * @param active_game_category - when called from sports nav tabs, pass game category
+ * @param active_widget_id - the ID of the widget which fired this function
+ * @param reload_callback - optional - function to be passed and fired after widget reload
+ */
+function modify_tabbed_widgets_after_sports_switch(target_sport_id, active_game_category, active_widget_id, reload_callback)
+{
+    var reload_favourite_widget = "";
+
+    if (target_sport_id === undefined || target_sport_id == "") return false;
+
+    /* ========================================================
+     * Perform actions on the widget which called this function
+     * ========================================================
+     */
+    var widget = $("#"+active_widget_id);
+    _console_log("new sport: "+widget.attr("data-sport_id"));
+
+    // Case 1 - if upcoming widget which changed sport results in a "no games" message (after filtering duplicates), reload it to refresh its state (to invisible)
+    if (active_game_category == "upcoming" && widget.find(".widget-message.no-live-games").length > 0)
+    {
+        // hide upcoming widget
+        $("#widget_nogames").slideDown("normal");
+
+        // reload favourites widget to this sport
+        reload_favourite_widget = true;
+    }
+    else {
+        check_if_no_widgets_visible('show_message');
+    }
+
+    /* ========================================================
+     * Perform actions on tabbed widgets other than the one
+     * which fired this function
+     * ========================================================
+     */
+    var tabbed_widgets = $("#main").find(".js-games-widget[data-widget_type='tabbed']");
+    tabbed_widgets.each(function()
+    {
+        var widget = $(this);
+        var widget_id = $(this).attr("id");
+
+        // perform actions only on the other widgets
+        if (widget_id != active_widget_id)
+        {
+            // Case 2 - if sports change was fired from LIVE nav tabs, also change the sport of other visible tabbed widgets
+            if (active_game_category == "live" && widget.attr("data-visibility") == "visible")
+            {
+                // if target sport is available (by checking the sports nav tabs)
+                if (widget.find(".widget-sports-nav .widget-sport-link-"+target_sport_id).length > 0)
+                {
+                    // it's an upcoming games widget, re-run this function for Case 1 (comment above)
+                    if (widget.attr("data-game_category") == "upcoming")
+                    {
+                        games_widget_switch_sport(widget, target_sport_id, '', function()
+                        {
+                            modify_tabbed_widgets_after_sports_switch(target_sport_id, "upcoming", widget_id);
+                        });
+                    }
+                    // change this widget's sport
+                    else 
+                    {
+                        games_widget_switch_sport(widget, target_sport_id); 
+                    }
+                }
+            }
+
+            // Case 1a - (see comments above) switch favourite sport to target sport (if available) and maximise it
+            else if (reload_favourite_widget == true 
+                && widget.attr("data-game_category") == "favourite" && widget.attr("data-sport_id") != target_sport_id 
+                && widget.find(".widget-sports-nav .widget-sport-link-"+target_sport_id).length > 0)
+            {
+                var modified_parameters = {
+                    "display_state": "maximised"
+                };
+                change_open_widgets_attr_data(widget, '', "display_state", "maximised"); 
+                games_widget_switch_sport(widget, target_sport_id, modified_parameters, reload_callback);
+            }
+
+            // Case 1b - (see comments above) maximise favourite sport widget
+            else if (reload_favourite_widget == true && widget.attr("data-game_category") == "favourite" 
+                && widget.attr("data-sport_id") == target_sport_id && widget.attr("data-display_state") == "minimised")
+            {
+                games_widget_change_state(widget, "maximised", false);
+            }
+
+            // Case 3 - if on any widget sport change, another widget is hidden, try reloading it with the new sport
+            else if (widget.attr("data-visibility") == "hidden")
+            {
+                // reload widget with new sport id
+                var modified_parameters = {
+                    "sport_id": target_sport_id
+                };
+                games_widget_complete_reload(widget, modified_parameters, true, true, reload_callback);
+            }
+        }
+        // end: perform actions only on the other widgets
+    });
+}
+
+/*
+ * ======================================================================
+ * OPEN SEPARATE WIDGET (SPORT)
+ * ======================================================================
+ *
+ * this function opens a widget separately with a given set of parameters
+ *
+ * @param - parameters - object {} - the common parameter values to open a new widget
+ * @param - ordered_sports - optional - array of ordered sport ids (if set, function matches the order of the sports when it comes to load this new widget)
+ * @param - scroll_to_widget - true or false - if true, windows scrolls to the newly-loaded widget
+ * @param - success_callback_function - optional - function to be fired after ajax success
+ */
+function open_separate_widget(parameters, ordered_sports, scroll_to_widget, success_callback_function)
+{
+    // function cannot work if game category, game type, or sport id are not defined
+    if (parameters === undefined || parameters.length == 0) return false;
+
+    $.ajax({
+        type: "POST",
+        cache: false,
+        data: {
+            parameters: parameters
+        },
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/openwidget',
+        dataType: "html",
+        success: function(htmlcontent)
+        {
+            var $new_widget = $(htmlcontent);
+            var new_widget_classes = $new_widget.attr("class");
+
+            // if new widget was returned successfully
+            if (new_widget_classes !== undefined && new_widget_classes.indexOf("js-games-widget") > -1)
+            {
+                _console_log(get_current_datetime() + " - " + parameters["game_category"]+": New Separate Widget - Sport: "+parameters["sport_id"]);
+
+                var widget_id = $new_widget.attr("id");
+
+                var widget_type = parameters["widget_type"];
+                var sport_id = parameters["sport_id"];
+                
+                var widget_positioning_set = false;
+
+                // place the new widget according to the sports order as returned in the live interface
+                if (ordered_sports !== undefined && ordered_sports.length > 0)
+                {
+                    var placing_sports_order = new_single_widget_placing(widget_type, sport_id, ordered_sports);
+                    if (placing_sports_order.before != false)
+                    {
+                        placing_sports_order.before.after(htmlcontent);
+                        widget_positioning_set = true;
+                    }
+                    else if (placing_sports_order.after != false)
+                    {
+                        placing_sports_order.after.before(htmlcontent);
+                        widget_positioning_set = true;
+                    }
+                }
+
+                // if the live interface's sports order is unavailable, or if there aren't any other matching sports widgets, place the new widget at the top
+                if (widget_positioning_set == false)
+                {
+                    var first_existing_widget = $("#main").find(".js-games-widget").first();
+                    // place returned content before existing widgets
+                    if (first_existing_widget.length == 1)
+                    {
+                       first_existing_widget.before(htmlcontent);
+                    }
+
+                    // if there are no widgets, prepend to main widgets wrapper
+                    else 
+                    {
+                        $(".widgets-wrapper").first().prepend(htmlcontent);
+                    }
+                }
+
+                var new_widget = $("#"+widget_id); // find new widget after it was added to the DOM
+
+                // store new widget's attributes in open_games_widgets object {}
+                store_open_widgets_attr_data(false, new_widget);
+
+                // scroll to new widget
+                if (scroll_to_widget == true)
+                {
+                    scroll_to_a_container(new_widget, true, '');
+                }
+
+                // re-start click functionality (since DOM was changed)
+                var reinit_params = []; reinit_params["action"] = "initial_load";
+                reinit_params["game_category"] = parameters['game_category'];
+                reinitialise_functions_widget_dom_changed(reinit_params);
+
+                // execute callback function
+                if (success_callback_function !== undefined && success_callback_function != "") success_callback_function();
+
+                // initialise complete reload function again to start reload process for this new container
+                setTimeout( function() { initialise_widget_complete_reload(); }, timeouts.success); // after 165 seconds
+            }
+            // end: if new widget was returned successfully
+        } // end: ajax success
+    });
+}
+
+/*
+ * ======================================================================
+ * LIVE BETS IN LEFT MENU & CUSTOM GAMES WIDGETS
+ * ======================================================================
+ */
+
+/* 
+ * Generate Custom Games Widget ID
+ *
+ * @param sportid
+ */
+function custom_games_widget_id(sportid)
+{
+    var widget_id = "widget_live_single_custom_"+sportid;
+    return widget_id;
+}
+
+/*
+ * Get left Menu Live Game Item <li> (.left-menu-game)
+ *
+ * - return false if not found
+ */
+function get_leftmenu_livegame_item(gameid)
+{
+    var return_value = false;
+    var menu_item = $("#sports_sidebar_menu").find("#lm-left-menu-game-"+gameid);
+    if (menu_item.length > 0) return_value = menu_item;
+    return return_value;
+}
+
+/*
+ * Event handler function for selecting live games from the left menu
+ *
+ * @param specific_container - object - optional - if set, only selectors INSIDE this container are considered (otherwise, all selectors are considered)
+ */
+function initialise_livegames_in_leftmenu_selectors(specific_container)
+{
+    // initialise click actions in a specific container
+    if (specific_container !== undefined && specific_container.length > 0)
+    {
+        var leftmenu_livegames_selectors = specific_container.find(".game-selector-container .left-menu-game-selector");
+    }
+    // initialise click actions for all selectors
+    else
+    {
+        var leftmenu_livegames_selectors = $("#sports_sidebar_menu").find(".left-menu-games-list .game-selector-container .left-menu-game-selector");
+  
+    }
+    
+    if (leftmenu_livegames_selectors.length == 0) return false; 
+
+    // for each selector
+    leftmenu_livegames_selectors.each(function()
+    {
+        $(this).unbind('change'); // first remove event handlers from previous initialisation of this function (to prevent duplicate actions)
+
+        var selector = $(this);
+        // --  for each selector(checkbox) to attach linked 'click' event on related game title(.game-teams)
+        selector.parents(".left-menu-game").find('.game-teams').click(function()
+        {
+            selector.click();
+        });
+        //------------------------------
+        selector.change(function()
+        {                 
+            var game_menu_item = selector.parents(".left-menu-game");
+            var gameid = game_menu_item.attr("data-gameid");
+            var sportid = selector.parents(".left-menu-games-list").attr("data-sportid");
+
+            // ---------------- GAME IS SELECTED ----------------
+            if (selector.is(':checked'))
+            {              
+                leftmenu_livegame_select_and_getdata(gameid, sportid, game_menu_item);
+            }
+
+            // ---------------- GAME IS UNSELECTED ----------------
+            else
+            {
+                leftmenu_livegame_deselect(gameid, sportid, game_menu_item);
+            }
+        });
+
+    });
+    // end: for each selector
+}
+
+/* 
+ * Select a left menu live game via game id
+ * - when only game id is known (ex: on page load - through GET parameters)
+ */
+function leftmenu_select_live_game_via_id(gameid)
+{
+    if (gameid === undefined) return false;
+
+    var game_menu_item = $("#sports_sidebar_menu").find("#lm-left-menu-game-"+gameid);
+    if (game_menu_item.length == 0 || game_menu_item.hasClass("selected-game")) return false; // if game doesn't exist or is already selected, exit function
+
+    var game_checkbox = game_menu_item.find(".left-menu-game-selector");
+    var game_sport_id = game_menu_item.parent(".left-menu-games-list").attr("data-sportid");
+
+    var live_menu_item = game_menu_item.parents("#left_menu_live");  
+    var menu_state = leftmenu_live_current_state(live_menu_item);   
+
+    // open live menu if it is closed
+    if (menu_state.menu_open == false)
+    {
+        live_menu_item.children(".menu_link").trigger('click');
+    }
+
+    // open game's sport submenu if it is closed
+    if (menu_state.sports[game_sport_id] !== undefined && menu_state.sports[game_sport_id]['submenu_open'] == false)
+    {
+        var submenu_id = menu_state.sports[game_sport_id]['submenu_id'];
+        var sport_menu_link = live_menu_item.find("#"+submenu_id).siblings(".menu_link");
+        sport_menu_link.trigger('click');
+    }
+
+    // select game
+    game_checkbox.trigger('click');
+}
+
+/*
+ * Select a Live Game from the left menu and get its data from interface
+ *
+ * @param gameid - the game ID of the selected live game
+ * @param sportid - the sport ID of the selected live game
+ * @param menu_item_object - object - the menu item of the selected game
+ */
+function leftmenu_livegame_select_and_getdata(gameid, sportid, menu_item_object)
+{
+    if (gameid === undefined || sportid === undefined) return false;
+
+    // the menu item of the selected game
+    var game_menu_item = menu_item_object;
+    if (game_menu_item.length == 0) game_menu_item = get_leftmenu_livegame_item(gameid);
+
+    var widget_id = custom_games_widget_id(sportid);
+  
+    var widget = $("#"+widget_id);
+    var first_game_in_widget = 1; // true
+    if (widget.length > 0 && widget.find(".live_gamecontainer").length > 0) {
+        first_game_in_widget = 0; // false
+    }
+
+    var game_row_exists = (widget.length > 0 && widget.find("#mc-game_container_"+gameid).length > 0) ? true : false;
+
+    // if game was already selected and visible in main content or is still loading, do nothing
+    if ( game_menu_item.hasClass("selected-game-loading") || game_menu_item.hasClass("selected-game") || game_row_exists == true ) return false;
+
+    // if games widgets not enabled in page, redirect to live page
+    if (check_if_game_widgets_enabled() == false)
+    {
+        if (liveURL !== undefined) {
+            var redirect_url = liveURL + '?livegame=' + gameid;
+        }
+        else {
+            var redirect_url = '/index.php?r=live/index&livegame=' + gameid;
+        }
+        window.location.href = redirect_url;
+
+        return false;
+    }
+
+    // add loading class to game menu item and lock checkbox
+    game_menu_item.addClass("selected-game-loading").find(".left-menu-game-selector").attr("disabled", true);
+
+    // parameters to open new game
+    var new_game_parameters = {
+        action: 'get_selected_live_game',
+        widget_type: 'single_custom',
+        game_category: 'live',
+        sport_id: sportid,
+        game_id: gameid,
+        widget_id: widget_id
+    };
+
+    main_content_loader('show', 'menu-livegame-'+gameid); // show loader
+
+    // AJAX call to get game row html
+    $.ajax({
+        type: "POST",
+        cache: false,
+        data: {
+            parameters: new_game_parameters,
+            first_game_in_widget: first_game_in_widget
+        },
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/getselectedlivegame',
+        dataType: "html",
+        timeout: 20000,
+        error: function()
+        {
+            main_content_loader('hide', 'menu-livegame-'+gameid); // hide loader
+
+            game_menu_item.find(".left-menu-game-selector").removeAttr("disabled").removeAttr("checked");
+            game_menu_item.removeClass("selected-game-loading selected-game"); // remove loading class
+        },
+        success: function(json_return)
+        {
+            main_content_loader('hide', 'menu-livegame-'+gameid); // hide loader
+
+            if (json_return != "") // if content is returned
+            {
+                var game_return = JSON.parse(json_return);
+                var sports_data = JSON.parse(game_return.sports_data);
+                var game_html = game_return.view;
+
+                handle_extra_page_elements('hide'); // hide extra page elements (ex: banner)
+
+                hide_all_games_widgets(true, function() // hide open tabbed widgets
+                {                        
+                    // callback - load and scroll to game's container single sport widget
+                    prepare_single_live_sports_widget(widget_id, sportid, sports_data, function()
+                    {   
+                        // callback - populate and show the live game row with the returned content
+                        populate_single_livegame_row(widget_id, game_html, gameid, sportid);
+                    });
+                });
+
+                // update classes of game's menu item and tick checkbox once game is added
+                leftmenu_live_mark_selected_game(game_menu_item, gameid);
+
+            } // end: if content is returned
+            else {
+                game_menu_item.removeClass("selected-game");
+                game_menu_item.find(".left-menu-game-selector").removeAttr("checked");
+            }
+            game_menu_item.find(".left-menu-game-selector").removeAttr("disabled");
+            game_menu_item.removeClass("selected-game-loading"); // update classes of game's menu item and unlock checkbox once ajax complete
+        } // end: on ajax success
+    });    
+}
+
+/* 
+ * Mark selected live game in left menu
+ *
+ * -- adds selected classes to game menu item and marks checkbox
+ * @param game_menu_item - optional - object - the game's menu item <li>
+ * @param gameid - the id of the game
+ */
+function leftmenu_live_mark_selected_game(game_menu_item, gameid)
+{
+    if (gameid === undefined || gameid == '') return false;
+
+    if (game_menu_item === undefined || game_menu_item.length == 0)
+    {
+        var game_menu_item = $("#sports_sidebar_menu").find("#left_menu_live #lm-left-menu-game-"+gameid);
+    }
+
+    game_menu_item.addClass("selected-game"); // update classes of game's menu item once game is added
+    game_menu_item.find(".left-menu-game-selector").attr("checked", "true");
+}
+
+/* 
+ * Unmark selected live game in left menu
+ *
+ * -- removes selected classes to game menu item and unmarks checkbox
+ * @param game_menu_item - optional - object - the game's menu item <li>
+ * @param gameid - the id of the game
+ */
+function leftmenu_live_unmark_selected_game(game_menu_item, gameid)
+{
+    if (gameid === undefined || gameid == '') return false;
+
+    if (game_menu_item === undefined || game_menu_item.length == 0)
+    {
+        var game_menu_item = $("#sports_sidebar_menu").find("#left_menu_live #lm-left-menu-game-"+gameid);
+    }
+
+    if (game_menu_item.length > 0) {
+        game_menu_item.removeClass("selected-game");
+        game_menu_item.find(".left-menu-game-selector").removeAttr("checked");
+    }    
+}
+
+/* 
+ * Prepare and scroll to single live sports games widget for selected live games
+ * 
+ * Function checks if sport single widget is already loaded. If not, it opens an empty widget.
+ *
+ * @sportid
+ * @param widget_id - the id of the new widget
+ * @param sports_data - a JSON decoded object of the available sports data (from the interface return headers)
+ * @param callback_function - optional
+ */
+function prepare_single_live_sports_widget(widget_id, sportid, sports_data, callback_function)
+{
+    if (widget_id === false || sportid === undefined || sports_data === undefined) return false;
+
+    var widget = $("#"+widget_id);
+
+    // if widget is loaded
+    if (widget.length > 0)
+    {        
+        if (widget.is(":hidden")) show_games_widgets(widget, '', true); // ensure it is visible
+
+        scroll_to_a_container(widget, true, '', function() // scroll to it
+        {           
+            if (callback_function !== undefined && callback_function != "") callback_function(); // execute callback function
+        });
+    }
+
+    // if widget is not loaded, load it
+    else 
+    {      
+        var sport_name = "";
+        if (sports_data[sportid]["name"] !== undefined) sport_name = sports_data[sportid]["name"];
+
+        // create an array with all the available live sports in order. This is intended to determine the placing of the new widget
+        var ordered_sports = [];
+        $.each(sports_data, function(sports_id, sport_data)
+        {
+            ordered_sports.push(sports_id);
+        });
+
+        var parameters = {
+            action: 'open_empty_widget',
+            widget_type: 'single_custom',
+            game_category: 'live',
+            widget_id: widget_id,
+            sport_id: sportid,
+            sport_name: sport_name
+        };
+
+        open_separate_widget(parameters, ordered_sports, true, function()
+        {
+            if (callback_function !== undefined && callback_function != "") callback_function(); // execute callback function
+        });
+    }
+
+}
+
+/*
+ * New Single Widget Placing
+ * - get the widgets before and after (if available) the new widget
+ *
+ * @param widget_type
+ * @param sport_id
+ * @param ordered_sports - array of ordered sports id
+ *
+ * @return object { 'before' : widget as an html object (false if not available)
+ *                  'after' : " }
+ */
+function new_single_widget_placing(widget_type, sport_id, ordered_sports)
+{
+    var widget_before = false;
+    var widget_after = false;
+
+    if (widget_type !== undefined && widget_type != "" && sport_id !== undefined && sport_id != "" && ordered_sports !== undefined)
+    {
+        var number_of_sports = ordered_sports.length;
+        var widget_index = ordered_sports.indexOf(sport_id); // find the index of the new widget's sport id
+
+        // get the widget before the new one
+        if (widget_index > 0) {
+            widget_before_sportid = ordered_sports[widget_index-1];
+            widget_before = $("#main").find(".js-games-widget[data-widget_type='"+widget_type+"'][data-sport_id='"+widget_before_sportid+"']")
+            if (widget_before.length == 0) widget_before = false;
+        }
+        // get the widget after the new one
+        if (widget_index != -1 && widget_index < (number_of_sports-1))
+        {
+            widget_after_sportid = ordered_sports[widget_index+1];
+            widget_after = $("#main").find(".js-games-widget[data-widget_type='"+widget_type+"'][data-sport_id='"+widget_after_sportid+"']")
+            if (widget_after.length == 0) widget_after = false;
+        }
+    }
+
+    return {
+        'before' : widget_before,
+        'after' : widget_after
+    };
+}
+
+/* 
+ * Populate and show the selected (from left menu) live game in the respective widget
+ *
+ * @param widget_id
+ * @param game_html_content
+ * @param gameid
+ * @param sportid
+ */
+function populate_single_livegame_row(widget_id, game_html_content, gameid, sportid)
+{     
+    if (widget_id === undefined || game_html_content === undefined) return false;
+
+    var widget = $("#"+widget_id);
+    if (widget.length == 0) return false;
+
+    widget.find(".widget-games-group").prepend(game_html_content);
+    widget = $("#"+widget_id); // update widget
+
+    if (gameid !== undefined)
+    {       
+        var new_game_row = widget.find(".widget-games-group #mc-game_container_"+gameid);
+        restoreView(widget_id);
+        new_game_row.hide().slideDown();
+    }
+
+    initialise_livegames_handlers_dom_changed(widget); // initialise event handlers for live game rows
+
+    // store the new game id in the widget data object
+    store_selected_gameid_in_widgets_data(widget_id, gameid);
+    addgame_gameids_cont(gameid, sportid, "livegroup_custom"); // add to live gameids hidden container
+}
+
+/* 
+ * Store selected game id in widget data object (open_games_widgets)
+ *
+ * @param widget_id
+ * @param gameids - a single game id or an array of ids for multiple
+ */
+function store_selected_gameid_in_widgets_data(widget_id, gameids)
+{
+    if (widget_id === undefined || gameids === undefined) return false;
+
+    if (open_games_widgets[widget_id] === undefined) open_games_widgets[widget_id] = {};
+    if (open_games_widgets[widget_id].selected_games === undefined) open_games_widgets[widget_id].selected_games = [];
+
+    // multiple game ids
+    if (typeof gameids === 'object')
+    {
+        $.each(gameids, function(index, gameid){
+            open_games_widgets[widget_id].selected_games.push(gameid); // use push to keep same order
+        });
+    }
+    // single game id
+    else
+    {
+        open_games_widgets[widget_id].selected_games.unshift(gameids); // add to start of array
+    }   
+}
+
+/*
+ * Deselect a Live Game from the left menu and remove it from widget
+ *
+ * @param gameid - the game ID of the deselected live game
+ * @param sportid - the sport ID of the deselected live game
+ * @param menu_item_object - object - the menu item of the deselected game
+ */
+function leftmenu_livegame_deselect(gameid, sportid, menu_item_object)
+{
+    if (gameid === undefined || sportid === undefined) return false;
+
+    // the menu item of the deselected game
+    var game_menu_item = menu_item_object;
+    if (game_menu_item.length == 0) game_menu_item = get_leftmenu_livegame_item(gameid);
+
+    var widget_id = custom_games_widget_id(sportid);
+  
+    var widget = $("#"+widget_id);
+
+    var game_row = widget.find("#mc-game_container_"+gameid);
+    var game_row_exists = (widget.length > 0 && game_row.length > 0) ? true : false;
+
+    // if game doesn't exist in main content or is still loading, do nothing
+    if ( game_menu_item.hasClass("selected-game-loading") || game_row_exists == false ) return false;
+
+    // add loading class to game menu item and lock checkbox
+    game_menu_item.addClass("selected-game-loading").find(".left-menu-game-selector").attr("disabled", true);
+
+    // scroll to widget
+    scroll_to_a_container(widget, true, '', function()
+    {           
+        // remove game from widget
+        remove_gamerow_from_custom_widget(game_row, gameid, widget, widget_id, game_menu_item, true);
+    });  
+}
+
+/*
+ * Remove deselected game row from widget and update classes and data
+ *
+ * @param game_row - object - the .live_gamecontainer of the game 
+ * @param gameid - the game_row_object is not provided, this is important
+ * @param widget - object - optional
+ * @param widget_id - the game's widget ID
+ * @param menu_item_object - object - optional - the menu item of the deselected game 
+ * @param animation - if true, gamerow slidesUp
+ */
+function remove_gamerow_from_custom_widget(game_row, gameid, widget, widget_id, menu_item_object, animation)
+{
+    // the menu item of the deselected game
+    var game_menu_item = (menu_item_object !== undefined && menu_item_object.length > 0) ? menu_item_object : get_leftmenu_livegame_item(gameid);
+
+    var widget = (widget !== undefined && widget.length > 0) ? widget : $("#"+widget_id);
+    var sport_id = widget.attr("data-sport_id");
+
+    // if removed game was the only one open in widget, remove widget (since it's now empty)
+    var only_game_in_widget = false; 
+    if (widget.length > 0 && widget.find(".live_gamecontainer").length == 1) {
+        only_game_in_widget = true; 
+    }   
+
+    // remove game with animation (slideUp)
+    if (animation == true)
+    {
+        game_row.slideUp("normal", function()
+        {
+            $(this).remove();
+
+            // hide game's widget if removed game was the only one in the widget
+            if (only_game_in_widget == true) {           
+                hide_games_widgets('', "#"+widget_id, true, 'normal', false, true, function() {
+                    check_if_no_widgets_visible('reload_widgets', function()
+                    {
+                        handle_extra_page_elements('show'); // show extra elements, ex: banner
+                    });
+                });
+            } else {
+                restoreView(widget_id); // update the headers of the rest of the games
+            }
+        });
+    }
+
+    // remove game without animation
+    else
+    {
+        game_row.hide().remove();
+
+        // hide game's widget if removed game was the only one in the widget
+        if (only_game_in_widget == true) {           
+            hide_games_widgets('', "#"+widget_id, true, 'fast', false, true, function() {
+                check_if_no_widgets_visible('reload_widgets', function()
+                {
+                    handle_extra_page_elements('show');
+                });
+            });
+        } else {
+            restoreView(widget_id); // update the headers of the rest of the games
+        }
+    } 
+
+    // update classes and checkbox
+    if (game_menu_item.length > 0) {
+        leftmenu_live_unmark_selected_game(game_menu_item, gameid);
+        setTimeout( function(){ game_menu_item.removeClass("selected-game-loading").find(".left-menu-game-selector").removeAttr("disabled"); }, 1200); // timeout to prevent fast on/off selection
+    }
+
+    // delete the game id from the widget data object
+    delete_deselected_gameid_from_widgets_data(widget_id, gameid);
+    removegame_gameids_cont(gameid, sport_id, "livegroup_custom"); // remove from live gameids hidden container
+}
+
+/* 
+ * Delete deselected game id from widget data object (open_games_widgets {})
+ */
+function delete_deselected_gameid_from_widgets_data(widget_id, gameid)
+{
+    if (widget_id === undefined || widget_id == '' || gameid === undefined || gameid == '') return false;
+
+    var widget_data = open_games_widgets[widget_id];
+    if (widget_data === undefined) return false;
+    var widget_games = widget_data.selected_games;
+    if (widget_games === undefined) return false;
+
+    // get games's index in array
+    for (var i = 0, len = widget_games.length; i < len; i++)
+    {       
+        if (parseInt(widget_games[i]) == parseInt(gameid))
+        {
+            game_index = i;
+        }
+    }
+
+    // delete game
+    if (game_index > -1)
+    {
+        open_games_widgets[widget_id].selected_games.splice(game_index, 1);
+    }
+}
+
+/* 
+ * Load left menu live single sport's submenu
+ *
+ * @param sport_id
+ * @param success_callback - callback function after live menu was loaded
+ */
+function load_livemenu_sport_submenu(sport_id, success_callback)
+{
+    if (sport_id === undefined) return false;
+    sport_id = parseInt(sport_id);
+
+    var live_menu_state = leftmenu_live_current_state();
+    var live_menu_item = $("#sports_sidebar_menu").find("#left_menu_live");
+    var live_menu = live_menu_item.children("ul");
+
+    var sport_menu_item = live_menu.find("#left_menu_live_id"+sport_id);
+    if (sport_menu_item.length == 0) return false;
+
+    // open main live menu item
+    if (!live_menu_state.menu_open) {
+        live_menu_item.addClass("submenu_open");
+        live_menu.show(); 
+    }
+
+    if (sport_menu_item.hasClass("livemenu-sport-loading")) return false;
+    sport_menu_item.addClass("livemenu-sport-loading");
+
+    // get data
+    $.ajax({
+        type: "POST",
+        cache: false,
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/loadleftmenulivesubmenu',
+        data: { sport_id: sport_id, page: 1 },
+        dataType: "html",
+        timeout: 20000,
+        error: function()
+        {
+            sport_menu_item.removeClass("livemenu-sport-loading");
+            return false;
+        },
+        success: function(json_return)
+        {
+            if (json_return != "") // if data was returned
+            {
+                var load_return = JSON.parse(json_return);
+                var gameids = JSON.parse(load_return.gameids);
+                var $loaded_submenu = $(load_return.html);
+                if ($loaded_submenu.attr("id") == "left-menu-games-list-"+sport_id)
+                { // if menu was loaded
+                    sport_menu_item.find("#left-menu-games-list-"+sport_id).remove(); // remove old submenu if it is still there
+                    sport_menu_item.append(load_return.html);
+                    var sport_menu = $("#sports_sidebar_menu").find("#left_menu_live #left-menu-games-list-"+sport_id);
+                    sport_menu.slideDown("fast", function(){
+                        sport_menu_item.addClass("submenu_open");
+
+                        // updated odds once
+                        updateFeed(false);
+
+                        // remark selected games
+                        if (live_menu_state.sports[sport_id] !== undefined) leftmenu_live_remark_selected_games(sport_menu, live_menu_state.sports[sport_id].selected_games);
+
+                        initialise_livegames_in_leftmenu_selectors(); // re-initialise left menu live games selection functionality
+                        initialise_leftmenu_link_actions("left_menu_live"); // re-initialise menu link click actions (since DOM was changed)
+
+                        Bets.remarkBets();
+
+                        sport_menu_item.removeClass("livemenu-sport-loading");
+
+                        gameids = Object.keys(gameids).map(function(k) { return gameids[k] }); // convert object to array
+                        addgame_gameids_cont(gameids, sport_id, "leftmenu", true); // add game ids to hidden container with live games' ids
+
+                        // execute callback function
+                        if (success_callback !== undefined && success_callback != "") success_callback();
+                    });
+                }
+                else {
+                    sport_menu_item.removeClass("livemenu-sport-loading");
+                }
+            }
+            else { // if menu wasn't loaded
+                sport_menu_item.removeClass("livemenu-sport-loading");
+            }
+        }
+    }); 
+}
+
+/*
+ * Switch leftmenu live sport submenu page
+ *
+ * @param sport_id
+ * @param target_page - int|prev|next
+ */
+function livemenu_switch_page(sport_id, target_page)
+{
+    var submenu = $("#left_menu_live #left-menu-games-list-"+sport_id+":visible");
+    if (submenu.length == 0) return false;
+
+    var current_page = parseInt(submenu.attr("data-page"));
+    var no_of_pages = parseInt(submenu.attr("data-no_of_pages"));
+
+    if (target_page == 'prev') { target_page = current_page - 1; }
+    else if (target_page == 'next') { target_page = current_page + 1; }
+    else { target_page = parseInt(target_page); }
+
+    if (target_page == current_page || target_page > no_of_pages || target_page < 1) return false;
+    if (submenu.hasClass("switch_page_in_progress")) return false;
+    submenu.addClass("switch_page_in_progress");
+
+    var live_menu_state = leftmenu_live_current_state();
+
+    var loader = submenu.parent().children(".submenu_loader");
+    if (loader.length == 0) {
+        submenu.before('<div class="submenu_loader"></div>');
+        loader = submenu.parent().children(".submenu_loader");
+    }
+    loader.fadeIn("normal");
+
+    // get data
+    $.ajax({
+        type: "POST",
+        cache: false,
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/loadleftmenulivesubmenu',
+        data: { sport_id: sport_id, page: target_page },
+        dataType: "html",
+        timeout: 20000,
+        error: function () {
+            loader.fadeOut("fast");
+            submenu.removeClass("switch_page_in_progress");
+            return false;
+        },
+        success: function (json_return) {
+
+            if (json_return != "") {
+                var load_return = JSON.parse(json_return);
+                var gameids = JSON.parse(load_return.gameids);
+                var $loaded_submenu = $(load_return.html);
+                if ($loaded_submenu.attr("id") == "left-menu-games-list-" + sport_id) { // if menu was loaded
+                    submenu.replaceWith(load_return.html);
+                    submenu = $("#left_menu_live #left-menu-games-list-" + sport_id + ":visible");
+
+                    submenu.attr("data-page", target_page);
+
+                    updateFeed(false); // updated odds once
+
+                    // remark selected games
+                    if (live_menu_state.sports[sport_id] !== undefined) leftmenu_live_remark_selected_games(submenu, live_menu_state.sports[sport_id].selected_games);
+
+                    gameids = Object.keys(gameids).map(function(k) { return gameids[k] }); // convert object to array
+                    addgame_gameids_cont(gameids, sport_id, "leftmenu", true); // add game ids to hidden container with live games' ids
+
+                    initialise_livegames_in_leftmenu_selectors(); // re-initialise left menu live games selection functionality
+
+                    Bets.remarkBets();
+                }
+            }
+
+            loader.fadeOut("fast");
+            submenu.removeClass("switch_page_in_progress");
+        }
+    });
+}
+
+/* 
+ * Close and delete all open left menu live single sport's submenu
+ *
+ * @param animation - boolean - true - slideup, false - hide
+ * @param callback_function - optional - function after all menus are hidden
+ */
+function close_all_livemenu_sport_submenu(animation, callback_function)
+{
+    var live_menu_state = leftmenu_live_current_state();
+
+    $.each(live_menu_state.open_sport_ids, function(index, sport_id) {
+        // callback function after LAST sport submenu is closed
+        if ((index+1) == live_menu_state.open_sport_ids.length && callback_function !== undefined) {
+            close_single_livemenu_sport_submenu(sport_id, callback_function);
+        }
+        // without callback function
+        else {
+            close_single_livemenu_sport_submenu(sport_id);
+        }
+    });
+}
+
+/* 
+ * Close and delete a left menu live single sport's submenu
+ *
+ * @param sport_id
+ * @param callback_function - optional - function after menu is hidden
+ */
+function close_single_livemenu_sport_submenu(sport_id, callback_function)
+{
+    var menu_item = $("#sports_sidebar_menu").find("#left_menu_live #left_menu_live_id"+sport_id);
+    if (menu_item.length > 0 && menu_item.is(":visible"))
+    {
+        menu_item.children("ul").slideUp("fast", function() {
+            $(this).remove();
+
+            if (callback_function !== undefined) callback_function();
+        });
+        
+        menu_item.removeClass("submenu_open");
+
+        empty_gameids_subcont("leftmenu", sport_id); // remove all live game ids from hidden container
+    }
+}
+
+/* 
+ * Prepare for reloading Left Menu Live and Live Counters in Widget header nav tabs
+ *
+ * - updates grouped together in order to make one request to the live interface
+ */
+function reload_livemenu_and_counters()
+{
+    var live_menu = $("#sports_sidebar_menu").find("#left_menu_live");
+    var widget_live_tabs = $(".widget-live .widget-sports-nav");
+
+    // if there is no live menu or widget live tabs, try again later
+    if (live_menu.length == 0 && widget_live_tabs == 0)
+    {
+        clearTimeout(reload_timeouts["livemenu_and_counters"]); // stop any same processes already started
+        reload_timeouts["livemenu_and_counters"] = setTimeout( function() { reload_livemenu_and_counters(); }, timeouts.livemenu_and_counters);
+        return false;
+    }
+
+    var menu_state = leftmenu_live_current_state(live_menu);
+    var open_sports = {};
+    var sports_before_ajax = "";
+    for (i = 0, l = menu_state.open_sport_ids.length; i < l; i++) {
+        var sport_id = parseInt(menu_state.open_sport_ids[i]);
+        var page = parseInt(menu_state.sports[sport_id].page);
+        open_sports[sport_id] = {
+            'page': page,
+        };
+        sports_before_ajax += sport_id + "-" + page + ",";
+    }
+
+    // get data
+    $.ajax({
+        type: "POST",
+        cache: false,
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/reloadlivemenuandcounters',
+        data: { open_sports: open_sports },
+        dataType: "html",
+        error: function()
+        {
+            clearTimeout(reload_timeouts["livemenu_and_counters"]); // stop any same processes already started
+            reload_timeouts["livemenu_and_counters"] = setTimeout( function() { reload_livemenu_and_counters(); }, timeouts.livemenu_and_counters);
+
+            return false;
+        },
+        success: function(json_return)
+        {
+            if (json_return != "") // if data was returned
+            {
+                var reload_return = JSON.parse(json_return);
+                var sports_data = JSON.parse(reload_return.sports_data);
+                var gameids = JSON.parse(reload_return.gameids);
+                var livemenu_html = reload_return.left_live_menu;
+                var submenus_html = reload_return.submenus;
+
+                // reload live menu (if the open submenu hasn't changed during ajax call)
+                live_menu = $("#left_menu_live"); // updated
+                menu_state = leftmenu_live_current_state(live_menu); // after reload
+                var sports_after_ajax = "";
+                for (i = 0, l = menu_state.open_sport_ids.length; i < l; i++) {
+                    var sport_id = parseInt(menu_state.open_sport_ids[i]);
+                    var page = parseInt(menu_state.sports[sport_id].page);
+                    sports_after_ajax += sport_id + "-" + page + ",";
+                }
+
+                if (livemenu_html != "" && livemenu_html !== undefined && sports_before_ajax == sports_after_ajax)
+                {
+                    leftmenu_livegames_complete_reload(livemenu_html, submenus_html);
+
+                    // update game ids of each sport to hidden container with live games' ids
+                    $.each(gameids, function(id, game_ids) {
+                        var ids_arr = Object.keys(game_ids).map(function (k) {
+                            return game_ids[k]
+                        }); // convert object to array
+                        addgame_gameids_cont(ids_arr, id, "leftmenu", true);
+                    });
+                }
+
+                // update games widget live nav tabs counters
+                if (sports_data != "" && sports_data !== undefined)
+                {
+                    update_live_widget_nav_tabs_counters(sports_data);
+                }
+
+            } // end: if data was returned
+
+            clearTimeout(reload_timeouts["livemenu_and_counters"]); // stop any same processes already started
+            reload_timeouts["livemenu_and_counters"] = setTimeout( function() { reload_livemenu_and_counters(); }, timeouts.livemenu_and_counters);            
+        }  
+    });
+}
+
+/*
+ * function which completely reloads left menu LIVE sports and games
+ * - called from reload_livemenu_and_counters() above
+ * 
+ * @param livemenu_html - the html of the #left_menu_live
+ * @param submenus_html - an array with all the open sport's submenu html
+ */
+function leftmenu_livegames_complete_reload(livemenu_html, submenus_html)
+{   
+    var live_menu_item = $("#left_menu_live");
+    if (live_menu_item.length == 0) return false;
+
+    var menu_state = leftmenu_live_current_state(live_menu_item); // get current live menu state (open sports and page loaded) before new content
+
+    // if left menu is returned       
+    var $reloaded_menu_item = $(livemenu_html);
+    if ($reloaded_menu_item.attr("id") == "left_menu_live")
+    {                   
+        live_menu_item.replaceWith(livemenu_html);
+        live_menu_item = $("#left_menu_live"); // since DOM was updated
+        var live_menu = live_menu_item.children("ul");
+
+        // restore leftmenu state (open submenus, pages) if updated left menu includes a sport submenu (ie. there are live sports)
+        if (live_menu.length > 0)
+        {
+            if (menu_state.menu_open == true)
+            {
+                live_menu_item.addClass("submenu_open");
+                live_menu.show();
+            }
+            else 
+            {
+                live_menu_item.removeClass("submenu_open");
+                live_menu.hide();
+            }
+
+            // close all returned (updated) sports submenus first
+            var sports = live_menu.children("li.menu_item");
+            sports.each(function(){
+                $(this).removeClass("submenu_open");
+                $(this).children("ul").hide();
+            });
+
+            // restore the sports state as before reload
+            $.each(submenus_html, function(index, submenu){
+                var submenu_sport_id = parseInt(index);
+                if (submenu !== undefined && submenu != "")
+                {
+                    var sport_menu_item = $("#left_menu_live_id"+submenu_sport_id);
+                    if (sport_menu_item.length > 0) {
+                        sport_menu_item.append(submenu);
+                        sport_menu_item.addClass("submenu_open");
+                        var sport_menu = $("#left-menu-games-list-"+submenu_sport_id);
+                        var sport_selected_games = menu_state.sports[submenu_sport_id].selected_games;
+                        // remark selected games as before complete reload
+                        leftmenu_live_remark_selected_games(sport_menu, sport_selected_games);
+                    }
+                }
+            });
+
+        } // end: reset leftmenu state
+
+        Bets.remarkBets();
+
+        initialise_livegames_in_leftmenu_selectors(); // re-initialise left menu live games selection functionality
+        initialise_leftmenu_link_actions("left_menu_live"); // re-initialise menu link click actions (since DOM was changed)
+         
+    } // end: if leftmenu was returned
+   
+}
+
+/* 
+ * left menu live - get current state (open sports submenus and which page loaded)
+ *
+ * @param live_menu_item - optional - object - the live parent menu item <li> which contains the submenus (#left_menu_live)
+ *
+ * @return object - { 'menu_open' : true/false (the main live sports submenu)
+ *                    'sports': {
+ *                        1: { 'submenu_id': [ul id],
+ *                             'submenu_open': true/false } 
+ *                             'page': [current submenu page] } 
+ *                        [etc] 
+ *                     }
+ *                     'multiple_open_sports' : true/false (open submenus)
+ *                     'open_sport_ids' : array - the sports id of the open submenus
+ *                  }
+ */
+function leftmenu_live_current_state(live_menu_item)
+{
+    var multiple_open_sports = false;
+    var open_sport_ids = []; 
+
+    var return_state = {
+        'menu_open' : false,
+        'sports' : {},
+        'multiple_open_sports' : multiple_open_sports,
+        'open_sport_ids' : open_sport_ids
+    };
+
+    var live_menu_item = (live_menu_item !== undefined && live_menu_item.length > 0) ? live_menu_item : $("#sports_sidebar_menu").find("#left_menu_live");
+    var menu_sports = live_menu_item.children("ul");
+
+    // if there are live sports
+    if (menu_sports.length > 0)
+    {
+        var sports = menu_sports.children("li.menu_item");
+        if (sports.length > 0)
+        {
+            if (live_menu_item.hasClass("submenu_open") && menu_sports.is(":visible")) {
+                return_state['menu_open'] = true; // live sports menu is open
+            }
+
+            sports.each(function()
+            {
+                var sport = $(this);
+                var sport_id = parseInt(sport.attr("data-sport-id"));
+                var sport_submenu = sport.children("ul");
+
+                var sport_submenu_id = "";
+                var sport_submenu_page = 1;
+                var sport_submenu_visibile = false;
+
+                if (sport_submenu.length > 0) // if submenu exists (is open)
+                {
+                    sport_submenu_id = sport_submenu.attr("id");
+                    sport_submenu_page = (sport_submenu.attr("data-page") !== undefined) ? parseInt(sport_submenu.attr("data-page")) : 1; 
+                    if (sport.hasClass("submenu_open") && sport_submenu.is(":visible")) sport_submenu_visibile = true;
+                }
+                var selected_sport_games = [];
+                if (open_games_widgets[custom_games_widget_id(sport_id)] !== undefined)
+                {
+                    selected_sport_games = open_games_widgets[custom_games_widget_id(sport_id)].selected_games; // get all open games from the respective custom single widget
+                }
+
+                if (sport_submenu_visibile)
+                {
+                    open_sport_ids.push(sport_id);
+                    if (open_sport_ids.length > 1) // if there are other open sports
+                    {
+                        multiple_open_sports = true;
+                    }
+                }
+
+                return_state.sports[sport_id] = {
+                    'submenu_id': sport_submenu_id,
+                    'submenu_open': sport_submenu_visibile,
+                    'page': sport_submenu_page,
+                    'selected_games': selected_sport_games
+                };                        
+            }); // end: for each sport
+        }
+    } // end: if there are live sports
+
+    // update return values after all sports were processed
+    return_state['multiple_open_sports'] = multiple_open_sports;
+    return_state['open_sport_ids'] = open_sport_ids;
+
+    return return_state;
+}
+
+/*
+ * Remark selected live games in the left menu after complete reload
+ *
+ * @param container - optional - object - if provided, function will only search for games inside this container
+ * @param selected_games - array - all the selected game IDs to remark
+ */
+function leftmenu_live_remark_selected_games(games_container, selected_games)
+{
+    if (selected_games === undefined || selected_games.length == 0) return false;
+
+    // check if a container is already provided to search for games in it
+    if (games_container === undefined || games_container.length == 0)
+    {
+        var games_container = $("#sports_sidebar_menu").find("#left_menu_live"); // by default search in the live left menu
+    }
+
+    // for each selected game before reload
+    for (var i = 0, len = selected_games.length; i < len; i++)
+    {
+        var game_id = selected_games[i];
+        var game_menu_item = games_container.find("#lm-left-menu-game-"+game_id);
+
+        // if game still exists, remark it
+        if (game_menu_item.length > 0)
+        {
+            leftmenu_live_mark_selected_game(game_menu_item, game_id);
+        }
+
+        // else: if game is not found after reload, remove it from stored data
+        else 
+        {
+            var game_sport_id = game_menu_item.parent(".left-menu-games-list").attr("data-sportid");
+            var game_widget_id = custom_games_widget_id(game_sport_id);
+            delete_deselected_gameid_from_widgets_data(game_widget_id, game_id);
+        }
+
+    } // end: for each selected game before reload
+}
+
+/*
+ * Delete left menu live game
+ *
+ * @param game_id
+ * @param sport_id 
+ */
+function leftmenu_live_delete_game(game_id, sport_id)
+{
+    var menu_item = $("#sports_sidebar_menu").find("#left_menu_live #lm-left-menu-game-"+game_id);
+    if (menu_item.length > 0)
+    {
+        var sport_menu_item = menu_item.parents("#left_menu_live_id"+sport_id);
+        var other_menu_items = menu_item.siblings(".left-menu-game");
+        menu_item.slideUp("normal", function(){
+            $(this).remove();
+        });
+
+        // if there aren't any other menu items, delete sport menu item (and it's submenu)
+        if (other_menu_items.length == 0)
+        {
+            sport_menu_item.slideUp("normal", function(){
+                $(this).remove();
+            });
+        }
+    }
+
+}
+
+/*
+ * ======================================================================
+ * OTHER FUNCTIONS
+ * ======================================================================
+ */
+
+/* enable/disable widget sports nav tab arrows (left/right)
+ * - check if there are more sport tabs than the maximum widget width
+ * - if so, enable left/right nav arrows
+ *          - initialise arrow click events
+ *          - move active sports nav tab to visible on complete load
+ *
+ * @param check_for_active_tab - true or false 
+ *                - if true, check if active sports tab is hidden, and the tabs should be slided
+ * @param animation_on_load - true or false 
+ *                - if true, when initialised, tabs slide to the active sports tab (animated)
+ *                - if false, when initialised, tabs just move without animation to the active sports tab
+ * @param specific_widget - object - optional - if set, only click actions inside this widget are initialised
+ */
+function initialise_widget_sports_nav_tab_arrows(check_for_active_tab, sportsnav_x_offset, animation_on_load, specific_widget)
+{
+    // initialise only in a specific widget
+    if (specific_widget !== undefined && specific_widget != "" && specific_widget.length > 0) {
+        var widgets = specific_widget;
+    }
+    // initialse in ALL available widgets
+    else {
+        var widgets = $("#main").find(".js-games-widget[data-widget_type='tabbed']");
+    }
+
+    // for each tabbed widget
+    widgets.each(function()
+    {
+        var widget = $(this);
+        var header_content = widget.find(".widget-header-content");
+        var header_content_width = header_content.width(); // width() since the inner width required
+
+        var left_title = widget.find(".widget_left_title");
+        var left_title_width = 0;
+        if (left_title.length > 0) left_title_width = left_title.outerWidth(); // outer width (inc. padding and border) required for calculation
+
+        var sports_nav = widget.find(".widget-sports-nav");
+        var sports_nav_tabs = sports_nav.find(".widget-sport-link");
+
+        // get width of arrows (initially hidden)
+        var arrows = widget.find(".widget-sports-nav-arrow");
+        var arrows_width = 0;
+        if (arrows.length > 0){
+            arrows.each(function(){
+                var arrow_width = $(this).outerWidth(); // (inc. padding and border)
+                arrows_width += arrow_width;
+            });
+        }
+
+        // calculate the total width of all the nav tabs
+        var tabs_width = 0;
+        if (sports_nav_tabs.length > 0){
+            sports_nav_tabs.each(function(){
+                var tab_width = $(this).outerWidth(); // (inc. padding and border)
+                tabs_width += tab_width;
+            });
+        }
+
+        // ENABLE ARROWS - if there are more sports nav tabs outside the visible widget area    
+        var available_tabs_width = header_content_width - (left_title_width + arrows_width + 2); // the extra 2px is to compensate for different browsers handling decimals differently     
+        if (tabs_width > available_tabs_width)
+        {    
+            // ----- Enable arrows and tabs nav ------
+
+            arrows.removeClass("inactive");
+            widget.find(".widget-sports-nav-slide-wrapper").css({
+                'float':'left',
+                'width':available_tabs_width+'px'
+            });
+            widget.find(".widget-sports-nav-slide-wrapper ul").css({ 'float':'left' });
+
+            // ----- Check for Active Sport Tab and its x offset (position) ------
+
+            // If Active Sport Tab's Position (x offset) is already known
+            if (sportsnav_x_offset !== undefined && sportsnav_x_offset !== "")
+            {         
+                var animate_tabs = (animation_on_load == true) ? true : false;
+                move_widget_sports_nav_tabs("move-left", $(this), widget, tabs_width, available_tabs_width, sportsnav_x_offset, animate_tabs);
+            }
+
+            // If Active Sport Tab's Position (x offset) is NOT already known
+            else if (check_for_active_tab == true)
+            {
+                var active_tab = sports_nav.find(".widget-sport-link.active");
+                var active_tab_width = active_tab.outerWidth(); // (inc. padding and border)
+
+                // get the active tab's left offset (the total width of the previous tabs)
+                var prev_tabs = active_tab.parent("li").prevAll();
+                var left_offset = 0;
+                prev_tabs.each(function(){
+                    var tab_width = $(this).outerWidth();
+                    left_offset += tab_width;
+                });
+                left_offset += active_tab_width; // adding the active tab's width as well, to check if the active width is partially hidden
+
+                // if active tab is hidden/partially hidden, move tabs to the left to show active tab
+                if (left_offset > available_tabs_width)
+                {
+                    var target_x_offset = (left_offset - available_tabs_width)*-1; // get negative margin-left
+                    var animate_tabs = (animation_on_load == true) ? true : false;
+                    move_widget_sports_nav_tabs("move-left", $(this), widget, tabs_width, available_tabs_width, target_x_offset, animate_tabs);
+                }
+            }
+
+            // ------ initialise arrows click functions ------
+
+            arrows.unbind('click'); // first remove previously-set event handlers
+            arrows.click(function(event){
+                event.preventDefault();
+                // when disabled, do nothing
+                if ($(this).hasClass("disabled") || $(this).hasClass("inactive")) {
+                    return false;
+                }
+                // left arrow
+                else if ($(this).hasClass("left")){
+                    move_widget_sports_nav_tabs("move-right", $(this), widget, tabs_width, available_tabs_width, "", true);
+                }
+                // right arrow
+                else if ($(this).hasClass("right")){
+                    move_widget_sports_nav_tabs("move-left", $(this), widget, tabs_width, available_tabs_width, "", true);
+                }
+            });
+        }
+        // else: DISABLE ARROWS - no sports nav tabs are hidden, restore default views
+        else
+        {           
+            arrows.addClass("inactive");
+            widget.find(".widget-sports-nav-slide-wrapper").css({
+                'float':'none',
+                'width':'auto'
+            });
+            widget.find(".widget-sports-nav-slide-wrapper ul").css({ 'float':'none' });
+        }
+
+    });
+    // end: for each tabbed widget
+}
+
+/* the click functions for the sports nav tabs arrows
+ *
+ * @param action - "move-left" or "move-right" - direction
+ * @param arrow - object - the clicked arrow
+ * @param widget - object the arrow's widget
+ * @param tabs_width - int - the total width of all sports nav tabs
+ * @param available_tabs_width - int - the available space for sports nav tabs
+ * @param predefined_target_x_offset - optional - specify the x-position (margin-left) (skips move left/right check)
+ * @param animate_tabs_movement - whether to slide (animate) movement
+ */
+function move_widget_sports_nav_tabs(action, arrow, widget, tabs_width, available_tabs_width, predefined_target_x_offset, animate_tabs_movement)
+{  
+    if (arrow === undefined || arrow.length == 0 || widget === undefined || widget.length == 0 || tabs_width === undefined || available_tabs_width === undefined) return false;
+
+    var sports_tabs_container = widget.find(".widget-sports-nav-slide-wrapper ul");
+
+    // get current postion of the nav tabs
+    var current_x_offset = sports_tabs_container.css('margin-left');
+    current_x_offset = parseInt(current_x_offset); // get numeric value only (without 'px')
+    /* if margin-left is 0 -> start postition. 
+       if less than 0 -> nav tabs moved to the left */
+
+    var hidden_tabs_width = tabs_width - available_tabs_width;
+    var hidden_tabs_width_on_the_right = tabs_width - (available_tabs_width + (current_x_offset*-1)); // get the tabs width hidden on the right
+
+    var target_x_offset = current_x_offset; // start with current margin-left value (x-position)
+
+    /* ----------- Reset disabled classes ----------- */
+    widget.find(".widget-sports-nav-arrow.right").removeClass("disabled");
+    widget.find(".widget-sports-nav-arrow.left").removeClass("disabled");
+
+    /* ----------- Calculate Movement ----------- */
+
+    // IF x-offset (margin-left value) already defined
+    if (predefined_target_x_offset !== undefined && predefined_target_x_offset !== "" && !isNaN(predefined_target_x_offset))
+    {
+        target_x_offset = predefined_target_x_offset;
+    }
+
+    // MOVE tabs to the RIGHT (clicking left arrow)
+    else if (action == "move-right")
+    {
+        // calculate the movement (50px to the left)
+        target_x_offset += 50;
+    }
+
+    // MOVE tabs to the LEFT (clicking right arrow)
+    else if (action == "move-left")
+    {
+        // calculate the movement (50px to the right)
+        target_x_offset -= 50;
+    }
+
+    /* ----------- Reaching left limit ----------- */
+    // if there is no other hidden tabs on the left to show, disable left arrow
+    if (action != "move-left" && target_x_offset >= 0) {
+        target_x_offset = 0; // the limit margin-left is 0
+        widget.find(".widget-sports-nav-arrow.left").addClass("disabled");
+    }  
+
+    /* ----------- Reaching right limit ----------- */
+    // if there is no other hidden tabs on the right to show, disable right arrow
+    if (action != "move-right" && hidden_tabs_width_on_the_right <= 0) {
+        target_x_offset = hidden_tabs_width*-1; // to get the max negative margin-left possible
+        widget.find(".widget-sports-nav-arrow.right").addClass("disabled");
+    }       
+
+    /* ----------- Move Tabs ----------- */
+    if (animate_tabs_movement == true) {
+        sports_tabs_container.animate({ 'margin-left':target_x_offset+'px' }, 200);
+    }
+    else {
+        sports_tabs_container.css({ 'margin-left':target_x_offset+'px' });
+    }
+    
+}
+
+
+/* Change state of widget (Minimised/Maximised)
+ *
+ * - when "minimised" - "show more games" button is visible,
+ *                      "show less games" button is hidden
+ * - when "maximised" - "show more games" button is hidden,
+ *                      "show less games" button is visible
+ *
+ * @param - widget - object - the widget in which the action is taking place
+ * @param - action - "minimised" or "maximised" (see comment above)
+ * @param - scroll_to_top_of_container - true or false
+ *                                     - if true, window scrolls to the top of container after action
+ * @param - callback_function - optional - function to be fired after action
+ */
+function games_widget_change_state(widget, action, scroll_to_top_of_container, callback_function)
+{
+    if (widget === undefined || widget.length == 0 || action === undefined) return false;
+    var widget_id = widget.attr("id");
+    var page = widget.attr("data-page");
+
+    // Determine the class name for the container of each game row (differs between Live Games and Upco/Favo Games)
+    var game_category = widget.attr("data-game_category");
+    var row_container_class = "live_row"; // default - upco/favo
+    if (game_category == "live") row_container_class = "live_gamecontainer"; // live
+
+    // ----- MAXIMISED - Show more games ------
+    if (action == "maximised")
+    {        
+        var game_rows = widget.find("."+row_container_class+".state_hidden");
+
+        // if there are hidden games
+        if (game_rows.length > 0)
+        {
+            // change attribute of widget
+            change_open_widgets_attr_data(widget, '', "display_state", "maximised");
+
+            // fadeIn each game
+            game_rows.each(function(index)
+            {
+                var this_row = $(this);
+                setTimeout(function (){
+                    this_row.fadeIn("fast", function(){ 
+                        $(this).removeClass("state_hidden").addClass("state_visible");
+
+                        // after last row, execute callback function
+                        if (index == game_rows_count-1 && callback_function !== undefined && callback_function != "") callback_function();
+                    });
+                }, index * 20);
+            });
+
+            // hide "show more games" btn and show "show less games" btn + pagination
+            widget.find(".widget-pagination .widget-state-link.state-maximise").hide().addClass("state-hidden");
+            widget.find(".widget-pagination .widget-state-link.state-minimise").css({"display":"block"}).removeClass("state-hidden");
+            widget.find(".widget-pagination .widget-page-link").css({"display":"block"}).removeClass("state-hidden");
+        }
+        // end: if there are hidden games
+
+    }
+    // end: maximised
+
+    // ----- MINIMISED - Show less games -----
+    else if (action == "minimised")
+    {
+        var game_rows = widget.find("."+row_container_class+".state_maximised");
+        var game_rows_count = game_rows.length;
+
+        // if there are hidden games
+        if (game_rows.length > 0)
+        {
+            // change attribute of widget
+            change_open_widgets_attr_data(widget, '', "display_state", "minimised");
+
+            // fadeOut each game (start from last)
+            $(game_rows.get().reverse()).each(function(index)
+            {
+                var this_row = $(this);
+                setTimeout(function (){
+                    this_row.fadeOut("fast", function(){ 
+                        $(this).removeClass("state_visible").addClass("state_hidden");
+
+                        // after last row
+                        if (index == game_rows_count-1)
+                        {
+                            // scroll to top of container
+                            if (scroll_to_top_of_container == true) scroll_to_a_container(widget);
+
+                            // if page is not 1, switch to page 1 when minimised
+                            if (page != "1") games_widget_switch_page(widget, 1);
+
+                            // execute callback function
+                            if (callback_function !== undefined && callback_function != "") callback_function();
+                        }
+                    });
+                }, index * 20);
+            });
+
+            // show "show more games" btn and hide "show less games" btn + pagination
+            widget.find(".widget-pagination .widget-state-link.state-maximise").css({"display":"block"}).removeClass("state-hidden");
+            widget.find(".widget-pagination .widget-state-link.state-minimise").hide().addClass("state-hidden");
+            widget.find(".widget-pagination .widget-page-link").hide().addClass("state-hidden");
+        }
+        // end: if there are hidden games        
+    }
+    // end: minimised
+}
+
+/* the onclick functionality of changing state (min/max) for the widgets.
+ * It is initialised on page load, and whenever the DOM (html content) of the widgets changes
+ *
+ * @param specific_widget - object - optional - if set, only click actions inside this widget are initialised
+ */
+function initialise_changestate_click_actions(specific_widget)
+{
+    // initialise click actions only in a specific widget
+    if (specific_widget !== undefined && specific_widget != "" && specific_widget.length > 0) {
+        var click_objects = specific_widget.find(".widget-pagination .widget-state-link");
+    }
+    // initialse click actions in ALL available widgets
+    else {
+        var click_objects = $("#main").find(".js-games-widget .widget-pagination .widget-state-link");
+    }
+
+    click_objects.unbind('click'); // first remove event handlers from previous initialisation of this function (to prevent duplicate actions)
+    click_objects.click(function(event)
+    {
+        event.preventDefault(); // stop default link action
+
+        // target state
+        var target_state = $(this).attr("data-target-state");
+        // if no target state is set, function doesn't apply
+        if (target_state === undefined || target_state == "") return false;
+
+        var widget = $(this).parents(".js-games-widget"); // the widget container which contains all the content and parameters
+        if (widget.length == 0) return false; // if widget container doesn't exist, stop function
+       
+        // change state
+        games_widget_change_state(widget, target_state, true);
+    });
+
+} // end: initialise_changestate_click_actions()
+
+/* 
+ * Check if there are no widgets visible
+ * 
+ * @param action - either 'reload_widgets' (reload all widgets), or 'show_message' 
+ *                 (show "no games" message)
+ */
+function check_if_no_widgets_visible(action, callback_function)
+{   
+    var widgets_visibility = get_open_widgets_single_parameter("visibility");
+
+    // check for sportsbook leagues visible inside the page
+    var leagues_visible = check_for_open_leagues_or_livesports().open_leagues;
+
+    // if all widgets should remain visible, stop check for no visible widgets
+    if (typeof keep_all_widgets_open !== 'undefined' && keep_all_widgets_open) {
+        if (callback_function !== undefined && callback_function != "") callback_function();
+        return;
+    }
+
+    // if there is no widget "visible", reload all widgets
+    if (widgets_visibility.indexOf("visible") == -1 && !leagues_visible)
+    {     
+        // reload widgets
+        if (action == 'reload_widgets') 
+        {
+            // get all widgets
+            var widgets = get_open_widgets();
+
+            $.each(widgets, function(widget_id, widget)
+            {
+                if (widget.attr("data-oddswidget") == "true" && widget.attr("data-oddswidget_params") === undefined) {
+                    return; // if widget is inside oddswidget, don't reload. Reload only the parent oddswidget
+                }
+
+                // reload all widgets with visibility set to visible
+                var modified_parameters = {
+                    "visibility": "visible"
+                };
+                games_widget_complete_reload(widget, modified_parameters, true, true, '', true);
+
+            });
+        } // end: reload widgets
+
+        // show 'no games' message
+        else if (action == 'show_message') 
+        {
+            if (widgets_visibility.indexOf("forced_hidden") == -1) // do not show message if widgets were hidden by previous actions
+            {
+                var message = $("#widget_nogames");
+                if (message.is(":hidden"))
+                {
+                    message.slideDown("normal");
+                }
+            }
+        } // end: show message
+
+        // execute callback function
+        if (callback_function !== undefined && callback_function != "") callback_function(); 
+    } // end: if there is no widget visible
+
+    // if there is at least one widget / league visible
+    else 
+    {
+        // hide 'no games' message if it is visible
+        if (action == 'show_message')
+        {
+            var message = $("#widget_nogames");
+            if (message.is(":visible"))
+            {
+                message.slideUp("normal");
+            }
+        }
+    }
+}
+
+/*
+ * Maximise a games widget if it's the only one visible inside the page
+ * - called on document ready below
+ */
+function maximise_only_games_widget_visible()
+{
+    var visible_widgets = $("#main").find(".js-games-widget[data-visibility='visible']");
+
+    if (visible_widgets.length == 1)
+    {
+        games_widget_change_state(visible_widgets, "maximised", false);
+    }
+}
+
+/*
+ * Update live games widget sports nav tabs' counters (from backend return)
+ * - called from reload_livemenu_and_counters() above
+ *
+ * @param sports_data - object - the live sports headers as returned from the interface
+ */
+function update_live_widget_nav_tabs_counters(sports_data)
+{
+    var widget_live_tabs = $(".widget-live .widget-sports-nav .widget-sport-link");
+    if (widget_live_tabs.length == 0 || sports_data === undefined || sports_data == "") return false;
+
+    // get current open live tabs
+    var live_tabs_sports = {};
+    $.each(widget_live_tabs, function(index, tab)
+    {
+        var sport_id = $(tab).attr("data-target-sport-id");
+        if (sport_id !== undefined && sport_id != ""){
+            live_tabs_sports[sport_id] = $(tab);
+        }
+    });
+
+    // for each current open live tab
+    $.each(live_tabs_sports, function(sport_id, tab)
+    {
+        // if sport no longer exists, delete it
+        if (sports_data[sport_id] === undefined)
+        {            
+            tab.remove();
+        }
+        // if sport still exists, update its oddcount
+        else if (sports_data[sport_id]['@oddcount'] !== undefined)
+        {
+            var oddcount_container = tab.find(".counter_games");
+            var oddcount = parseInt(sports_data[sport_id]['@oddcount']);
+
+            // if sports' oddcount doesnt exist, create it
+            if (oddcount_container.length == 0 && oddcount != 0)
+            {
+                oddcount_cont_html = '<span class="counter_games">' + oddcount + '</span>';
+                tab.append(oddcount_cont_html);                 
+            }
+            // if sports' oddcount exists, update it
+            else 
+            {
+                if (oddcount != 0)
+                {                    
+                    oddcount_container.html(oddcount);
+                }
+                else
+                {
+                    oddcount_container.remove();
+                }
+            }
+        } // end: if sport still exists
+    }); // end: for each current open live tab    
+}
+
+/*
+ * Sync left menu live counters with live games widget sports nav tabs' counters
+ * - called from games_widget_complete_reload()
+ *
+ * @param widget - object - the live widget with sports tabs
+ */
+function sync_leftmenu_live_counters(widget)
+{ 
+    if (widget.length == 0 || widget === undefined) {
+        var widget = $("#widget_live_tabbed");
+    }
+    if (widget.length == 0) return false;
+
+    var live_leftmenu_sports = $("#left_menu_live > ul .menu_live_sport");
+    if (live_leftmenu_sports.length == 0) return false;
+
+    var sports_nav_tabs = widget.find(".widget-sports-nav");
+    var sports = sports_nav_tabs.find(".widget-sport-link");
+
+    sports.each(function(){
+        // get sport id and oddcount
+        var sport_id = $(this).attr("data-target-sport-id");
+        var oddcount = 0;
+        var counter = $(this).find(".counter_games");
+        if (counter.length > 0 && counter.html() != "") {
+            oddcount = parseInt(counter.html());
+        }
+
+        // update values in left menu live sports items
+        var left_menu_item = $("#left_menu_live #left_menu_live_id"+sport_id);
+        if (left_menu_item.length == 0) return;
+        var counter = left_menu_item.find(".counter_games");
+        if (oddcount == 0) {
+            if (counter.length > 0) counter.remove();
+        }
+        else {
+            if (counter.length == 0) {
+                left_menu_item.append('<span class="counter_games">' + oddcount + '</span>');
+            } else {
+                counter.html(oddcount);
+            }
+        }
+    });
+}
+
+/* Reinitialise functions after widget DOM changed 
+ *
+ * @param reinit_params - array with function related parameters, including:
+ *    - ["action"] - optional - "page_load", "reload", "switchsport", "switchpage"
+ *    - ["game_category"] - optional - "live", "upcoming", "favourite"
+ *    - ["specific_widget"] - object - optional - reinitialise actions only for specific widget
+ */
+function reinitialise_functions_widget_dom_changed(reinit_params)
+{
+    var action = reinit_params["action"];
+    var widget = reinit_params["specific_widget"];
+    var game_category = reinit_params["game_category"];
+
+    // new page click functions
+    initialise_switchpage_click_actions(widget);
+
+    // switch sport click functions
+    initialise_switchsport_click_actions(widget);
+    
+    // change display state click functions
+    initialise_changestate_click_actions(widget);
+
+    // initialise widgets sports nav tabs arrows
+    var check_for_active_sports = (action == "initial_load") ? true : false;
+    initialise_widget_sports_nav_tab_arrows(check_for_active_sports, reinit_params["sportstabs_x_offset"], false, widget);
+
+    // initialise widgets close icon
+    initialise_closewidget_click_actions(widget);
+
+    Bets.remarkBets(); // remark selected odds
+
+    // live games
+    if (game_category === undefined || game_category == "live" || game_category == "oddswidget" || game_category == "")
+    {
+        initialise_livegames_handlers_dom_changed(widget);
+    }
+}
+
+/*
+ * ======================================================================
+ * ON DOCUMENT READY, initialise functions
+ * ======================================================================
+ */
+$(document).ready(function()
+{ 
+    store_open_widgets_attr_data(true); // populate open_games_widget object with all open widgets and their parameters, on page load
+
+    // widgets DOM first load - initialise click functions
+    var reinit_params = []; reinit_params["action"] = "initial_load";
+    reinitialise_functions_widget_dom_changed(reinit_params);
+
+    // initialise checkbox functions for live odds in the left menu
+    initialise_livegames_in_leftmenu_selectors();
+
+    // maximise a games widget if it's the only one visible inside the page
+    maximise_only_games_widget_visible();
+
+    // on page load, check all the open widgets and start the reload process for each
+    setTimeout( function() { initialise_widget_complete_reload(); }, timeouts.success);
+
+    // update left live menu and widget nav tabs couunters every 60 seconds
+    setTimeout( function() { reload_livemenu_and_counters(); }, timeouts.livemenu_and_counters);
+    // execute for on-page-load data check
+    videostreams_check_nodata();
+
+});

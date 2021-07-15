@@ -1,0 +1,249 @@
+/**
+ * Provides interface to manipulate odd buttons
+ * @example
+ *      // List of button DOM nodes wrapped in jQuery
+ *      var $oddButtons = $('#mc-sti414099_660_1, #mc-sti414099_660_2, #mc-sti414099_660_3');
+ * 
+ *      var oddButton = new OddButtons($oddButtons);
+ *      // Setting proper odd format, so it would be formatted properly
+ *      // Of course we can do that inside, but to avoid extra coupling, lets pass it manually
+ *      oddButton.setOddFormat(ODD_FORMAT);
+ *      
+ *      // We need to set type of button, because rendering of buttons is different and depends on the type
+ *      // of the button.
+ *      // Of course we can identify that from html element id, but to avoid extra coupling
+ *      oddButton.setTypeToMain();
+ *      
+ *      oddButton.setOddValue(odd);
+ *      // By default once you set odd, it will trigger of html update automatically.
+ *      // But if you want to run it manually, you should call:
+ *      // oddButton.doRenderButton();
+ *      
+ * @param {jQuery} $oddButtons
+ * @returns {OddButtons}
+ */
+function OddButtons($oddButtons)
+{
+    this.$oddButtons = $oddButtons;
+    this.oddValue = 0;
+    this.type = '';
+    this.oddFormat = 0;
+    this.renderedOddValue = 0;
+    this.oddTitle = '';
+}
+
+/**
+ * 
+ * @param {String} oddTitle
+ * @returns {OddButtons.prototype}
+ */
+OddButtons.prototype.setOddTitle = function(oddTitle)
+{
+    this.oddTitle = oddTitle;
+
+    return this;
+};
+
+/**
+ * @param {jQuery} $oddButton
+ * @returns {OddButtons.prototype}
+ */
+OddButtons.prototype.addButton = function($oddButton)
+{
+    this.$oddButtons.add($oddButton);
+
+    return this;
+};
+
+/**
+ * Returns stored odd buttons
+ * @returns {jQuery}
+ */
+OddButtons.prototype.get$oddButtons = function()
+{
+    return this.$oddButtons;
+};
+
+/**
+ * Defines that this button should be located in main (central) section of site.
+ * Of course we can identify that from html element id, but to avoid extra coupling
+ * lets do it manually
+ * @returns {OddButtons.prototype}
+ */
+OddButtons.prototype.setTypeToMain = function()
+{
+    this.type = 'Main';
+
+    return this;
+};
+
+/**
+ * Defines that this button should be located in main (central) section of site, once the "+" button is clicked
+ * @returns {OddButtons.prototype}
+ */
+OddButtons.prototype.setTypeToMainDetails = function()
+{
+    this.type = 'MainDetails';
+
+    return this;
+};
+
+/**
+ * Defines that this button should be located in left menu
+ * @returns {OddButtons.prototype}
+ */
+OddButtons.prototype.setTypeToLeftMenu = function()
+{
+    this.type = 'LeftMenu';
+
+    return this;
+};
+
+/**
+ * @param {Number} oddFormat
+ * @returns {OddButtons.prototype}
+ */
+OddButtons.prototype.setOddFormat = function(oddFormat)
+{
+    this.oddFormat = oddFormat;
+
+    return this;
+};
+
+/**
+ * Changes the value of the button. If the odd is not valid, the button's design
+ * will be updated automatically
+ * @param {Number} odd Example, 125, which would be displayed as 1.25
+ * @returns {OddButtons.prototype}
+ */
+OddButtons.prototype.setOddValue = function(odd)
+{
+    // cast odd to number, so we can do math safe later
+    var newOddValue = parseInt(odd, 10);
+
+    this.oddValue = newOddValue;
+
+    // update HTML
+    this.doRenderButton();
+
+    return this;
+};
+
+/**
+ * Renders HTML of the button
+ * @returns {OddButtons.prototype}
+ */
+OddButtons.prototype.doRenderButton = function()
+{
+    // update HTML only if value realy changed
+    if (this.renderedOddValue !== this.oddValue)
+    {
+        this.renderedOddValue = this.oddValue;
+
+        // run required render function if type is set
+        if (this.type !== '')
+        {
+            var renderFunc = '_doRenderButtonOf'+ this.type +'Type';
+            (this[renderFunc])();
+        }
+    }
+
+    return this;
+};
+
+/**
+ * Renders buttons in main (central) area
+ */
+OddButtons.prototype._doRenderButtonOfMainType = function()
+{
+    // there is a realistic odd
+    if (this.oddValue > 100)
+    {
+        var oddFormatted = oddoutput(this.oddFormat, this.oddValue);
+        this.$oddButtons.html(oddFormatted);
+        
+        // lets use visibility property, but not display, so space would be still be reserved
+        this._showButtons(this.$oddButtons);
+    }
+    else
+    {
+        this._hideButtons(this.$oddButtons);
+    }
+};
+
+OddButtons.prototype._doRenderButtonOfMainDetailsType = function()
+{
+    // there is a realistic odd
+    if (this.oddValue > 100)
+    {
+        var self = this;
+
+        // extract id fragments and set odd values and titles
+        this.$oddButtons.each(function(i, buttonNode) {
+            var $button = $(buttonNode);
+            var buttonId = $button.attr('id');
+            var idFragments = buttonId.match(/^mc-cti(\d+_\d+_\d)$/);
+
+            if (idFragments === null) {
+                throw 'IDs of main details buttons should start with mc-cti';
+            }
+
+            // odd title
+            var $title = $('#mc-tti'+ idFragments[1]);
+            $title.html(self.oddTitle);
+
+            // odd value
+            var $value = $('#mc-ti'+ idFragments[1]);
+            var oddFormatted = oddoutput(self.oddFormat, self.oddValue);
+            $value.html(oddFormatted);
+        });
+
+        // lets use visibility property, but not display, so space would be still be reserved
+        this._showButtons(this.$oddButtons);
+    }
+    else
+    {
+        this._hideButtons(this.$oddButtons);
+    }
+};
+
+OddButtons.prototype._doRenderButtonOfLeftMenuType = function()
+{
+    // there is a realistic odd
+    if (this.oddValue > 100)
+    {
+        var oddFormatted = oddoutput(this.oddFormat, this.oddValue);
+        this.$oddButtons.html(oddFormatted);
+        
+        // lets use visibility property, but not display, so space would be still be reserved
+        this._showButtons(this.$oddButtons);
+    }
+    else
+    {
+        this._hideButtons(this.$oddButtons);
+    }
+};
+
+/**
+ * Shows nodes using css property - visibility
+ * @param {jQuery} $nodes
+ * @returns {jQuery}
+ */
+OddButtons.prototype._showButtons = function($nodes)
+{
+    $nodes.css('visibility', 'visible');
+
+    return $nodes;
+};
+
+/**
+ * Hides nodes using css property - visibility
+ * @param {jQuery} $nodes
+ * @returns {jQuery}
+ */
+OddButtons.prototype._hideButtons = function($nodes)
+{
+    $nodes.css('visibility', 'hidden');
+
+    return $nodes;
+};

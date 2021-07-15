@@ -1,0 +1,144 @@
+/*Betting market Filter*/
+.filter__betting_market{
+    position: relative;
+    background-color: #151619;
+    border-left: 1px solid #333;
+    border-right: 1px solid #333;
+    margin-top: -5px;
+}
+.filter__betting_market .filter__header{
+    width: 100%;
+    height: 26px;
+    position: relative;
+    border-bottom: 1px solid #000;
+}
+.filter__betting_market .filter__header .filter__header_title{
+    width: 75%;
+    float: left;
+    color: #fff;
+    padding: 7px;
+    font-weight: 700;
+}
+.filter__betting_market .filter__header .filter__header_button{
+    min-width: 12%;
+    float: right;
+    padding-top: 2px;
+}
+.filter__markets{
+    position: relative;
+}
+.filter__markets ul{
+    width: 100%;
+    overflow: auto;
+}
+.filter__markets ul li{
+    width: 161px;
+    height: 25px;
+    float: left;
+    color: #fff;
+    line-height: 25px;
+    padding-left: 5px;
+    margin-right: 3px;
+    /*border-top: 1px solid #34373A;*/
+    border-bottom: 1px solid #34373A;
+    cursor: pointer;
+    position: relative;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.filter__markets ul li:before {
+  content: " ";
+  position: absolute;
+  z-index: 0;
+  top: 0px;
+  left: 0px;
+  right: 0px;
+  bottom: 0px;
+  border-bottom: 1px solid #040505;
+}
+.filter__markets ul li:nth-child(-n+4){
+    border-top: 0px;
+}
+.filter__markets ul li:hover{
+    border-bottom: 1px solid #f5d400;
+    color: #f5d400;
+}
+.filter__markets ul li.selected{
+    border-bottom: 1px solid #f5d400;
+    background: url(../images/icon/checkmark_yellow.png) no-repeat;
+    background-position: 155px 8px;
+    color: #f5d400;
+}
+.filter__markets ul li.selected:hover{
+    background-position: 155px -33px;
+}
+.filter__header_button .timefilter--btn {
+    font-size: 9px;
+    position: relative;
+    display: block;
+    height: 1rem;
+    line-height: 2;
+    margin-right: 2px;
+    padding: .25em;
+    -webkit-transition: none;
+    transition: none;
+    text-align: center;
+    color: #FFF;
+    border-top: 1px solid #000;
+    border-right: 1px solid #000;
+    border-bottom: 1px solid #000;
+    border-left: 1px solid #000;
+    background-color: #282A2A;
+    background-image: -webkit-linear-gradient(#282A2A, #141416);
+    background-image: linear-gradient(#282A2A, #141416);
+    text-shadow: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.filter__header_button .timefilter--btn:hover{
+    background-color: #141416;
+    background-image: -webkit-linear-gradient(#141416, #282A2A);
+    background-image: linear-gradient(#141416, #282A2A);
+}
+.filter__betting_market .info__bubble{
+    display: block;
+    position: absolute;
+    bottom: -32px;
+    left: 1%;
+    z-index: 9999;
+    width: 95%;
+    min-height: 10px;
+    padding: 5px 10px;
+    margin: 0 auto;
+    background: #f5d400;
+    box-shadow: 0 0 10px #111;
+    font-weight: 700;
+}
+.filter__betting_market .info__bubble:after {
+	bottom: 100%;
+	left: 50%;
+	border: solid transparent;
+	content: " ";
+	height: 0;
+	width: 0;
+	position: absolute;
+	pointer-events: none;
+	border-color: rgba(245, 212, 0, 0);
+	border-bottom-color: #f5d400;
+	border-width: 8px;
+	margin-left: -8px;
+    font-weight: 700;
+}
+.filter__betting_market .info__bubble_close{
+    float: right;
+    background: #222;
+    border-radius: 100px;
+    color: #f5d400;
+    width: 15px;
+    height: 15px;
+    line-height: 15px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 10px;
+}

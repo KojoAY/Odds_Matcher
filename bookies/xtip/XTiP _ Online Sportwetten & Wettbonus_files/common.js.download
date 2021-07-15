@@ -1,0 +1,3231 @@
+"use strict";
+
+var isMobile = false; //initiate as false
+// device detection
+if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|ipad|iris|kindle|Android|Silk|lge |maemo|midp|mmp|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows (ce|phone)|xda|xiino/i.test(navigator.userAgent)
+    || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(navigator.userAgent.substr(0,4))){
+    isMobile = true;
+}
+
+
+//myTime.getTimezoneOffset();
+function minutesToMidnight(){
+
+    var oneminute = 60*1*1000;
+    var myTime = new Date();
+    myTime.setTime(myTime.getTime()+oneminute);
+    var expirationTime = myTime.toGMTString();
+    var expire = " expires="+expirationTime;
+
+    var midnight = new Date();
+    midnight.setHours( 32 );
+    midnight.setMinutes( 0 );
+    midnight.setSeconds( 0 );
+    midnight.setMilliseconds( 0 );
+    var minutesToMorning= ( midnight.getTime() - new Date().getTime() ) / 1000 / 60;
+    document.cookie = "timetomidnight="+minutesToMorning+"; "+expire+ "; path=/"+secureCookie;
+    return minutesToMorning;
+}
+minutesToMidnight();
+
+function oddoutput(oformat, odd)
+{
+    if(odd == 0|| isNaN(odd) || !isFinite(odd)){
+        return NumberFormatLanguageSpecific("0, 0");
+    }
+
+    var nodd2 = Math.floor(odd).toString();
+    var n2len = nodd2.length-2;
+    var nodd = nodd2.substr(0,n2len)+","+nodd2.substr(n2len,2);
+
+    switch(oformat.toString())
+    {
+        case '1': //Cashpoint, CP
+                return Math.floor(odd).toString(); //pNum(odd);
+                break;
+        case '2': //Europe, EU
+                return NumberFormatLanguageSpecific(nodd);
+                break;
+        case '3': //England, UK
+                return oddFractionOutput(odd);
+                break;
+        case '4': //America, US
+                if((odd - 100) >= 100){
+                    return "+"+(odd-100);
+                }
+                else{
+                    return "-"+Math.floor(10000/(odd-100));
+                }
+                break;
+        default: //no change
+                return odd;
+                break;
+    }
+}
+
+/***** UK Format Begin *****/
+function oddFractionOutput(l_odd) {
+    var l = {
+        'top_local': 0,
+        'bottom_local': 0
+    }
+
+    l_odd -= 100;
+
+    if(l_odd >= 890)
+    {
+        l_odd = Math.round(l_odd, -2);
+    }
+
+    if (l_odd >= 5) {
+        l.top_local = l_odd;
+        l.bottom_local = 100;
+
+        cancel_fraction(l, 'local');
+
+        var max_digits = l_odd >= 100000 ? numDigits(l_odd) - 1 : 4;
+
+        if (l.bottom_local > 20 || (numDigits(l.top_local) + numDigits(l.bottom_local)) > max_digits)
+        {
+            l.top_up = l_odd + 1;
+            l.bottom_up = 100;
+            l.top_down = l_odd - 1;
+            l.bottom_down = 100;
+
+            if (getNiceFraction(l, 20, max_digits, true, 'up') <= getNiceFraction(l, 20, max_digits, false, 'down'))
+            {
+                l.top_local = l.top_up;
+                l.bottom_local = l.bottom_up;
+            } else
+            {
+                l.top_local = l.top_down;
+                l.bottom_local = l.bottom_down;
+            }
+        }
+
+        bufferUsed = Math.round(l.top_local) + '/' + Math.round(l.bottom_local);
+    } else
+    {
+        l.top_local = 1;
+
+        switch (l_odd) // odd reformatting for 101, 102, 103 and 104 odds
+        {
+            case 1:
+                var bufferUsed = "1/100";
+                l.bottom_local = 100;
+                break;
+            case 2:
+                var bufferUsed = "1/50";
+                l.bottom_local = 50;
+                break;
+            case 3:
+                var bufferUsed = "1/33";
+                l.bottom_local = 33;
+                break;
+            case 4:
+                var bufferUsed = "1/25";
+                l.bottom_local = 25;
+                break;
+        }
+    }
+    return bufferUsed;
+}
+
+function getNiceFraction(l, l_max_bottom, l_max_digits, up, group)
+{
+    var cnt = 1;
+    if(group == 'up') {
+        var l_top_tmp = l.top_up;
+        cancel_fraction(l, group);
+
+        if (l.bottom_up > l_max_bottom || (numDigits(l.top_up) + numDigits(l.bottom_up)) > l_max_digits) {
+            if (up)
+                l.top_up = l_top_tmp + 1;
+            else
+                l.top_up = l_top_tmp - 1;
+            l.bottom_up = 100;
+            cnt += getNiceFraction(l, l_max_bottom, l_max_digits, up, group);
+        }
+    } else if(group == 'down') {
+        var l_top_tmp = l.top_down;
+        cancel_fraction(l, group);
+
+        if (l.bottom_down > l_max_bottom || (numDigits(l.top_down) + numDigits(l.bottom_down)) > l_max_digits) {
+            if (up)
+                l.top_down = l_top_tmp + 1;
+            else
+                l.top_down = l_top_tmp - 1;
+            l.bottom_down = 100;
+            cnt += getNiceFraction(l, l_max_bottom, l_max_digits, up, group);
+        }
+    }
+    return cnt;
+}
+
+function cancel_fraction(l, group)
+{
+    if(group == 'local') {
+        var tmp = ggt(l.top_local, l.bottom_local);
+        l.top_local /= tmp;
+        l.bottom_local /= tmp;
+    } else if(group == 'up') {
+        var tmp = ggt(l.top_up, l.bottom_up);
+        l.top_up /= tmp;
+        l.bottom_up /= tmp;
+    } else if(group == 'down') {
+        var tmp = ggt(l.top_down, l.bottom_down);
+        l.top_down /= tmp;
+        l.bottom_down /= tmp;
+    }
+}
+
+function numDigits(number)
+{
+    var digits = 0;
+    if (number < 0) digits = 1;
+    while (number >= 1)
+    {
+        number /= 10;
+        digits++;
+    }
+    return digits;
+}
+/***** UK Format End *****/
+
+//recursive function needed by oddoutput()
+function ggt(m, n)
+{
+    if (n==0){
+        return m;
+    }
+    else return ggt(n, m%n);
+}
+
+/*
+ *   Rounding and formatting an amount of money
+ */
+function cp_round(centbetrag, rounding)
+{
+    if (rounding == null)
+    {    rounding = 1;}
+    if(domain=='dk' && rounding!=0)// for dk system
+    {
+        rounding = 2;
+    }
+
+    if(!centbetrag||isNaN(centbetrag)){
+        return NumberFormatLanguageSpecific("0,00");
+    }
+    if (rounding == 1){
+        centbetrag = Math.round(centbetrag/10)*10;
+    }
+    else if(rounding == 2)
+    {
+        centbetrag += 50;
+        centbetrag -= centbetrag % 100;
+    }
+
+    var output = centbetrag.toString();
+    if (output.length > 2){
+        output = output.substr(0, output.length - 2) + "," + output.substr(output.length - 2);
+    }
+    else if (output.length == 1){
+        output="0,0"+output;
+    }
+    else{
+        output="0,"+output;
+    }
+
+    for (var i = output.length - 6; i > 0; i -= 3){
+        output = output.substr(0, i) + "." + output.substr(i);
+    }
+
+    return NumberFormatLanguageSpecific(output);
+}
+//converts euro to cent
+function getCent(wert)
+{
+    wert = wert.replace(/,/, '.');
+    var fwert = parseFloat(wert);
+    if(isNaN(fwert)){
+        fwert=0.0;
+    }
+    fwert = fwert*100;
+    return Math.floor(fwert);
+}
+//inserts a "dot" every three digits from right to left int a String -used by cp_round()
+/**
+ * @param string number
+ */
+function tausenderpunkte(number)
+{
+    var i = 0;
+    if (number.length > 3)
+    {
+        var mod = number.length % 3;
+        var output = (mod > 0 ? (number.substring(0, mod)) : '');
+        for (i=0 ; i < Math.floor(number.length / 3); i++)
+        {
+            if ((mod == 0) && (i == 0)){
+                output += number.substring(mod+ 3 * i, mod + 3 * i + 3);
+            }
+            else{
+                output += '.' + number.substring(mod + 3 * i, mod + 3 * i + 3);
+            }
+        }return output;
+    }return number;
+}
+
+/**
+ * A JavaScript equivalent of PHP’s number_format
+ * Used in NumberFormatLanguageSpecific() function below
+ * Source: http://phpjs.org/functions/number_format/
+ */
+function number_format(number, decimals, dec_point, thousands_sep) {
+  // Strip all characters but numerical ones.
+  number = (number + '').replace(/[^0-9+\-Ee.]/g, '');
+  var n = !isFinite(+number) ? 0 : +number,
+    prec = !isFinite(+decimals) ? 0 : Math.abs(decimals),
+    sep = (typeof thousands_sep === 'undefined') ? ',' : thousands_sep,
+    dec = (typeof dec_point === 'undefined') ? '.' : dec_point,
+    s = '',
+    toFixedFix = function (n, prec) {
+      var k = Math.pow(10, prec);
+      return '' + Math.round(n * k) / k;
+    };
+  // Fix for IE parseFloat(0.55).toFixed(0) = 0;
+  s = (prec ? toFixedFix(n, prec) : '' + Math.round(n)).split('.');
+  if (s[0].length > 3) {
+    s[0] = s[0].replace(/\B(?=(?:\d{3})+(?!\d))/g, sep);
+  }
+  if ((s[1] || '').length < prec) {
+    s[1] = s[1] || '';
+    s[1] += new Array(prec - s[1].length + 1).join('0');
+  }
+  return s.join(dec);
+}
+
+/**
+ * Change a number's formatting according to the language (X,XXX.XX or X.XXX,XX)
+ * NOTE: this is the exact Javascript equivalent function of NumberFormatLanguageSpecific() php function in CommonMethods.php
+ * it should be called as the final function before a number is printed (after the number has already been rounded up or formatted with other functions)
+ *
+ * the formatting settings for each language are custom set in the B. language specific settings below
+ *
+ * @param number_to_format - the number which will be formatted
+ * @param decimal_places - the number of decimal places for the number that will be returned
+ */
+function NumberFormatLanguageSpecific(number_to_format, custom_decimal_places)
+{
+    if (number_to_format == undefined || number_to_format == "undefined"){ return ""; } // return an empty value if number_to_format is not set
+    var number = number_to_format.toString(); // convert $number_to_format to string
+
+    // default decimal places is set to 2, unless custom set when function is called
+    if (custom_decimal_places == undefined || custom_decimal_places == "undefined"){ var decimal_places = 2; }
+    else { var decimal_places = custom_decimal_places; }
+
+    // A ==== DETERMINE the input decimal/separators by analyzing the given number ====
+    // logic: check for a "," or "." before the last, 2nd-from-last, or 3rd-from-last digit
+
+    // FORMAT 1,000.00 - if format is either: X.X or X.XX or X,XXX
+    if (
+        ( (number.lastIndexOf(".") >= 1) && ( (number.length - number.lastIndexOf(".")) == 2 || (number.length - number.lastIndexOf(".")) == 3 ) )
+        ||
+        ( (number.lastIndexOf(",") >= 1) && (number.length - number.lastIndexOf(",")) == 4 )
+    )
+    {
+        var input_decimal_separator = ".";
+        var input_thousands_separator = ",";
+    }
+    // (default) FORMAT 1.000,00 - if format is either: X,X or X,XX or X.XXX
+    else{
+        var input_decimal_separator = ",";
+        var input_thousands_separator = ".";
+    }
+
+    // ==== end: DETERMINE the input decimal/separators ====
+
+    // B ==== LANGUAGE SPECIFIC SETTINGS as SET BELOW ====
+    // number separators depending on language (in this case: different values are set for english)
+
+    var lang = "de";
+    if (typeof languageISO != undefined)
+    {
+        lang = languageISO;
+    }
+    else
+    {
+        lang = $.cookie("cpLanguage"); // get current language
+    }
+
+    if (lang == "en") // english
+    {
+        var output_decimal_separator = ".";
+        var output_thousands_separator = ",";
+    }
+    else // others
+    {
+        var output_decimal_separator = ",";
+        var output_thousands_separator = ".";
+    }
+
+    // ==== end: LANGUAGE SPECIFIC SETTINGS ====
+
+    // C ==== FORMATTING of $number ====
+
+    // if number is zero --> return as common format 0.00
+    if (number == "0" || number == "0,0" || number == "0.0"){
+        return number_format(0, decimal_places, output_decimal_separator, output_thousands_separator);
+    }
+
+    // inspect number to get format, position of decimals/thousands separator
+    var number_of_characters = number.length;
+    var position_of_decimal_separator = number.lastIndexOf(input_decimal_separator);
+    var position_of_decimal_separator_from_end = number_of_characters - position_of_decimal_separator;
+
+    // if there is no decimal separator
+    if (position_of_decimal_separator == "-1")
+    {
+        // remove other thousand separators and add the correct output thousand separators
+        var stripped_number = number.replace(' ', '');
+        stripped_number = stripped_number.replace(input_thousands_separator, '');
+        return number_format(stripped_number, decimal_places, output_decimal_separator, output_thousands_separator);
+    }
+
+    // if there is one or two decimal places
+    if (position_of_decimal_separator_from_end == 2 || position_of_decimal_separator_from_end == 3)
+    {
+        // remove other thousand separators, change decimal separators to "." in order to use number_format php function
+        var stripped_number = number.replace(' ', '');
+        stripped_number = stripped_number.replace(input_thousands_separator, '');
+        stripped_number = stripped_number.replace(input_decimal_separator, '.');
+        return number_format(stripped_number, decimal_places, output_decimal_separator, output_thousands_separator);
+    }
+
+    return number; // if none of the above IF statements are met, return the original unformatted number
+
+    // ==== end: FORMATTIONG of $number ====
+}
+
+//return cp-langid for a given ISO code NOT IN USE ATM 17.04.2014
+function cp_lang(lang_iso)
+{
+    var languages={de:1, en:2, pl:3, it:4, es:5, el:6, fr:7, nl:8, tr:11, ro:12, da:15};
+    return languages[lang_iso];
+}
+
+/* error handling routines */
+/***************************/
+//@Author: Adrian "yEnS" Mato Gondelle
+//@website: www.yensdesign.com
+//@email: yensamg@gmail.com
+//@license: Feel free to use it, but keep this credits please!
+/***************************/
+
+//SETTING UP OUR POPUP
+//0 means disabled; 1 means enabled;
+var Status = 0;
+
+function loadError(confirmation)
+{
+    if(Status == 0) //loads  only if it is disabled
+    {
+        var $errorBackground = $("#errorBackground");
+        $errorBackground.css({"opacity": "0.7"});
+        $errorBackground.fadeIn(300);
+
+        var $body = $('body');
+        $body.css({
+            width: $body.width(),
+            overflow: 'hidden'
+        });
+
+        if(typeof confirmation !== "undefined" && confirmation == true)
+        {
+            $("#errorBackground").addClass("js-confirmation");
+        }
+
+        $("#errorBox").fadeIn(300);
+        Status = 1;
+    }
+}
+
+//disabling  with jQuery magic!
+function disableError()
+{
+    var confirmed = true;
+    if(Status == 1) //disables  only if it is enabled
+    {
+        if($("#errorBackground").hasClass('js-confirmation'))
+        {
+            confirmed = confirm(leavepopupconfirmation);
+        }
+
+        if(confirmed)
+        {
+            $("#errorBackground").removeClass('js-confirmation');
+
+            $("#errorBox").fadeOut("slow");
+
+            //after disabling error box, show tucbox popup if it's not empty
+            if( $.trim( $('#tucbox').html() ).length ) {
+                $("#tucbox").fadeIn("slow");
+            }
+            else {
+                $("#errorBackground").fadeOut("slow");
+            }
+
+            $('body').css({
+                width: '',
+                overflow: ''
+            });
+
+            Status = 0;
+        }
+    }
+}
+
+//centering
+function centerError()
+{
+    if (isMobile===true){
+        keepErrorOnTop();
+        return;
+    }
+
+    //request data for centering
+    var windowWidth = document.documentElement.clientWidth;
+    var windowHeight = document.documentElement.clientHeight;
+    var Height = $("#errorBox").height();
+    var Width = $("#errorBox").outerWidth();
+    var topPos = $(window).scrollTop();
+    //centering
+    $("#errorBox").css({
+            "position": "absolute",
+            "top": topPos+windowHeight/2-Height/2,
+            "left": windowWidth/2-Width/2
+    });
+
+    $("#errorBackground").css({
+        "height": windowHeight,
+        "top":topPos,
+        "position":"absolute"
+    });
+
+}
+
+//centering
+function keepErrorOnTop()
+{
+    //request data for centering
+    var windowWidth = document.documentElement.clientWidth;
+    var windowHeight = document.documentElement.clientHeight;
+    var Height = $("#errorBox").height();
+    var Width = $("#errorBox").outerWidth();
+    var topPos = $(window).scrollTop();
+    //centering
+    $("#errorBox").css({
+        "position": "absolute",
+        "top": 0,//topPos+windowHeight/2-Height/2,
+        "left": windowWidth/2-Width/2
+    });
+
+    $("#errorBackground").css({
+        "height": windowHeight,
+        "top":topPos,
+        "position":"absolute"
+    });
+
+}
+//CONTROLLING EVENTS IN jQuery
+
+//CLOSING POPUP
+//Click the x event!
+$("#errorMessageClose").click(function(){
+        disableError();
+});
+
+function urldecode (str)
+{
+    return decodeURIComponent((str + '').replace(/\+/g, '%20'));
+}
+
+/*
+ *********************************************************************************
+ *********************************************************************************
+ * Functionality of left menu after Facelift (Oct2013)
+ *********************************************************************************
+ * links can be:
+ * - LIVE games - sport category dropdowns
+ * - SPORTS leagues/groups - sport category dropdowns containing
+ *                           leagues/group
+ * - DYNAMIC - generated from the CMS (some code added but
+ *             other original functions left unchanged)
+ *********************************************************************************
+ *
+ * @param specific_container_id - optional - if specified, the function will only apply for the links inside that particular id
+ */
+function initialise_leftmenu_link_actions(specific_container_id)
+{
+    // CONFIGURATION
+    var enable_toggle_close_on_active_links = true; // if set to true, whenever you click again on an active menu link (example: an open live sports category or league), such link works as "close"
+
+    /*
+     * ---------------------------------
+     * on click of each menu_link
+     * ---------------------------------
+     */
+    if(specific_container_id == 'elasticResults') {
+        var menu_links = $("#elasticResults").find(".menu_link");
+    } else {
+        var menu_links = (specific_container_id === undefined || specific_container_id == "") ? $(".left_sidebar_menu .menu_link") : $("#sports_sidebar_menu").find("#"+specific_container_id+" .menu_link");
+    }
+    menu_links.unbind('click'); // first remove previously-set event handlers
+    menu_links.click(function(event)
+    {
+        var parent_menu_item = $(this).parent(".menu_item"); // parent li of clicked link. This will be used frequently below as most identifying classes are assigned to it
+
+        var page_controller = $("#sports_sidebar_menu").find(".left_sidebar_menu").attr("data-page-controller");
+
+        // if it's a prev/next button or an empty row, do nothing
+        if (parent_menu_item.hasClass("menu_nav_item") || parent_menu_item.hasClass("menu_item_empty_row"))
+        {
+            return false;
+            event.preventDefault(); // stop default <a href=""> link action
+        }
+
+        if($(this).parent("li").hasClass("country_category"))
+        {
+            var childleagues = $(this).next("ul.sublevel3").find("li.sublevel3 > a");
+            if(childleagues.length == 1)
+            {
+                childleagues[0].click();
+            }
+        }
+
+        if($(this).parent("li").hasClass("sports_category"))
+        {
+            var childcountries = $(this).next("ul.sublevel2").find("li.sublevel2 > a");
+            if(childcountries.length == 1)
+            {
+                childcountries[0].click();
+            }
+        }
+
+        // =========================================================
+        // SPORTS LEAGUE (GROUP) LINK
+        // =========================================================
+        if ($(this).hasClass("toggleleague"))
+        {
+            var league_id = $(this).attr("id").substr(10); // get the sport league/group id from the clicked link
+            //var league_title = $(this).attr("data-league-title"); // get the league/group title from the clicked link
+            // 23.09.2015 - commented and removed from HTML structure because not used by SH
+            var sports_menu_item = parent_menu_item.parents(".menu_item.sports_category"); // get as an object the parent menu item of the clicked league's sports category
+            var sports_id = sports_menu_item.attr("id").substr(19); // from the sports_menu_object above, get the sports id
+
+            // ========== IF IN SPORTSBOOK / LIVE PAGE ===========
+            if ((check_if_game_widgets_enabled() == true
+                    || page_controller == "site" || page_controller == "live")
+                && controllerID != "videostreams" // `videostreams` has widgets but still needs redirect(goto else cond)
+                && controllerID != "lastminute" // `lastminute` has widgets but still needs redirect(goto else cond)
+                && controllerID != "today" // `today` has widgets but still needs redirect(goto else cond)
+            ) {
+
+                // -----------------------------------------
+                // if league is already open, close group
+                // -----------------------------------------
+                if (parent_menu_item.hasClass("link_active") && $("#gr" + league_id).is(":visible"))
+                {
+                    // do not close if functionality is disabled from configuration above
+                    if (enable_toggle_close_on_active_links == false)
+                    {
+                        event.preventDefault(); // stop default <a href=""> link action
+                        return false;
+                    }
+
+                    Bets.closeGroup(league_id, parent_menu_item);
+                    // check function in bets.js
+                }
+
+                // -----------------------------------------
+                // if league is closed, open group
+                // -----------------------------------------
+                else
+                {
+                    // open league
+                    Bets.selectGroup(league_id, parent_menu_item);
+                }
+
+            }
+            // ========== END: IF IN SPORTSBOOK / LIVE PAGE ===========
+
+            // ========== IF *NOT* IN SPORTSBOOK / LIVE PAGE ===========
+            else
+            {
+                // reset loader, add and show new loader
+                main_content_loader('show', 'menu-toggleleague-redirect');
+
+                // redirect to sportsbook page (to load necessary js and SiteController) and open such menu on page load (document ready code in site/index.php view file)
+                var sportsbook_url_base = (sportsbookURL !== undefined && sportsbookURL != "") ? sportsbookURL+"?" : "/site/index.html?";
+                window.location.href = sportsbook_url_base+'sportid='+sports_id+'&group='+league_id+'&filter='+LeftMenu.activeTimeFilter;
+
+            }
+            // ========== END: IF *NOT* IN SPORTSBOOK / LIVE PAGE ===========
+
+            event.preventDefault(); // stop default <a href=""> link action
+        }
+        // end: ============= SPORTS LEAGUE LINK =============
+
+        // =========================================================
+        // LIVE SPORT CATEGORY
+        // -- used before live menu odds in the leftmenu (selecting custom games)
+        // =========================================================
+        else if ($(this).hasClass("togglelivesport"))
+        {
+            var sport_id = parent_menu_item.attr("data-sport-id");
+            var live_sport_container = $("#mainlivecontainer #mainlive #group_container_"+sport_id);
+
+            // check if there are live games loaded
+            var live_widget = $("#widget_live_tabbed");
+            if (live_widget.length > 0 && live_widget.is(":visible")) {
+                var live_sport_tab = live_widget.find(".widget-sport-link.widget-sport-link-"+sport_id);
+                if (live_sport_tab.length > 0) {
+                    live_sport_tab.trigger('click');
+                    parent_menu_item.siblings(".menu_item").removeClass("link_active");
+                    parent_menu_item.addClass("link_active");
+                    scroll_to_a_container(live_sport_tab, false);
+
+                    return false;
+                }
+            }
+
+            // else: redirect to live page
+            else {
+                if (liveURL !== undefined) {
+                    var redirect_url = liveURL + '?sport=' + sport_id;
+                }
+                else {
+                    var redirect_url = '/index.php?r=live/index&sport=' + sport_id;
+                }
+                window.location.href = redirect_url;
+
+                return false;
+            }
+
+            event.preventDefault(); // stop default <a href=""> link action
+            return false;
+
+        }
+        // end: ============= LIVE SPORT CATEGORY =============
+
+        // =========================================================
+        // LINKS TO OPEN/CLOSE LIVE SPORTS' SUBMENUS (containing live odds)
+        // =========================================================
+        else if (parent_menu_item.hasClass("menu_live_sport"))
+        {
+            var sport_id = parseInt(parent_menu_item.attr("data-sport-id"));
+
+            // if sport's submenu is open, close it
+            if (parent_menu_item.hasClass("submenu_open")){
+                close_single_livemenu_sport_submenu(sport_id);
+            }
+
+            // else if sport's submenu is closed, open it
+            else {
+                /*
+                close_all_livemenu_sport_submenu(true, function(){
+                    scroll_to_a_container(parent_menu_item);
+                });
+                */
+                if(sport_id == 92)
+                {
+                    if (liveURL !== undefined) {
+                        var redirect_url = liveURL + '?sport=' + sport_id;
+                    }
+                    else {
+                        var redirect_url = '/index.php?r=live/index&sport=' + sport_id;
+                    }
+                    window.location.href = redirect_url;
+                }
+                else
+                {
+                    load_livemenu_sport_submenu(sport_id);
+                }
+            }
+
+            event.preventDefault(); // stop default <a href=""> link action
+            return false;
+        }
+
+        // =========================================================
+        // LINKS TO OPEN/CLOSE SUBMENUS
+        // =========================================================
+        else if (parent_menu_item.children("ul").children("li.menu_item").length > 0)
+        {
+
+            // ------- if submenu is already open, close it -------
+            // -- EDIT: do not close the Sports submenu (id="left_menu_sports")
+            if (parent_menu_item.hasClass("submenu_open")
+                && !parent_menu_item.hasClass("keep_submenu_open")
+                && parent_menu_item.children("ul").is(":visible"))
+            {
+                parent_menu_item.children("ul").slideUp("fast", function(){
+                    parent_menu_item.removeClass("submenu_open");
+                });
+
+                // close other open menus further down the menu item
+                parent_menu_item.children("ul").find(".submenu_open ul").slideUp("fast", function(){
+                    parent_menu_item.children("ul").find(".submenu_open").removeClass("submenu_open");
+                });
+            }
+
+            // ------- if submenu is closed, open it -------
+            else {
+
+                // get this menu item's vertical offset before it is open
+                //    - this fixes issues with just-opened-submenus getting hidden outside
+                //      window as other open menus (which are placed before and are larger)
+                //      are closed.
+
+                // -- EDIT: do not open LIVE Menu when not in live or start page and there are no open leagues
+                var left_sidebar_menu = $("#sports_sidebar_menu").find(".left_sidebar_menu");
+                if (left_sidebar_menu.attr("data-page-controller") != "live"
+                    && left_sidebar_menu.attr("data-page-controller") != "site"
+                    && left_sidebar_menu.attr("data-page-controller") != "sitenew"
+                    && left_sidebar_menu.attr("data-page-controller") != "livenew"
+                    && parent_menu_item.attr("id") == "left_menu_live"
+                    && (check_for_open_leagues_or_livesports().open_leagues == false
+                        && check_for_open_leagues_or_livesports().open_live_single_sports == false )
+                    )
+                {
+                    return true;
+                }
+
+                // if opening a live sport menu (with live odds), update the odds (updates also the other odds inside the page)
+                if (parent_menu_item.hasClass("menu_live_sport")){
+                    updateFeed(false);
+                }
+
+                // reset limits of submenu items (and remove prev/more buttons)
+                if (parent_menu_item.children("ul").children(".menu_nav_item").length > 0)
+                {
+                    // get id of parent menu item (if not set, do nothing)
+                    var parent_menu_item_id = parent_menu_item.attr("id");
+                    if (parent_menu_item_id !== undefined && parent_menu_item_id != "") {
+                        var submenu_limit = parseInt(parent_menu_item.children("ul").attr("submenu_limit_per_page"));
+                    }
+                }
+
+                // open this menu
+                parent_menu_item.children("ul").slideDown("fast", function(){
+                    parent_menu_item.addClass("submenu_open");
+                });
+
+                // if NOT clicking on LIVE menu item, close open menus further down the sibling (same level) menu items EXCEPT the Sports submenu and those which are always kept open
+                if (parent_menu_item.attr("id") != "left_menu_live")
+                {
+                        parent_menu_item.siblings(".submenu_open").not("#left_menu_sports, .keep_submenu_open").find(".submenu_open ul").slideUp("fast", function()
+                        {
+                            parent_menu_item.siblings(".submenu_open").find(".submenu_open").removeClass("submenu_open");
+
+                            // scroll to opened menu's new offset
+                            //    - this fixes issues with just-opened-submenus getting hidden outside window as other open menus (which are placed before and are larger) are closed.
+                            if ($(document).scrollTop() > parent_menu_item.offset().top){
+                                $("body,html").animate({scrollTop:parent_menu_item.offset().top}, "fast");
+                            }
+
+                        });
+
+                        // close sibling open menus (same level)
+                        parent_menu_item.siblings(".submenu_open").not("#left_menu_sports").children("ul").slideUp("fast", function(){
+                            parent_menu_item.siblings(".submenu_open").removeClass("submenu_open");
+
+                            // scroll to opened menu's new offset
+                            //    - this fixes issues with just-opened-submenus getting hidden outside window as other open menus (which are placed before and are larger) are closed.
+                            if ($(document).scrollTop() > parent_menu_item.offset().top) {
+                                $("body,html").animate({scrollTop:parent_menu_item.offset().top}, "fast");
+                            }
+
+                        });
+                }
+                // if CLICKING on LIVE menu item, close open menus further down the sibling (same level) menu items INCLUDING the Sports submenu
+                else {
+                        parent_menu_item.siblings(".submenu_open").find(".submenu_open ul").slideUp("fast", function(){
+                            parent_menu_item.siblings(".submenu_open").find(".submenu_open").removeClass("submenu_open");
+
+                            // scroll to opened menu's new offset
+                            //    - this fixes issues with just-opened-submenus getting hidden outside window as other open menus (which are placed before and are larger) are closed.
+                            if ($(document).scrollTop() > parent_menu_item.offset().top){
+                                $("body,html").animate({scrollTop:parent_menu_item.offset().top}, "fast");
+                            }
+
+                        });
+
+                        // close sibling open menus (same level)
+                        parent_menu_item.siblings(".submenu_open").children("ul").slideUp("fast", function(){
+                            parent_menu_item.siblings(".submenu_open").removeClass("submenu_open");
+
+                            // scroll to opened menu's new offset
+                            //    - this fixes issues with just-opened-submenus getting hidden outside window as other open menus (which are placed before and are larger) are closed.
+                            if ($(document).scrollTop() > parent_menu_item.offset().top){
+                                $("body,html").animate({scrollTop:parent_menu_item.offset().top}, "fast");
+                            }
+
+                        });
+                }
+
+                // close open dynamic menus
+                $("#sports_sidebar_menu").find("#dynamic .breadcrumb.submenu_open").children("ul").slideUp("fast", function(){
+                    $("#sports_sidebar_menu").find("#dynamic .breadcrumb.submenu_open").removeClass("submenu_open");
+
+                    // scroll to opened menu's new offset
+                    //    - this fixes issues with just-opened-submenus getting hidden outside window as other open menus (which are placed before and are larger) are closed.
+                    if ($(document).scrollTop() > parent_menu_item.offset().top){
+                        $("body,html").animate({scrollTop:parent_menu_item.offset().top}, "fast");
+                    }
+
+                });
+
+            }
+
+            event.preventDefault(); // stop default <a href=""> link action
+        }
+        // ============= end: LINKS TO OPEN/CLOSE SUBMENUS =============
+
+        // if the link doesn't contain any submenu, it will act as a normal link
+
+    });
+    // end: on click of each menu_link
+
+    /* ---------------------------------------
+     * DYNAMIC MENUS
+     * - handling opening/closing of submenus
+     * - does NOT handle functionality of clicking on the link
+     *   - these are handled in the original function (pre-facelifting) further down
+     *                                    ($.each($("a") ..)
+     * ----------------------------------------
+     */
+    // on click of dynamic top level menu items
+    $("#sports_sidebar_menu").find("#dynamic .breadcrumb > h3").click(function(event)
+    {
+        var parent_container_of_clicked_link = $(this).parent(".breadcrumb");
+        var dynamic_submenu_ul_of_clicked_link = parent_container_of_clicked_link.children("ul"); // find the <ul> closest to the clicked h3 (link)
+
+        // if there is a submenu
+        if (dynamic_submenu_ul_of_clicked_link.children("li").length > 0)
+        {
+
+            // if submenu is open, close it
+            if (dynamic_submenu_ul_of_clicked_link.is(":visible") && parent_container_of_clicked_link.hasClass("submenu_open"))
+            {
+                dynamic_submenu_ul_of_clicked_link.slideUp("fast", function(){
+                    parent_container_of_clicked_link.removeClass("submenu_open");
+                });
+            }
+
+            // if submenu is closed, open it
+            else {
+
+                // close other open dynamic menus
+                $("#sports_sidebar_menu").find(".submenu_open").each( function()
+                {
+                    // do not close the SPORTS submenu
+                    if ($(this).attr("id") != "left_menu_sports")
+                    {
+                        $(this).children("ul:visible").slideUp("fast", function(){
+                            $("#sports_sidebar_menu").find(".submenu_open").removeClass("submenu_open");
+
+                            // scroll to opened menu's new offset
+                            //    - this fixes issues with just-opened-submenus getting hidden outside window as other open menus (which are placed before and are larger) are closed.
+                            if ($(document).scrollTop() > parent_container_of_clicked_link.offset().top){
+                                $("body,html").animate({scrollTop:parent_container_of_clicked_link.offset().top}, "fast");
+                            }
+
+                        });
+                    }
+
+                });
+
+                // open current menu
+                dynamic_submenu_ul_of_clicked_link.slideDown("fast", function()
+                {
+                    parent_container_of_clicked_link.addClass("submenu_open");
+                });
+
+            }
+            // end: if submenu is closed, open it
+
+            event.preventDefault(); // stop default <a href=""> link action
+        }
+
+        // if there is no submenu
+        else { return false; }
+
+    });
+    // end: on click of dynamic top level menu items
+
+    // on page load, open dynamic submenu according to which dynamic menu item is active
+    $(document).ready(function()
+    {
+        if ($("#sports_sidebar_menu").find("#dynamic .item_active2").length > 0)
+        {
+            // set parent container (.breadcrumb) to open and active
+            $("#sports_sidebar_menu").find("#dynamic .item_active2").parents(".breadcrumb").addClass("submenu_open link_active");
+        }
+    });
+
+    // end: ----- dynamic menus ------
+
+}
+// end: function initialise_leftmenu_link_actions
+
+// initialise_leftmenu_link_Actions
+$(document).ready(function(){
+    initialise_leftmenu_link_actions();
+});
+
+/* ---------------------------------------------------------------------------
+ * Check for open/selected sportsbook leagues or live single sport categories inside the page
+ * - function is used in main menu click functions above
+ *
+ * @return open_leagues - true or false - 'true' means there are open sportsbook leagues
+ * @return open_live_single_sports - true or false - 'true' means there are open live single sport categories
+ * ----------------------------------------------------------------------------
+ */
+function check_for_open_leagues_or_livesports()
+{
+    var return_open_leagues = false; // default
+    var return_open_live_single_sports = false; // default - these will be used for the return value of this function
+
+    // check for open sportsbook leagues
+    var league_containers = $("#main #container_bets .sportsbook_league_container");
+    if (league_containers.length > 0){
+        return_open_leagues = true;
+    }
+
+    // check for open live sport categories
+    var live_single_sport_containers = $("#main #mainlivecontainer .live_single_sport");
+    if (live_single_sport_containers.length > 0){
+        return_open_live_single_sports = true;
+    }
+
+    // return values
+    return {
+        open_leagues: return_open_leagues,
+        open_live_single_sports: return_open_live_single_sports
+    };
+}
+
+/* ---------------------------------------------------------------------------
+ * Left Menu - LIVE SPORTS CATEGORIES active classes
+ * function which toggles (adds/removes) active classes of left menu (live sports categories section)
+ * needs to be called from live.js functions which close live sports containers - hence the separate function
+ *
+ * @param toggletype - whether to 'add' or 'remove' active class (opening/closing live sports category)
+ * @param link_li_parent - the parent <li> menu item of the clicked link
+ *                         (used when function called from left menu function above)
+ * @param live_sport_id - the id of the sports category (used when function called
+ *                       from other js functions which close live sports containers)
+ * ----------------------------------------------------------------------------
+ */
+function leftMenu_livesport_toggle_active_classes(toggletype, link_li_parent, live_sport_id)
+{
+
+    // get the menu item for the particular live sport category
+    // if function called from other js functions which open/close sports categories
+    if ((link_li_parent === undefined || link_li_parent == '') && (live_sport_id !== undefined && live_sport_id != '')){
+        var parent_li_of_link = $("#sports_sidebar_menu").find("#left_menu_live #left_menu_live_id"+live_sport_id);
+    }
+    // if function called from left menu function above (functionality of left menu)
+    else if (link_li_parent !== undefined && link_li_parent != ''){
+        var parent_li_of_link = link_li_parent;
+    }
+    else { return false; }
+
+    // --------------------- ADD active class ----------------------
+    if (toggletype == "add")
+    {
+        // add active class of parent li
+        parent_li_of_link.addClass("link_active");
+        // set live li to active class
+        $("#sports_sidebar_menu").find("#left_menu_live").addClass("link_active");
+    }
+    // -------------------- end: ADD active class ---------------------
+
+    // --------------------- REMOVE active class -----------------
+    else if (toggletype == "remove")
+    {
+        // remove active class of parent li
+        parent_li_of_link.removeClass("link_active");
+
+        // if there aren't any other live sports menus open, remove active class of live li
+        var other_livesports_open = 0;
+        $("#sports_sidebar_menu").find("#left_menu_live").find("ul > .menu_item").each( function(){
+            if ($(this).hasClass("link_active")){
+                other_livesports_open = 1;
+            }
+        });
+        if (other_livesports_open == 0) {
+            $("#sports_sidebar_menu").find("#left_menu_live").removeClass("link_active");
+        }
+    }
+    // --------------------- end: REMOVE active class -----------------
+
+    else { return false; } // if toggletype is undefined
+}
+// end: function leftMenu_livesport_toggle_active_classes
+
+/* ---------------------------------------------------------------------------
+ * Left Menu - LIVE GAMES active classes
+ * function which toggles (adds/removes) active classes of left menu (live section)
+ * needs to be called also from live.php (toggleGame function) - hence the separate function
+ *
+ * @param toggletype - whether to 'add' or 'remove' active class (opening/closing live game)
+ * @param link_li_parent - the parent <li> menu item of the clicked link
+ *                         (used when function called from left menu function above)
+ * @param live_game_id - the id of the live game (used when function called
+ *                       from live.php toggleGame function re: closing open live ticker)
+ * ----------------------------------------------------------------------------
+ */
+function leftMenu_livegames_toggle_active_classes(toggletype, link_li_parent, live_game_id)
+{
+
+    // get the menu item for the particular live game
+    // if function called from toggleGame function (opening/closing live game ticker)
+    if ((link_li_parent === undefined || link_li_parent == '') && (live_game_id !== undefined && live_game_id != '')){
+        var parent_li_of_link = $("#sports_sidebar_menu").find("#left_menu_live #left_menu_live_game_id"+live_game_id).parent(".menu_item");
+    }
+    // if function called from left menu function above (functionality of left menu)
+    else if (link_li_parent !== undefined && link_li_parent != ''){
+        var parent_li_of_link = link_li_parent;
+    }
+    else { return false; }
+
+    // --------------------- ADD active class ----------------------
+    if (toggletype == "add")
+    {
+        // add active class of parent li
+        parent_li_of_link.addClass("link_active");
+        // set parent sports category li and live li to active class
+        parent_li_of_link.parents(".menu_item.sports_category").addClass("link_active");
+        $("#sports_sidebar_menu").find("#left_menu_live").addClass("link_active");
+    }
+    // -------------------- end: ADD active class ---------------------
+
+    // --------------------- REMOVE active class -----------------
+    else if (toggletype == "remove")
+    {
+        // remove active class of parent li
+        parent_li_of_link.removeClass("link_active");
+
+        // if there aren't any other games from same sport open, remove active class of parent sports category li
+            var other_games_from_same_sport_open = 0;
+            parent_li_of_link.parents(".menu_item.sports_category").find(".menu_item").each( function(){
+                if ($(this).hasClass("link_active")){
+                    other_games_from_same_sport_open = 1;
+                }
+            });
+            if (other_games_from_same_sport_open == 0) {
+                parent_li_of_link.parents(".menu_item.sports_category").removeClass("link_active");
+            }
+
+        // if there aren't any other live sports menus open, remove active class of live li
+            var other_livesports_open = 0;
+            $("#sports_sidebar_menu").find("#left_menu_live").find("ul > .menu_item").each( function(){
+                if ($(this).hasClass("link_active")){
+                    other_livesports_open = 1;
+                }
+            });
+            if (other_livesports_open == 0) {
+                $("#sports_sidebar_menu").find("#left_menu_live").removeClass("link_active");
+            }
+    }
+    // --------------------- end: REMOVE active class -----------------
+
+    else { return false; } // id toggletype is undefined
+}
+// end: function leftMenu_livegames_toggle_active_classes
+
+/* ---------------------------------------------------------------------------
+ * Left Menu - SPORTSBOOK Leagues active classes
+ * function which toggles (adds/removes) active classes
+ *
+ * @param toggletype - whether to 'add' or 'remove' active class
+ * @param link_li_parent - the parent <li> menu item of the clicked link
+ *                         (used when function called from left menu function above)
+ * @param group_id - the id of the league
+ * ----------------------------------------------------------------------------
+ */
+function leftMenu_leagues_toggle_active_classes(toggletype, link_li_parent, group_id, league_id)
+{
+    var menu_item_league = (link_li_parent !== undefined && link_li_parent != '' && link_li_parent.length > 0) ? link_li_parent : $("#left_menu_sports").find("#league_id_"+group_id).parent(".menu_item");
+
+    if (menu_item_league.length === 0 && league_id !== undefined && league_id !== '') {
+        menu_item_league = $("#left_menu_sports").find(".menu_link.toggleleague[data-league-id='"+league_id+"']").parent(".menu_item");
+    }
+
+    var menu_item_country = (menu_item_league.length > 0) ? menu_item_league.parents(".menu_item.country_category") : false;
+    var menu_item_sport = (menu_item_league.length > 0) ? menu_item_league.parents(".menu_item.sports_category") : false;
+    var menu_item_main = (menu_item_league.length > 0) ? menu_item_league.parents("#left_menu_sports") : false;
+
+    if (toggletype == 'add')
+    {
+        // set li to active class
+        if (menu_item_league.length > 0){
+            menu_item_league.addClass("link_active");
+        }
+        // set parent sports category li and sports li to active class
+        if (menu_item_sport){
+            menu_item_sport.addClass("link_active");
+        }
+        if (menu_item_main){
+            menu_item_main.addClass("link_active");
+        }
+        //set parent country li to active
+        if (menu_item_country)
+        {
+            menu_item_country.addClass("link_active");
+            //because country cannot be open via PHP do it here
+            menu_item_country.addClass("submenu_open");
+            menu_item_country.children("ul").show();
+        }
+    }
+
+    else if (toggletype == 'remove')
+    {
+        var other_leagues_open = false;
+        if (menu_item_sport && menu_item_sport.find(".menu_item.link_active").length > 1){
+            other_leagues_open = true;
+        }
+        var other_sports_open = false;
+        if (menu_item_main && menu_item_main.find(".menu_item.link_active").length > 1){
+            other_sports_open = true;
+        }
+
+        // remove active classes of parent li
+        if (menu_item_league.length > 0){
+            menu_item_league.removeClass("link_active");
+        }
+        // if there aren't any other leagues from same sport open, remove active class of parent sports category li. Do the same with the "Sports" menu item
+        if (!other_leagues_open && menu_item_sport){
+            menu_item_sport.removeClass("link_active");
+        }
+        if (!other_sports_open && !other_leagues_open && menu_item_sport){
+            menu_item_main.removeClass("link_active");
+        }
+    }
+}
+
+/*
+ * ------------------------------------------
+ * SUBMENUS PREV/MORE: on page load, hide menu items if there
+ *                     are more than 20 in the list, and show
+ *                     "PREVIOUS" and "MORE" buttons
+ * - function is called in the left menu php view file
+ * @param specific_container_id - if specified the function will only
+ *                     apply for the submenus inside that particular id,
+ *                     otherwise it applies for all level 1/2 submenus
+ * @param limit - the max no. of menu items to show per submenu
+ * @param page_to_load - optional - object { - to load a different page for each submenu
+ *          'id or class of submenu' : [page number]
+ *        }
+ * -----------------------------------------
+ */
+function update_leftmenu_submenus_to_limit(specific_container_id, limit, page_to_load)
+{
+    // config variables
+    window.max_menu_items_per_submenu = (limit === undefined || limit == "") ? 20 : limit;
+    var container_id_to_limit_its_child_submenus = (specific_container_id === undefined || specific_container_id == "") ? "ul" : "#"+specific_container_id+" ul";
+
+    // get prev/more yalt text from js script in php view
+    var prev_text = (window.yalt_prev_text === undefined || window.yalt_prev_text == "") ? "&larr; previous" : window.yalt_prev_text;
+    var more_text = (window.yalt_more_text === undefined || window.yalt_more_text == "") ? "more &rarr;" : window.yalt_more_text;
+    // prev/more button html
+    window.prev_menu_item = '<li class="menu_item menu_nav_item prev_menu_nav"><a onclick="action_leftmenu_submenus_to_limit($(this), \'prev\'); return false;" href="#" class="menu_link">'+prev_text+'</a></li>';
+    window.more_menu_item = '<li class="menu_item menu_nav_item more_menu_nav"><a onclick="action_leftmenu_submenus_to_limit($(this), \'more\'); return false;" href="#" class="menu_link">'+more_text+'</a></li>';
+
+    // set a different limit to particular submenus than the others (class or ID of submenu)
+    var menu_limit_exceptions = {
+        'left-menu-games-list': 6
+    };    
+
+    // for each submenu (default: all level 1/2 submenus EXCEPT the sports level 1 submenu)
+    $("#sports_sidebar_menu").find(container_id_to_limit_its_child_submenus).not("#left_menu_sports > ul").each(function()
+    {
+        var this_submenu = $(this);
+        var submenu_id = this_submenu.attr("id");
+
+        var submenu_limit = window.max_menu_items_per_submenu;
+        // check if this submenu is one of the exceptions for a different limit (match class or ID)
+        $.each(menu_limit_exceptions, function(selector, limit){
+            if (submenu_id == selector || this_submenu.hasClass(selector))
+            {
+                submenu_limit = limit;
+            }
+        });
+
+        // get the page to load for this submenu
+        var page = 1;      
+        if (page_to_load !== undefined && page_to_load != "")
+        {                     
+            $.each(page_to_load, function(selector, this_page){
+                if (submenu_id == selector || this_submenu.hasClass(selector))
+                {
+                    page = parseInt(this_page);
+                }
+            });
+        }
+        // set this menu's limit as attribute, to read when there's an action
+        this_submenu.attr("submenu_limit_per_page", submenu_limit);
+
+        // count child menu items
+        var count_children_menu_items = $(this).children("li.menu_item").length;
+
+        // ensure page is available
+        var available_pages = Math.ceil(count_children_menu_items/submenu_limit);
+        if (page > available_pages){
+            page = available_pages;
+        }
+
+        // set attribute to submenu to identify current submenu page
+        this_submenu.attr("data-page", page);
+
+        // reset limits if already set (set hidden items to visible and remove next/more btns)
+        if ($(this).children(".menu_nav_item").length > 0)
+        {
+            $(this).children(".menu_item_visible").removeClass("menu_item_visible");
+            $(this).children(".menu_item_morehidden").show().removeClass("menu_item_morehidden");
+            $(this).children(".menu_item_prevhidden").show().removeClass("menu_item_prevhidden");
+            $(this).children(".menu_nav_item").remove();
+        }
+
+        // if count of children exceeds the maximum (set above)
+        if (count_children_menu_items > submenu_limit)
+        {
+            var submenu_items_index = 0;
+            var prev_link_active = false;
+            var more_link_active = false;
+
+            // for each submenu item
+            $(this).children("li.menu_item").not(".menu_nav_item").each(function()
+            {
+                submenu_items_index++; // current index for submenu item
+
+                // if current item should be hidden (prev games)
+                if (submenu_items_index <= (submenu_limit*(page-1)))
+                {
+                    $(this).hide().addClass("menu_item_prevhidden");
+                    prev_link_active = true;
+                }
+                // if current item should be visible (within the limit)
+                else if (submenu_items_index > (submenu_limit*(page-1))
+                    && submenu_items_index <= (submenu_limit*page))
+                {
+                    // add class to identify the visible items
+                    $(this).show().addClass("menu_item_visible");
+                }
+                // if current item should be hidden (more games)
+                else 
+                {
+                    $(this).hide().addClass("menu_item_morehidden");
+                    more_link_active = true;
+                }
+            });
+            // end: for each submenu item
+
+            // append the more button to the list
+            $(this).append(window.more_menu_item);
+            if (more_link_active == false) {
+                $(this).find(".menu_nav_item.more_menu_nav").addClass("menu_nav_item_deactivated");
+            }
+
+            // prepend the previous button to the list
+            $(this).prepend(window.prev_menu_item);
+            if (prev_link_active == false) {
+                $(this).find(".menu_nav_item.prev_menu_nav").addClass("menu_nav_item_deactivated");
+            }
+
+        }
+        // end: if count exceeds the maximum
+
+    });
+    // end: for each level 1/2 submenu
+
+};
+// end: function update_leftmenu_submenus_to_limit
+
+// function which handles the prev/more btn actions in the submenu lists
+function action_leftmenu_submenus_to_limit(element_which_called_this_function, action)
+{
+    // if action is not defined, do nothing
+    if (action === undefined || action == "") { return false; }
+
+    // if link is disabled, do nothing
+    if (element_which_called_this_function.parent("li.menu_item.menu_nav_item").hasClass("menu_nav_item_deactivated")) { return false; }
+
+    // get submenu ul element (parent of the clicked button)
+    var submenu_to_handle = element_which_called_this_function.parent("li.menu_item.menu_nav_item").parent("ul");
+
+    // get this submenu's limit from its attribute, or the global limit set above
+    var submenu_limit = (submenu_to_handle.attr("submenu_limit_per_page") !== undefined) ? parseInt(submenu_to_handle.attr("submenu_limit_per_page")) : window.max_menu_items_per_submenu;
+
+    var current_page = (submenu_to_handle.attr("data-page") !== undefined) ? parseInt(submenu_to_handle.attr("data-page")) : 1;
+
+    // -------------------------- PREV ------------------------
+    if (action == "prev")
+    {
+        // remove visible classes (to reset, as it will be used later as logic)
+        submenu_to_handle.children("li.menu_item.menu_item_visible").removeClass("menu_item_visible");
+
+        // count all the previous hidden items
+        var count_prev_hidden_items = submenu_to_handle.children("li.menu_item.menu_item_prevhidden").length;
+        // deactivate the previous button if there are less previous hidden items then limit
+        if (count_prev_hidden_items <= submenu_limit)
+        {
+            submenu_to_handle.children(".prev_menu_nav").addClass("menu_nav_item_deactivated");
+        }
+
+        // go through all the previous (hidden) list items (starting from the back)
+        var prevhidden_item_index = 0;
+        $(submenu_to_handle.children("li.menu_item.menu_item_prevhidden").get().reverse()).each(function()
+        {
+            prevhidden_item_index++;
+            // if item falls within limit, show and update class
+            if (prevhidden_item_index <= submenu_limit)
+            {
+                $(this).show().removeClass("menu_item_prevhidden").addClass("menu_item_visible");
+            }
+        });
+        // end: go through all the previous list items
+
+        // go through all the next items
+        var submenu_items_index = 0;
+        submenu_to_handle.children("li.menu_item").not(".menu_item_prevhidden").not(".menu_nav_item").each(function()
+        {
+            submenu_items_index++; // current index for submenu item
+            // if current item should be visible (within the limit)
+            if (submenu_items_index <= submenu_limit)
+            {
+                // add class to identify the visible items
+                $(this).show().addClass("menu_item_visible");
+            }
+            // if current item should be hidden (falls out of the limit)
+            else 
+            {
+                // add class to identify the hidden items
+                $(this).hide().addClass("menu_item_morehidden");
+            }
+        });
+        // end: go through all the next items
+
+        // append the more button to the list if it isn't already there, and remove deactivated class (if set)
+        if (submenu_to_handle.children(".more_menu_nav").length == 0){
+            submenu_to_handle.append(window.more_menu_item);
+        }
+        submenu_to_handle.children(".more_menu_nav").removeClass("menu_nav_item_deactivated");
+
+        // update data page attribute
+        submenu_to_handle.attr("data-page", (current_page-1));
+
+    }
+    // end: --------------------- PREV ----------------------
+
+    // -------------------------- MORE ------------------------
+    else if (action == "more")
+    {
+        // remove visible classes (to reset, as it will be used later as logic)
+        submenu_to_handle.children("li.menu_item.menu_item_visible").removeClass("menu_item_visible");
+
+        // remove empty rows (this is needed for the functionality below to work)
+        submenu_to_handle.children(".menu_item_empty_row").remove();
+
+        // count all the more hidden items
+        var count_more_hidden_items = submenu_to_handle.children("li.menu_item.menu_item_morehidden").length;
+        // deactivate the more button if there are less next hidden items then limit
+        if (count_more_hidden_items <= submenu_limit)
+        {
+            submenu_to_handle.children(".more_menu_nav").addClass("menu_nav_item_deactivated");
+        }
+
+        // go through all the next items (which are hidden)
+        var morehidden_item_index = 0;
+        submenu_to_handle.children("li.menu_item.menu_item_morehidden").each(function()
+        {
+            morehidden_item_index++; // current index for submenu item
+            // if current item should be visible (within the limit)
+            if (morehidden_item_index <= submenu_limit)
+            {
+                // add class to identify the visible items
+                $(this).show().removeClass("menu_item_morehidden").addClass("menu_item_visible");
+            }
+            // if current item should be hidden (falls out of the limit)
+            else 
+            {
+                // add class to identify the hidden items
+                $(this).hide().addClass("menu_item_morehidden");
+            }
+        });
+        // end: go through all the next items (which are hidden)
+
+        // go through all the previous list items that aren't visible (starting from the back)
+        submenu_to_handle.children("li.menu_item").not(".menu_item_visible").not(".menu_item_morehidden").not(".menu_nav_item").each(function()
+        {
+            $(this).hide().removeClass("menu_item_visible").addClass("menu_item_prevhidden");
+        });
+        // end: go through all the previous list items
+
+        // create empty rows (in order to keep same submenu height)
+        // -- EXCEPT in live games submenus
+        if (!submenu_to_handle.hasClass("left-menu-games-list") && count_more_hidden_items <= submenu_limit)
+        {
+            var items_less_than_limit = submenu_limit - count_more_hidden_items;
+            var empty_row_html = '<li class="menu_item menu_item_empty_row"><span class="menu_link">&nbsp;</span></li>';
+            for(var i = 1; i <= items_less_than_limit; i++){
+                submenu_to_handle.children(".more_menu_nav").before(empty_row_html);
+            }
+        }
+
+        // prepend the previous button to the list if it isn't already there, and remove the deactivated class (if set)
+        if (submenu_to_handle.children(".prev_menu_nav").length == 0){
+            submenu_to_handle.prepend(window.prev_menu_item);
+        }
+        submenu_to_handle.children(".prev_menu_nav").removeClass("menu_nav_item_deactivated");
+
+        // update data page attribute
+        submenu_to_handle.attr("data-page", (current_page+1));
+    }
+    // end: --------------------- MORE ----------------------
+    toggleMenueDivider(submenu_to_handle);
+}
+// end: function action_leftmenu_submenus_to_limit
+
+/*
+ * -----------------------
+ * end: SUBMENUS PREV/MORE  
+ */ 
+
+function toggleMenueDivider(submenu)
+{
+    if(submenu.children(".prev_menu_nav").hasClass("menu_nav_item_deactivated"))
+    {
+        submenu.children("hr").show();
+    }
+    else
+    {
+        submenu.children("hr").hide();
+    }
+}
+
+/* 
+ * Trigger sports left menu (and specific sport menu) open
+ *
+ * @param sport_id - optional - if you also want to open submenu sport's submenu
+ * @param country_id - optional - if the sport's country submenu has to be open as well
+ */
+function trigger_sports_menu_open(sport_id, country_id) {
+    // top level sports menu
+    var sports_menu = $("#left_menu_sports");
+    if (!sports_menu.hasClass("submenu_open")) {
+        sports_menu.children(".menu_link").trigger('click');
+    }
+
+    // specified sport id menu
+    if (sport_id !== undefined && sport_id != "") {
+        var specified_sport_menu = $("#left_menu_sports_id"+sport_id);
+        if (specified_sport_menu.length > 0 && !specified_sport_menu.hasClass("submenu_open")) {
+            specified_sport_menu.children(".menu_link").trigger('click');
+        }
+
+        // specified country_id menu
+        if (country_id !== undefined && country_id != "") {
+            var specified_country_menu = $("#left_menu_country_"+sport_id+"_"+country_id);
+            if (specified_country_menu.length > 0 && !specified_country_menu.hasClass("submenu_open")) {
+                specified_country_menu.children(".menu_link").trigger('click');
+            }
+        }
+    }
+}
+
+
+/*
+ ********************************************************************************
+ ********************************************************************************
+ * END: Functionality of left menu after Faceflit (Oct2013)
+ */
+
+
+$(document).ready(function()
+{
+    /*
+     * ------------------ GAME PAGINATION ----------------------
+     */
+    //  ------------ clicking on the "Show more games" pagination button ------------
+    $(document).on("click", ".plus", function(event)
+    {
+        event.preventDefault(); // stop default <a> action
+
+        /* new ajax pagination parameters */
+        var pagination_container = $(this).parents(".pagination.ajax-pagination"); // the pagination container which has the data-page attribute set (if the new ajax pagination is used. Otherwise this is not found)
+        var pagination_container_page_attr = (pagination_container.length > 0) ? pagination_container.attr("data-page") : "";
+        var current_page = (pagination_container_page_attr !== undefined && pagination_container_page_attr != "") ? pagination_container_page_attr : 1; // get the current page from the data-page attribute. If not set (for old JS pagination implementation) use page1
+
+        if($(this).hasClass("hidden")){
+            return false;
+        }
+        $(this).parents(".pagination").parent().find('.page').addClass('hidden');
+        $(this).parents(".pagination").parent().find('.page'+current_page).removeClass('hidden').show();
+        $(this).addClass('hidden');
+        $(this).parents(".pagination").find('.minus, .paging, .prevPage, .nextPage').removeClass('hidden');
+        $(this).parents(".pagination").find('.paging').removeClass('active');
+        $(this).parents(".pagination").find('.paging'+current_page).addClass('active');
+    });
+    //  ------------ END: clicking on the "Show more games" pagination button ------------
+
+    // ------------ clicking on the "Show less games" pagination button ------------
+    $(document).on("click", ".minus", function(event)
+    {
+        event.preventDefault(); // stop default <a> action
+
+        var pagination_container = $(this).parents(".pagination.ajax-pagination"); // the pagination container which has the data-page attribute set (if the new ajax pagination is used. Otherwise this is not found)
+        var pagination_current_page = (pagination_container.length > 0) ? pagination_container.attr("data-page") : ""; // get currnt page - only works for new ajax pagination
+        var sport_id = (pagination_container.length > 0) ? pagination_container.attr("data-sport-id") : ""; // get active sport id - only works for new ajax pagination
+        var game_type = (pagination_container.length > 0) ? pagination_container.attr("data-game-type") : ""; // get current sport type (Ex: "program") - only works for new ajax pagination
+
+        if($(this).hasClass("hidden")){
+            return false;
+        }
+
+        $(this).parents(".pagination").parent().find('.page').addClass('hidden');
+        $(this).parents(".pagination").parent().find('.showScreen').removeClass('hidden');
+        $(this).addClass('hidden');
+        $(this).parents(".pagination").find('.paging, .prevPage, .nextPage').addClass('hidden');
+        $(this).parents(".pagination").find('.plus').removeClass('hidden');
+
+        // refresh to page1 games after closing (new ajax pagination - if there is pagination, if not already in page1, if new ajax data attributes are set, if pagination is not already in process)
+        if (pagination_container.length > 0
+            && pagination_container.find(".paging1").length > 0
+            && pagination_current_page != "1"
+            && sport_id != "" && game_type != ""
+            && !pagination_container.hasClass("pagination_in_progress")
+            )
+        {
+            pagination_container.addClass("pagination_in_progress");
+            game_pagination_go_to_page(game_type, sport_id, 1, true);
+        }
+        // end: refresh to page1 games
+
+        // scroll to top of container
+        var games_container = $(this).parents(".container");
+        if (games_container.length > 0)
+        {
+            var container_top_offset = games_container.offset().top - 35;
+            $('html, body').stop().animate({
+                scrollTop: container_top_offset
+            }, 500);
+        }
+
+    });
+    // ------------ END clicking on the "Show less games" pagination button ------------
+
+    // ------------ clicking on the paging buttons (<, 1, 2, 3, >) ------------
+    $(document).on("click", ".prevPage, .nextPage, .paging", function(event)
+    {
+        event.preventDefault(); // stop default <a> action
+
+        var pagination_container = $(this).parents(".pagination"); // the pagination container (irrespective if new ajax pagination or not)
+        var pagination_current_page = (pagination_container.length > 0) ? pagination_container.attr("data-page") : ""; // get currnt page - only works for new ajax pagination
+        var sport_id = (pagination_container.length > 0) ? pagination_container.attr("data-sport-id") : ""; // get active sport id - only works for new ajax pagination
+
+        if($(this).hasClass("hidden")){
+            return false;
+        }
+
+        // if a paging number button, get page target from class .pagingX
+        if($(this).hasClass('paging')){
+            var go_to_page = $(this).attr("class").replace(/[^0-9]/g,"");
+        }
+
+        // if a paging arrow
+        else
+        {
+            // first find the active page and get page number from class .pagingX
+            var active_page = $(this).parents(".pagination").find('.paging.active').attr("class").replace(/[^0-9]/g,"")*1;
+            // if previous button, target page is one less than active page
+            if($(this).hasClass('prevPage'))
+            {
+                var go_to_page = active_page-1;
+            }
+            // if next button, target page is one more than active page
+            else
+            {
+                var go_to_page = active_page+1;
+            }
+        }
+
+        // ------- SWITCH BETWEEN PAGES -------
+        // if new ajax pagination
+        if (pagination_container.hasClass("ajax-pagination"))
+        {
+            var number_of_pages = pagination_container.attr("data-number-of-pages"); // this is populated in the php view file after the calls to the interface from the controller. It represents the number of pages depending on the total number of games and the number of games per page.
+            var game_type = pagination_container.attr("data-game-type"); // also populated in the php view file (ex: "program", "live", "favourites", "lastminute", "today")
+
+            // if number of available pages is defined, AND if target page is not the current page, AND if the target page is available, go to that page
+            if (number_of_pages !== undefined && number_of_pages != ""
+                && !isNaN(parseInt(number_of_pages))
+                && game_type !== undefined && game_type != ""
+                && parseInt(go_to_page) != parseInt(pagination_current_page)
+                && parseInt(go_to_page) > 0 && parseInt(go_to_page) <= parseInt(number_of_pages))
+            {
+                // if there is no pagination already in process, go to page
+                if (!pagination_container.hasClass("pagination_in_progress"))
+                {
+                    pagination_container.addClass("pagination_in_progress");
+                    game_pagination_go_to_page(game_type, sport_id, go_to_page);
+                }
+            }
+
+        }
+        // end: if new ajax pagination
+
+        // else: if old JS pagination
+        else
+        {
+            // and if the target page exists
+            if(pagination_container.find('.paging'+go_to_page).length > 0)
+            {
+                pagination_container.parent().find('.page').addClass('hidden');
+                pagination_container.parent().find('.page'+go_to_page).removeClass('hidden');
+                pagination_container.find('.paging').removeClass('active');
+                pagination_container.find('.paging'+go_to_page).addClass('active');
+            }
+        }
+        // ------- END: SWITCH BETWEEN PAGES -------
+    });
+    // ------------ END: clicking on the paging buttons (<, 1, 2, 3, >) ------------
+    /*
+     * ------------------ END: GAME PAGINATION ----------------------
+     */
+
+    if (("ontouchstart" in document.documentElement)){
+        document.documentElement.className += " touchscreen";
+    }else{
+        document.documentElement.className += " no-touchscreen";
+    } // add CSS-class to HTML element dependent if opened in device with touchscreen - for eliminating problems with :hover
+
+    $(".topWin:not(:first)").hide();
+    $(".topWinHead a:first").addClass("highlight");
+    $(".topWinHead a").on("click", function(event){
+        event.preventDefault();
+        var twId = $(this).attr("id").replace(/[^0-9]/g,"");
+        $(".topWin").hide();
+        $(".topWinHead a").removeClass("highlight");
+        $(".topWin#topWin"+twId).show();
+        $(".topWinHead a#topWinLink"+twId).addClass("highlight");
+
+    });  /*
+    $(".topWin table a").on("click", function(event){
+        event.preventDefault();
+        var twBetslipId = $(this).text();
+        $("div#twDetails"+twBetslipId).printArea({mode: "popup", popClose: false, popTitle:"betslip", popWd:800});
+        //$("div.topWinHead").printArea({mode: "popup", popClose: false, popTitle:"betslip", popWd:800});
+    });*/ // popup not working yet
+
+/*
+    $("#wrapper_casino #container .content .leftbar").on("click",function(){
+        popupWindow('/info/help/terms','casino_info');
+    });
+*/
+    $(".qbOdd").on("click", function(event){
+        event.preventDefault();
+        event.stopPropagation();
+        $.globalEval($(this).attr('betstring'));
+    });
+
+    if($('#banner div').length < 1)$('#banner').hide();
+    //Click out event!
+    $("#errorBackground").click(function(){
+        disableError();
+    });
+    //Press Escape event!
+    $(document).keypress(function(e){
+        if(e.keyCode==27 && Status==1){
+            disableError();
+        }
+    });
+    //link zur sportart
+    $("a.item_spgrp").click(function (event){
+        var elemId=$(this).attr("id").substr(6);
+
+        /* Highlight/dehighlight menu links when drop down opens/closes */
+        var isChosen = $(this).hasClass("item_active2");
+
+        // Deselect the item only if it is not a dropdown
+        $("a.item_spgrp").not(".openMenu").removeClass("item_active2");
+
+        if(!isChosen) // if it is already highlighted do not add item_active2
+        {
+            $(this).addClass("item_active2");
+            $(this).addClass("openMenu");
+        }
+        else
+        {
+            $(this).removeClass("openMenu");
+            $(this).removeClass("item_active2");
+        }
+
+        toggleLeague(elemId);
+        event.preventDefault();
+    });
+
+    $.each($("a"),function()
+    {
+        if($(this).attr("class") !== undefined)
+        {
+            var myClass = $(this).attr("class").split(" ")[0];
+            if(myClass.substr(0,13) == "dynamic_items")
+            {
+                var myLevel = myClass.substr(14);
+                var start = window.location.href.length-$(this).attr("href").length;
+                if($(this).attr("href")==window.location.href.substr(start)){
+                    $("#breadcrumbs_help").html("");
+                    var breadcrumbs=[];
+                    breadcrumbs.push($(this).text());
+                $(".dynamic_content_"+myLevel).toggle(true);
+                $(this).addClass("item_active2");
+                var aLevel = "";
+                if(myLevel.substr(5, 1) == "2")
+                {
+                    aLevel = myLevel.substr(0, 5) + "1" + myLevel.substr(6, 4);
+                    $(".dynamic_content_" + aLevel).toggle(true);
+                    $(".dynamic_items_" + aLevel).addClass("item_active");
+                    breadcrumbs.push($(".dynamic_items_" + aLevel).text());
+                    aLevel = myLevel.substr(0, 5) + "0" + myLevel.substr(6, 3);
+                    $(".dynamic_content_" + aLevel).toggle(true);
+                    $(".dynamic_items_" + aLevel).addClass("item_active");
+                    breadcrumbs.push($(".dynamic_items_" + aLevel).text());
+                }
+                else if(myLevel.substr(5, 1) == "1")
+                {
+                    aLevel = myLevel.substr(0, 5) + "0" + myLevel.substr(6, 3);
+                    $(".dynamic_content_" + aLevel).toggle(true);
+                    $(".dynamic_items_" + aLevel).addClass("item_active");
+                    breadcrumbs.push($(".dynamic_items_" + aLevel).text());
+                }
+                breadcrumbs.push($(this).closest('.breadcrumb').children('h3').text());
+                breadcrumbs.reverse();
+                var bc=breadcrumbs.join("</span></li><li><span>");
+                $("#breadcrumbs_help").html("<li><span>"+bc+"</span></li>");
+            }
+            else
+            {
+                $(".dynamic_content_"+myLevel).toggle(false);
+            }
+          }
+        }
+    });
+    $("a").click(function (event){
+        if($(this).attr("href")!==undefined){
+            var myLink=$(this).attr("href");
+            if(controllerID != "help"){
+                if(myLink.indexOf("help")>-1){
+                    //$.each($("a"),function(){$(this).removeClass("item_active");$(this).removeClass("item_active2");});
+                    //$(this).addClass("item_active2");
+                    event.preventDefault();
+                    popupWindow(myLink,'help');
+                }
+            }
+            if($(this).attr("class")!==undefined){
+                var myClass = $(this).attr("class").split(" ")[0];
+                if(myClass.substr(0,13)=="dynamic_items"){
+                    //event.preventDefault();
+                    var myLevel = myClass.substr(14);
+                if(!$(this).hasClass("item_active")) $(this).addClass("item_active");
+                else $(this).removeClass("item_active");
+                $(".dynamic_content_"+myLevel).toggle();
+                if($(this).attr("href")=="#")event.preventDefault();
+                //else alert($(this).attr("href"));
+              }
+            }
+          }
+    });
+    /*live is important for dynamically loaded elements - not in use 21.04.2015 - SH
+    $(document).on('click', "a.mehrlesen", function(event){
+        var mtxt = $(this).text();
+        if(mtxt=="Mehr lesen")$(this).text("Minimieren");
+        else $(this).text("Mehr lesen");
+        $(this).parent().parent().parent().children("div.news_comment").toggle();
+        event.preventDefault();
+    });
+
+    var nindx=0;
+    $("a.news").click(function(event){
+        var maxnews=$("input#maxnews").val();
+        $("a.news").removeClass("news_pages_active");
+        var a=$(this).html();
+        if(a=="Prev"){
+            nindx--;
+            if(nindx<1)nindx=Math.ceil(lnews.length/maxnews);
+        }
+        else if(a=="Next"){
+            nindx++;
+            if(nindx>Math.ceil(lnews.length/maxnews))nindx=1;
+        }
+        else nindx=a;
+        $("#n_"+nindx).addClass("news_pages_active");
+        var limit=Number((nindx-1)*maxnews)+Number(maxnews);
+        if(limit>lnews.length-1)limit=lnews.length-1;
+        var newContent = "";
+        for(var i=(nindx-1)*maxnews;i<limit;i++){
+            newContent+=newsContent(i);
+        }
+        $("div#news_group").html(newContent);
+        event.preventDefault();
+    }); */
+
+    if(controllerID != "info"){
+        $(".dynamic_items_0").hide();
+    }
+    else $("a.dynamic_items").addClass("item_active");
+    //$(".dynamic_items_level1_0").hide();
+    var id="#"+actionID;
+    $(id).addClass("item_active2");
+});
+
+function resetImage(/*dat,*/onoff, item,pic){
+    item.parent().attr("title",onoff?"Add to favorites":"Remove from favorites");
+    item.attr("src",pic);
+}
+
+function errorOutputJSFaults(message){
+    var style = '<div class="instruction"><div id="deposit_success_left"><img src="'+baseURL+'/images/icon/icon_warning.png" alt="Warning" /><h4>'+message+'</h4></div></div>';
+    return style;
+}
+
+//Popup Windows
+function popupWindow(target, name)
+{
+    window.open(target, name, 'width=860, height=620, scrollbars=yes');
+}
+
+/********************* Set Language @ left Navi, Odds Format & footer *******************************/
+/*
+ * Change Page Language
+ *
+ * @param language - the language iso code (en, de, etc)
+ * @param info_page_id - optional - if page is in Info Controller use the page id as the action id for redirection
+ */
+function setLanguage(language, info_page_id)
+{
+    var fivedaysinmilliseconds = 5*24*3600*1000;
+    var myTime = new Date();
+    var getParams = "";
+    var urlGetSplit = window.location.href.split('?');
+    myTime.setTime(myTime.getTime()+fivedaysinmilliseconds);
+    var verfallszeit = myTime.toGMTString();
+    var expires = " expires="+verfallszeit;
+    var langid = cp_lang(language);
+    document.cookie = "cpLanguage="+language+"; "+expires+ "; path=/"+secureCookie;
+    document.cookie = "langid="+langid+"; "+expires+ "; path=/"+secureCookie;
+
+    var redirection_action_id = actionID;
+    // if page is in Info Controller (ex: CMS page) use the page id as the action id for redirection (to replace the actual action ID "index" - which won't work in redirection)
+    if (info_page_id !== undefined && info_page_id != "")
+    {
+        redirection_action_id = info_page_id;
+    }
+    if(urlGetSplit.length == 2)
+    {
+        getParams = "?"+urlGetSplit[1];
+    }
+
+    var regex = new RegExp('[\/]{1}['+languageISO+']{2}[\/]{1}',"i");
+    if(redirection_action_id == 'rendertest' && regex.test(window.location.href)) {
+        var redir = window.location.href.replace(regex, '/' + language + '/'); //
+        window.location = redir;
+    } else {
+        //redirect page
+        window.location = baseURL + "/" + language + "/" + controllerID + "/" + redirection_action_id + ".html" + getParams;
+    }
+
+}
+
+function setOddsFormat(oddFormatId)
+{
+    var regexIsUnsgInt = /^\d+$/;
+    
+    if (typeof oddFormatId !== "undefined" && regexIsUnsgInt.test(oddFormatId)) {
+        // set cookie and refresh pagecookie(
+        var expireTime = new Date();
+        expireTime.setTime(expireTime.getTime() + (7 * 24 * 60 * 60 * 1000)); // 7 days
+        document.cookie = "oddsformat=" + oddFormatId + "; " + " expires=" + expireTime.toGMTString() + "; path=/" + secureCookie;
+        
+        location.reload();
+    }
+    
+    return false;
+}
+
+/*
+ * @brief returns the values of cookies
+ * @param c_name is the name of the cookie
+ */
+function getCookie(c_name){
+    var i,x,y,ARRcookies=document.cookie.split(";");
+    for (i=0;i<ARRcookies.length;i++){
+        x=ARRcookies[i].substr(0,ARRcookies[i].indexOf("="));
+        y=ARRcookies[i].substr(ARRcookies[i].indexOf("=")+1);
+        x=x.replace(/^\s+|\s+$/g,"");
+        if (x==c_name){
+            return unescape(y);
+        }
+    }
+}
+
+function confirmMsg(heading, headline, description, link, linktext){
+    var style='<div class="container">\n\
+                    <div class="head"> \n\
+                        <div class="head_wrapper"> \n\
+                            <div class="head_content"> \n\
+                                '+heading+' \n\
+                            </div> \n\
+                        </div> \n\
+                    </div> \n\
+                    <div class="main_content">\n\
+                    <div class="instruction">\n\
+                            <div id="registration_confirm">\n\
+                                <img src="'+baseURL+'/images/icon/icon_warning.png" alt="Positive" />\n\
+                                <h4>'+headline+'</h4>\n\
+                            </div>\n\
+                            <div id="registration_confirm_content">\n\
+                                <p>'+description+'</p>\n\
+                            </div>\n\
+                        </div>\n\
+                <div class="content_footer" align="center">\n\
+                    <a class="button_left" href="#" onclick="disableError()">'+cancletext+'</a>';
+    if((link!='false') && (linktext!='false')){
+        style=style+'<a class="button_right" href="'+link+'">'+linktext+'</a>';
+    }
+    style=style+'</div>\n\
+            </div> <!-- end main content -->\n\
+        </div> <!-- end container -->';
+    return style;
+}
+
+/* second rounding function - working in header
+------------------------------------------------------------- */
+function new_round (number, decimalPlaces, commaSign, thousendSign){
+    if(!number){
+        number = 0;
+    }
+    number = String(number);
+    if (typeof(commaSign) == "undefined"){
+        commaSign = ',';
+    }
+    if (typeof(decimalPlaces) == "undefined"){
+        decimalPlaces = 2;
+    }
+    if (typeof(thousendSign) == "undefined"){
+        thousendSign = ".";
+    }
+
+    var numberLength=3+decimalPlaces;
+    var length = number.length;
+    length = parseInt(length);
+
+    if(number == "0"){
+        number = '000';
+        length = 3;
+    }else{
+        if (length == 2) {
+            number = '0'+number;
+            length = 3;
+        }
+        if (length == 1){
+            number = '00'+number;
+            length = 3;
+        }
+    }
+    number = String(number);
+    if (length > numberLength){
+        var thousend = number.slice(0, length-numberLength);
+        var rest = number.slice(length-numberLength, length);
+        number = thousend+thousendSign+rest;
+        length++;
+    }
+
+    var comma = '';
+    if (decimalPlaces>0){
+        comma = commaSign+number.slice(length-decimalPlaces, length);
+    }
+    var inResA = number.slice(0, length-decimalPlaces);
+
+    return NumberFormatLanguageSpecific(inResA+comma, decimalPlaces);
+}
+
+/* Url Formatting
+ *
+ * when sport is choosen & betpossibilities are shown (IE doesn't support)
+ * http://spoiledmilk.dk/blog/html5-changing-the-browser-url-without-refreshing-page
+ * hash hack
+ * http://www.henningk.de/url-andern-mit-javascript-ohne-reload/
+------------------------------------------------------------- */
+function writeURL()
+{
+    if (typeof disable_url_changing !== 'undefined' && disable_url_changing) return false;
+
+    if ( history.pushState ){
+        window.history.pushState(null, "bet", "/"+languageISO+"/site/index.html");
+    }
+}
+
+/**
+ * @param {string} category
+ * @param {string} action
+ * @param {string} eventlabel
+ */
+function trackIT(category, action, eventlabel) {
+    var eventname = "cp_event";
+
+    if (site_label == "xtip") {
+        eventname = "xtip_event";
+    }
+
+    // Google click-tracking
+    if (typeof dataLayer !== "undefined") {
+        dataLayer.push({
+            'event': eventname,
+            'eventCategory': category,
+            'eventAction': action,
+            'eventLabel': eventlabel
+        });
+    }
+
+    // Optimove click tracking.
+    // NB: _paq is a global added by external JS from Optimove
+    if (typeof _paq !== 'undefined') {
+        // 'trackEvent', category, subcategory (NB: cat & subcat are variables)
+        _paq.push(['trackEvent', action, eventlabel]);
+    }
+}
+
+function setPageTitle(title){
+    document.title = title;
+}
+/**
+ * this function is toggeling the list within the sport group
+ */
+function toggleLeague(id){
+    var callid = "#bet_container_"+id;
+    $(callid).toggle();
+}
+
+/**
+ * if cookie xtraWarning is set with the value "close", it will hide the xtra warning at the startscreen.
+ */
+function hideXzeroWarning()
+{
+    if( $.cookie('xzeroWarning') == 'close' )
+    {
+        $('#xzeroWarning').addClass('xzeroHide');
+    }
+}
+
+/**
+ * Function to open pop up notification
+ */
+
+// status for t&c popup
+var tc_status = 0;
+
+function openPopupNotification(actionid, parameters)
+{
+    // possible parameters: question, explanation, yes, no, yes_callback, no_callback, yes_url, no_url
+    function getConfirmParameterOrDefault(param_name, default_value) {
+        return (typeof parameters[param_name] === 'undefined' ? default_value : parameters[param_name]);
+    }
+
+    // if page/layout doesn't contain popup containers, create them
+    var error_background = $("#errorBackground");
+    var error_box = $("#errorBox");
+    if (error_background.length == 0){
+        $("body").append('<div id="errorBackground"></div>');
+    }
+    if (error_box.length == 0){
+        $("body").append('<div id="errorBox" style="display:none;height:0px;"></div>');
+    }
+    $('#errorBox').css('zIndex',99999);
+
+    // open non-HTML5 browser notification - content of popup from views/popup/nonhtml5.php
+    if(actionid == "nonhtml5")
+    {
+        $("#errorBox").removeClass().addClass("browser-main");
+        $("#errorBox").load("/popup/nonhtml5", function(){
+            centerError();
+            loadError();
+        });
+    }
+
+    // open Login / Register popup - content of popup from views/popup/logreg.php
+    else if(actionid == "logreg" && !isLogged)
+    {
+        if(domain=='dk') {
+            window.location.href = baseURL+"/"+$.cookie("cpLanguage")+"/site/nemID.html";
+        } else {
+            $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+            $("#errorBox").load("/popup/logreg", function () {
+                centerError();
+                loadError();
+            });
+        }
+    }
+
+    // open Common Text Popup - content of popup from views/popup/text_popup.php
+    else if(actionid == "text_popup")
+    {
+        // in this case, the parameters value should be the id/slug of the popup.
+        var params = (parameters !== undefined) ? String(parameters) : "";
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").empty().load("/popup/textpopup", {popup_id: params}, function(){
+            centerError();
+            loadError();
+        });
+    }
+
+    // open bonus error - content of popup from views/popup/text_popup.php
+    else if(actionid == "err_yalt_popup")
+    {
+        // in this case, the parameters value should be the id/slug of the popup.
+        var params = (parameters !== undefined) ? String(parameters) : "";
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").empty().load("/popup/textpopup", {popup_id: actionid, message: params}, function(){
+            centerError();
+            loadError();
+        });
+    }
+
+    // open Account not verified Popup - content of popup from views/popup/account_not_verified.php
+    else if(actionid == "account_not_verified")
+    {
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").load("/popup/accountnotverified", function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if(actionid == "account_not_verified_uk")
+    {
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").load("/popup/accountnotverifieduk", function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if(actionid == "selflock")
+    {
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").load("/popup/selflockinfo", {timestamp: parameters}, function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if(actionid == "shcheckid")
+    {
+        parameters = parseInt(parameters, 10);
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix").css('width', 600);
+        $("#errorBox").load("/popup/shcheckid", {days: parameters}, function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if(actionid == "newchancebonus")
+    {
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").load("/popup/newchancebonus", function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if(actionid == "newtc")
+    {
+        // open updated T&C popup - linking to function openUpdatedTcPopup to handle custom functionality of popup
+        openUpdatedTcPopup("newtc");
+    }
+    else if(actionid == "autologout" || actionid === "autologoutBackend") // autologout popup
+    {
+        $("body").append("<div id='tucbox' class='tucbox'></div>");
+        $("#tucbox").load("/popup/"+actionid);
+        $("#errorBackground").fadeIn("slow");
+    }
+    else if (actionid == "worldcup")
+    {
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix").css('width', 900).css('height', 700);
+        $("#errorBox").load("/popup/worldcup", function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if (actionid == "supercup")
+    {
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix").css('width', 900).css('height', 700);
+        $("#errorBox").load("/popup/supercup", function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if(actionid == "combineUser") {
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").load("/popup/combineUser", function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if(actionid == "submitCrosschange") {
+            centerError();
+            loadError();
+    }
+    else if(actionid == "autologoutSession") {
+        $("body").append("<div id='tucbox' class='tucbox'></div>");
+        $("#tucbox").load("/popup/"+actionid);
+        $("#errorBackground").fadeIn("slow");
+    }
+    else if(actionid == "uk_deposit_info"){
+        var params = (parameters !== undefined) ? String(parameters) : "";
+        $("body").append("<div id='tucbox' class='tucbox'></div>");
+        $("#tucbox").load("/popup/ukdeposit", {paymentid: params});
+        $("#errorBackground").fadeIn("slow");
+    }
+    else if(actionid == "ShCheckIdForDeposit"){
+        var params = (parameters !== undefined) ? String(parameters) : "";
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").empty().load("/popup/textpopup", {popup_id: params}, function(){
+            centerError();
+            loadError();
+        });
+    }
+    else if(actionid == "confirmrealitycheck"){
+        var params = (parameters !== undefined) ? String(parameters) : "";
+        $("body").append("<div id='tucbox' class='tucbox'></div>");
+        $("#tucbox").load("/popup/confirmrealitycheck", {realitycheck: params});
+        $("#errorBackground").fadeIn("slow");
+    }
+    else if (actionid == "show_universal_form") {
+        //var params = (parameters !== undefined) ? String(parameters) : "";
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").empty();
+
+
+        if (typeof parameters === 'object' && typeof parameters.onLoadCallback === 'function') {
+            var ajaxCompleteCallback = parameters.onLoadCallback;
+            delete parameters.onLoadCallback;
+        }
+        if (form_id_to_use < 1 || form_id_to_use == 'undefined') {
+            form_id_to_use = 3;
+        }
+        $.ajax({
+            type: 'POST',
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=showuniversalform/displayform',
+            data:{formid:form_id_to_use,prefilldata:parameters},
+
+            complete: function(data)
+            {
+                if (typeof ajaxCompleteCallback === 'function') {
+                    (ajaxCompleteCallback)();
+                }
+
+                try {
+                    var dataAsJson=JSON.parse(data.responseText);
+                } catch (err){
+
+                }
+                var extraCloseButton = '';
+                if (dataAsJson){
+                   if (!dataAsJson.doNotDisplayForm && dataAsJson.redirect) {
+                        var rdUrl = "//" + window.location.host + dataAsJson.redirectURL;
+                        window.location.href = rdUrl;
+                    }
+                } else {
+                    if (site_label == 'sportwetten') {
+                        extraCloseButton = '<div class="closeButtonPopup" onclick="disableError();"></div>';
+                    }
+                    $("#errorBox").html(extraCloseButton+ data.responseText);
+                    centerError();
+                    loadError(true);
+                }
+            }
+        });
+    }
+    else if(actionid == "show_with_membercard"){
+        var params = (parameters !== undefined) ? String(parameters) : "";
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").empty();
+
+        $.ajax({
+
+            type: 'POST',
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=showuniversalform/displayform',
+            data:{formid:7},
+
+            complete: function(data)
+            {
+                // console.log(data.responseText);
+                $("#errorBox").html(data.responseText);
+                centerError();
+                loadError();
+            }
+        });
+     }
+    else if(actionid == "show_with_anon_membercard"){
+        var params = (parameters !== undefined) ? String(parameters) : "";
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").empty();
+        var prefilleddata = '{"membercard":{"defaultValue":"'+ params +'"}}';
+
+        $.ajax({
+
+            type: 'POST',
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=showuniversalform/displayform',
+            data:{formid:9, prefilldata: prefilleddata},
+
+            complete: function(data)
+            {
+                // console.log(data.responseText);
+                $("#errorBox").html(data.responseText);
+                centerError();
+                loadError();
+            }
+        });
+    }
+    else if(actionid == "loadnewform"){
+        //var params = (parameters !== undefined) ? String(parameters) : "";
+        var jsondata=JSON.parse(parameters);
+        var prefilldata=JSON.stringify(jsondata.prefilldata.fields);
+
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").empty();
+
+        $.ajax({
+            type: 'POST',
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=showuniversalform/displayform',
+            data:{formid:jsondata.prefilldata.idtoload,prefilldata:prefilldata},
+
+            complete: function(data)
+            {
+
+
+                // console.log(data.responseText);
+                $("#errorBox").html(data.responseText);
+                centerError();
+                loadError(true);
+            }
+        });
+    }
+    else if(actionid === 'confirm') {
+        var question = getConfirmParameterOrDefault('question', false);
+        var explanation = getConfirmParameterOrDefault('explanation', false);
+        var yes = getConfirmParameterOrDefault('yes', false);
+        var no = getConfirmParameterOrDefault('no', false);
+        var yes_callback = getConfirmParameterOrDefault('yes_callback', false);
+        if (typeof yes_callback !== 'function') {
+            yes_callback = false;
+        }
+        var no_callback = getConfirmParameterOrDefault('no_callback', false);
+        if (typeof no_callback !== 'function') {
+            no_callback = false;
+        }
+        var yes_url = getConfirmParameterOrDefault('yes_url', false);
+        var no_url = getConfirmParameterOrDefault('no_url', false);
+        var $errorBox = $('#errorBox');
+
+        $errorBox.load('/popup/confirm', function () {
+            if (question !== false) {
+                $errorBox.find('.confirm_popup_question').html(question);
+            }
+            if (explanation !== false) {
+                $errorBox.find('.confirm_popup_explanation').html(explanation);
+            }
+            if (yes !== false) {
+                $errorBox.find('.confirm_popup_yes').html(yes);
+            }
+            if (no !== false) {
+                $errorBox.find('.confirm_popup_no').html(no);
+            }
+
+            $errorBox.removeClass();
+            $errorBox.addClass('common_popup_style');
+            $errorBox.addClass('clearfix');
+
+            if (yes_callback !== false || yes_url !== false) {
+                var $yes = $errorBox.find('.confirm_popup_yes');
+
+                if (yes_callback !== false) {
+                    $yes.click(function () {
+                        (yes_callback)();
+                        return false;
+                    });
+                }
+                if (yes_url !== false) {
+                    $yes.attr('href', yes_url);
+                }
+            }
+            if (no_callback !== false || no_url !== false) {
+                var $no = $errorBox.find('.confirm_popup_no');
+
+                if (no_callback !== false) {
+                    $no.click(function () {
+                        (no_callback)();
+                        return false;
+                    });
+                }
+                if (no_url !== false) {
+                    $no.attr('href', no_url);
+                }
+            }
+
+            var $close_icon = $errorBox.find('.close_icon');
+            $close_icon.off();
+            $close_icon.click(disableError);
+
+            centerError();
+            loadError();
+        })
+    }
+    else if (actionid === 'sh30dayshistory') {
+        $("body").append("<div id='tucbox' class='tucbox' style='display:none'></div>");
+        $("#errorBackground").fadeIn("slow");
+
+        $.ajax({
+            'url': baseURL+"/"+$.cookie("cpLanguage")+'/account/getMyAccountTransactions',
+            'type': 'POST',
+            'data': {
+                MyAccountFormV4: {
+                    status : 'timeframe',
+                    category: 'all',
+                    perPage: 5,
+                    moneyflowFilters:0
+                }
+            },
+            complete: function(data)
+            {
+                $("#tucbox").load("/popup/sh30dayshistory", {html: data.responseText}, function() {
+                    //show the history only if error container has no content / there is no error already shown
+                    if( !$.trim( $('#errorBox').html() ).length ) {
+                        $("#tucbox").show();
+                    }
+                });
+            }
+        });
+    }
+    else if(actionid == "first_deposit_popup")
+    {
+        // in this case, the parameters value should be the id/slug of the popup.
+        var params = (parameters !== undefined) ? String(parameters) : "";
+        $("#errorBox").removeClass().addClass("common_popup_style clearfix");
+        $("#errorBox").empty().load("/popup/textpopup", {popup_id: actionid, message: params}, function(){
+            centerError();
+            loadError();
+
+            replaceMissingAmount(params);
+        });
+    }
+}
+
+/**
+ * Replace {missingamount} tag with value
+ *
+ *  @param amount int Missing amount
+ */
+function replaceMissingAmount(amount)
+{
+    var replace = $("#missing-amount").html().replace('{missingamount}', amount);
+    $("#missing-amount").html(replace);
+}
+
+function loadLastLoginPopup(date)
+{
+    $("body").append("<div id='tucbox' class='tucbox'></div>");
+    $("#tucbox").load("/popup/lastlogin?lastlogindate="+date);
+    $("#errorBackground").fadeIn("slow");
+}
+
+/**
+ * Centering the #errorBox on window resize
+ */
+$(document).ready(function()
+{
+    // on window resize
+    $(window).resize(function()
+    {
+        // if #errorBox is visible
+        if($('#errorBox').is(':visible'))
+        {
+
+                centerError();
+
+        }
+    });
+});
+
+/** 
+ * Function for opening Updated Terms & Conditions Popup 
+ * The function is called from function openPopupNotification;
+ */
+function openUpdatedTcPopup(actionid)
+{
+    $("body").append("<div id='tucbox' class='tucbox'></div>");
+    // load views popup content
+    $("#tucbox").load("/popup/"+actionid, function(){
+    // load callback
+
+        $("#errorBackground").fadeIn("slow");
+        tc_status = 1;
+
+        // Clicking INSIDE the T&C popup --> keep popup open
+        // T&C link - opens in helpcenter window
+        $("#popup a.tc_link").click(function(event){
+            var tc_link=$(this).attr("href");
+            popupWindow(tc_link,'help');
+            event.preventDefault();
+            event.stopPropagation(); /* prevent popup from closing */
+        });
+        // Accept T&C button
+        $("#popup .boxcontent .tucbox_button").click(function(event){
+            // send call to interface (login.exe) to set AGB value to 1
+            $.ajax({
+                type: 'GET',
+                url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=site/AcceptUpdatedTc',
+                complete: function()
+                {
+                    tc_status = 0;
+                    window.location=baseURL+"/"+$.cookie("cpLanguage")+"/site/tocsuccess.html"; /* redirect to success page */
+                }
+            });
+
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        // rest of content (text)
+        $("#popup .boxcontent").click(function(event){
+            event.stopPropagation(); /* prevent popup from closing */
+        }); 
+
+        // Clicking on the close icon --> close popup
+        $('#popup .boxcontent .close_icon').click(function() {
+            if (tc_status == 1){
+                $("#tucbox").fadeOut("fast");
+                $("#errorBackground").fadeOut("fast");
+                $("#tucbox").remove();
+                tc_status = 0;
+                window.location=baseURL+"/"+$.cookie("cpLanguage")+"/site/tocinformation.html"; /* redirect to information page */
+            }
+        });
+
+        // Clicking OUTSIDE the T&C popup --> close popup
+        $('html').click(function() {
+            if (tc_status == 1){
+                $("#tucbox").fadeOut("fast");
+                $("#errorBackground").fadeOut("fast");
+                $("#tucbox").remove();
+                tc_status = 0;
+                window.location=baseURL+"/"+$.cookie("cpLanguage")+"/site/tocinformation.html"; /* redirect to information page */
+            }
+        });
+
+    });
+}
+
+/**
+* this function handles the closing of the newsletterunsubscribe popup
+*/
+function newsletterunsubClose(actionid)
+{
+    // Clicking on the close icon --> close popup
+    $("#errorBackground").click(function() {
+        window.location=baseURL+"/"+$.cookie("cpLanguage")+"/site/index.html"; /* redirect to information page */
+    });
+    $('#errorBox .close_icon').click(function() {
+        window.location=baseURL+"/"+$.cookie("cpLanguage")+"/site/index.html"; /* redirect to information page */
+    });
+}
+
+/*
+* Function to set the Sportsbook menu item selected
+*/
+function setSelectedMenu(id)
+{
+    if (!$("#"+id).parent("li").hasClass("activeLink"))
+    {
+        $("#menu ol li").removeClass("activeLink");
+        $("#"+id).parent("li").addClass("activeLink");
+    }
+}
+
+/*
+ * Function to update the LIVE left menu
+ * - since the live games are always changing, this is important so to keep the live sport categories updated
+ * - function sends an ajax call to the menu feeder and adds/removes livesport categories menu items accordingly
+*/
+function update_leftmenu_live_sports_categories() {
+    // ------------ first get all the current left menu live sport categories and store them in an array ------------
+    var leftmenu_current_live_sports_categories = [];
+    var live_sports_category_index = -1; // index
+    // for each sports category in the menu
+    $("#sports_sidebar_menu").find("#left_menu_live ul .menu_item.sports_category").each(function(){
+        live_sports_category_index++; // update index
+        var live_sports_category_id = $(this).attr("data-sport-id"); // get sports id from the attr of the li
+        leftmenu_current_live_sports_categories[live_sports_category_index] = live_sports_category_id;
+    });
+    // end: for each sports category in the menu
+    // ------------ END: first get all the current left menu live sport categories ------------
+
+    // ------------ then get the updated live sports categories from the menu feeder and update menu ------------
+    $.ajax({
+        type: "POST",
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=site/updateleftmenulivesports',
+        cache: false,
+        success: function(data)
+        {
+            // =========== if data content is returned ============
+            if (data != false)
+            {
+                var data = JSON.parse(data);
+
+                // ------------- if there are no live sports in the returned data -------------
+                if (data[0] == "no live sports")
+                {
+                    // empty live menu
+                    $("#sports_sidebar_menu").find("#left_menu_live ul").remove();
+                    $("#sports_sidebar_menu").find("#left_menu_live").removeClass("submenu_open");
+                }
+                // ------------- end: if there are no live sports -------------
+
+                // ------------- if there ARE live sports in the returned data -------------
+                else 
+                {
+                    // if live sports submenu does not exist, create it
+                    if ($("#sports_sidebar_menu").find("#left_menu_live ul").length == 0)
+                    {
+                        $("#sports_sidebar_menu").find("#left_menu_live").append('<ul class="sublevel1 clearfix"></ul>');
+                        // if in live page, show it
+                        if ($("#sports_sidebar_menu").find(".left_sidebar_menu").attr("data-page-controller") == "live")
+                        {
+                            $("#sports_sidebar_menu").find("#left_menu_live ul").show();
+                            $("#sports_sidebar_menu").find("#left_menu_live").addClass("submenu_open");
+                        }
+                        // end: if in live page, show it
+                    }
+                    // end: if live sport submenu does not exist, create it
+
+                    // go through all the returned (updated) live sport categories and see if they are already in the menu
+                    //   - this is done by checking if the returned sport id is already in the array created above
+                    $("#sports_sidebar_menu").find("#left_menu_live ul .menu_item.sports_category").removeClass("sport_in_update"); // reset the live sport menu item before the check
+                    $.each(data, function(i, item){
+
+                        var updated_sport_id = data[i]['id'][0];
+                        var updated_sport_name = data[i]['name'][0];
+                        var updated_sport_oddcount = data[i]['oddcount'][0];
+
+                        // if returned sport IS already in the menu, add identifying class, and keep it
+                        if (leftmenu_current_live_sports_categories.indexOf(updated_sport_id) > -1)
+                        {
+                            $("#sports_sidebar_menu").find("#left_menu_live ul #left_menu_live_id"+updated_sport_id).addClass("sport_in_update");
+
+                            // ---- ODDCOUNT ----
+                            // if oddcount <span> already exists update oddcount
+                            if ($("#sports_sidebar_menu").find("#left_menu_live ul #left_menu_live_id"+updated_sport_id+" .counter_games").length > 0)
+                            {
+                                $("#sports_sidebar_menu").find("#left_menu_live ul #left_menu_live_id"+updated_sport_id+" .counter_games").html(updated_sport_oddcount);
+                            }
+                            // else: if oddcount <span> doesn't exist, create it and set oddcount
+                            else {
+                                if (updated_sport_oddcount > 0)
+                                {
+                                    var new_counter_html = '<span class="counter_games">'+updated_sport_oddcount+'</span>';
+                                    $("#sports_sidebar_menu").find("#left_menu_live ul #left_menu_live_id"+updated_sport_id+" a").prepend(new_counter_html);
+                                }
+                            }
+                            // if oddcount <span> already exists update oddcount
+                            if ($(".startscreen_sports_navigation a[data-sport-id="+updated_sport_id+"] .counter_games").length > 0)
+                            {
+                                $(".startscreen_sports_navigation a[data-sport-id="+updated_sport_id+"] .counter_games").html(updated_sport_oddcount);
+                            }
+                            // else: if oddcount <span> doesn't exist, create it and set oddcount
+                            else {
+                                if (updated_sport_oddcount > 0)
+                                {
+                                    var new_counter_html = '<span class="counter_games right_aligned">'+updated_sport_oddcount+'</span>';
+                                    $(".startscreen_sports_navigation a[data-sport-id="+updated_sport_id+"]").addClass("w_right_counter").append(new_counter_html);
+                                }
+                            }
+                            // end: ---- ODDCOUNT -----
+
+                        }
+                        // end: if sport IS already in the menu
+
+                        // if sport is NOT in the menu, create it
+                        else {
+                            var new_sport_menuitem_content = '<li class="menu_item sublevel1 sports_category clearfix sport_in_update" data-sport-id="'+updated_sport_id+'" id="left_menu_live_id'+updated_sport_id+'">';
+                            new_sport_menuitem_content += '<a href="'+baseURL+'/index.php?r=live/index&lsc='+updated_sport_id+'" class="menu_link sublevel1 w_icon togglelivesport">';
+
+                            // oddcount
+                            if (updated_sport_oddcount > 0)
+                            {
+                                new_sport_menuitem_content += '<span class="counter_games">'+updated_sport_oddcount+'</span>';
+                            }
+
+                            new_sport_menuitem_content += '<span>'+updated_sport_name+'</span>';
+                            new_sport_menuitem_content += '</a></li>';
+
+                            $("#sports_sidebar_menu").find("#left_menu_live ul").append(new_sport_menuitem_content);
+
+                            // since new menu links were added, such link functions need to be reinitialised
+                            initialise_leftmenu_link_actions();
+                        }
+                        // if sport is NOT in the menu
+
+                    });
+                    // end: go through all the returned (updated) live sport categories
+
+                    // delete the live sport menu items which weren't included in the update
+                    $("#sports_sidebar_menu").find("#left_menu_live ul .menu_item.sports_category").each(function(){
+                        if(!$(this).hasClass("sport_in_update")){ $(this).remove(); }
+                    });
+                    // end: delete the live sport menu items which weren't included in the update
+
+                }
+                // ------------- end: if there ARE live sports -------------
+
+                // update every 60 seconds
+                setTimeout( function() { update_leftmenu_live_sports_categories(); }, 60000);
+            }
+            // =========== END: if data content is returned ============
+
+            // =========== if NO data content is returned ============
+            else {
+                // update every 20 seconds
+                setTimeout( function() { update_leftmenu_live_sports_categories(); }, 20000);
+            }
+        } // end: success
+    });
+    // ------------ END: then get the updated live sports categories from the menu feeder ------------
+}
+// end: update_leftmenu_live_sports_categories
+
+/*
+ * Function which fixes layout problem with widgets when called in a CMS page
+ * - since CMS pages have an extra left/right padding (but the widget odd rows should have no left/right padding),
+ *    the .cms_widget_content div is floated to left and given a negative left margin, as a "hack".
+ * - this function increases the width of the widget odds container (to override the left/right padding of the cms page content (.padded_content))
+ *
+ * @param window_resize - set to true when the function is called on window resize
+*/
+
+function fix_cmspage_widget_odds_padding(window_resize) 
+{
+
+    var cmspage_widget_odds_container = $(".padded_content .cms_widget_container .cms_widget_content");
+    var padded_content_div = $(".padded_content");
+
+    if (cmspage_widget_odds_container.length > 0 && window_resize !== true && !cmspage_widget_odds_container.hasClass("width_modified"))
+    {
+        $(".live_gamecontainer .scores:visible").addClass("betradar-temp-hidden").hide(); // hide live dropdown before width calculations
+
+        // get width of main content
+        var main_content_width = $("#main .container").width();
+
+        // get actual width of inside .padded_content
+        var padded_content_width =  padded_content_div.width();
+
+        // set .padded_content width to actual width (to ensure padded_content keeps same width when the cms_widget_content's width is updated below)
+        padded_content_div.width(padded_content_width);
+
+        // apply main content width to odds container
+        cmspage_widget_odds_container.width(main_content_width).addClass("width_modified");
+
+        $(".live_gamecontainer .scores.betradar-temp-hidden").removeClass("betradar-temp-hidden").show(); // reset live dropdowns' visiblity after width calculation
+    }
+
+}
+
+/*
+ * Function which removes (fills) the empty grey space at the bottom of the page
+ * - when the page content's height is smaller than the window's height, an empty grey area is displayed at the bottom of the page
+ * - this function adjusts the footer height accordingly to "fill" the empty space
+ * - this function is called on page load (in a views/footer - and on window resize) and in live page function which opens separate sports categories (initialise_leftmenu_link_actions() function - live sport category section)
+ */
+
+function fill_empty_space_at_bottom_of_page() 
+{
+    var window_height = $(window).height();
+    var page_body_height = $("body").height();
+    
+    // find empty space at bottom of page (if window height is bigger than page content height)
+    var empty_space_at_bottom = 0;
+    if (window_height > page_body_height)
+    {
+        empty_space_at_bottom = window_height - page_body_height;
+    }
+
+    // if there is empty space, increase footer height to "fill" this empty space
+    if (empty_space_at_bottom > 0)
+    {
+        var increased_footer_height = $("#footer").height() + empty_space_at_bottom;
+        $("#footer").height(increased_footer_height);
+    }
+}
+
+/** 
+ * Function which scrolls page to a container
+ *
+ * Example: when a league is opened from the Sports left menu:
+ * - since leagues are loaded under live games when selected from the left menu, they may be further down the page (if there are many live games open).
+ * - this function is fired when a league is opened (selectGroup function), checks if it visible (in the current viewport), and if not, it scrolls down to it.
+ *
+ * @param container_object - object - the container which the function needs to check if it is visible or not
+ * @param only_scroll_to_if_hidden - true or false - default is true 
+ *                                 - if true, the function scrolls to the target container ONLY if it is not visible in the screen visible viewport
+ *                                 - if false, always SCROLL (irrespective if content is hidden or not)
+ * @param scrolling_offset - integer (important) - the amount of offset to scroll LESS than targeted container's top offset (to show user that there is still content above this container) - default is 90px
+ * @param callback_function - optional - after scrolling is finished
+ */
+function scroll_to_a_container(container_object, only_scroll_to_if_hidden, scrolling_offset, callback_function)
+{      
+    // if container is defined AND exists
+    if (container_object !== undefined && container_object != "" && container_object.length > 0)
+    {       
+        var target_container = container_object; // the container (as an object) which has to checked if visible or not
+
+        // calculate the window visible viewport limits (minimum top offset and maximum top offset) depending on the scroll position (scroll offset from top)
+        // -- does not apply if "hidden check" is disabled
+        if (only_scroll_to_if_hidden != false)
+        {
+            var window_height = $(window).height();
+            var vertical_scroll_pos = $(document).scrollTop();
+            var visible_minimum_top_offset = vertical_scroll_pos;
+            var visible_maximum_top_offset = visible_minimum_top_offset + window_height;
+        }
+        
+        // get the target container's top vertical offset
+        var target_container_top_offset = target_container.offset().top;
+
+        // check whether to scroll or not
+        var scroll_check = false;
+            // if "hidden check" is enabled (default) -- if target container's top offset doesn't fall within the window visible viewport limits (found above) - therefore container is hidden, scroll to that container
+            if (only_scroll_to_if_hidden != false) 
+            {
+                if (target_container_top_offset < visible_minimum_top_offset || target_container_top_offset > visible_maximum_top_offset){
+                    scroll_check = true;
+                }
+            }
+
+            // if "hidden check" is disabled -- always scroll
+            else
+            {
+                scroll_check = true;
+            }
+
+        //  if content is hidden, or "content hidden" check is disabled --> SCROLL
+        if (scroll_check == true)
+        {
+            var scrolling_offset = (scrolling_offset !== undefined && !isNaN(scrolling_offset)) ? scrolling_offset : 90; // see comment above (scrolling_offset) - check if already defined and is numeric - else: default is 90px
+            var scroll_to = target_container_top_offset - scrolling_offset; // scroll X px less than league offset to compensate for loader still visible (plus a little extra to show user that there is still content above this container)
+            var callback_executed = false; // since animating both html and body (to prevent 2 callbacks)
+            $('html, body').stop().animate({
+                scrollTop: scroll_to
+            }, 500, function(){
+                // execute callback function
+                if (!callback_executed && callback_function !== undefined && callback_function != "") 
+                { 
+                    callback_function();
+                    callback_executed = true; 
+                }
+            });
+        }
+        else 
+        {
+            // execute callback function
+            if (callback_function !== undefined && callback_function != ""){
+                callback_function();
+            }
+        }
+    }
+    // end: if container exists
+}
+
+/* check if World Cup microsite functionality is active
+ * - temporary function which checks if the WC left menu and functionality exists or not
+ *
+ * @returns boolean
+ */
+/* !IMPORTANT - BEFORE DELETING THIS FUNCTION, search in folders and remove the calls to it in other files */
+function world_cup_functionality_active()
+{
+    var wc_content = $(".world_cup_microsite_content");
+
+    if (wc_content.length > 0) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/**
+ * this function makes a call to registration controller, validating the given zip code (only germany)
+ * @param {string} postalcode - the zip code
+ * @param {int} countryid - the id of the country
+ * @param {string} registrationurl - the route to the controller
+ * @param {callbackfunction} callbackfunc - needed for the error display
+ * @returns {String}
+ */
+function checkValidZipCode(postalcode, countryid, registrationurl, callbackfunc)
+{
+
+    var datastring = "validate=8&zip="+postalcode+"&countryid="+countryid;
+    var data = "";
+    var returnvalue = "";
+    $.ajax({
+        url:registrationurl,
+        data:datastring,
+        type:"POST",
+        complete: function(jqXHR, textstatus)
+        {
+            if(jqXHR.status == 200)
+            {
+                data = jqXHR.responseText;
+
+                if (data == "2")// slesvig holstein
+                {
+                    returnvalue = "issh";
+                }
+                else if(data == "1")
+                {
+                    returnvalue = "notsh";
+                }
+                else
+                {
+                    returnvalue = "novalidzip";
+                }
+            }
+            else
+            {
+                returnvalue = "novalidreturn";
+            }
+            callbackfunc(returnvalue);
+        }
+    });
+    return returnvalue;
+}
+
+/**
+ * Simple accordion component
+ */
+var CpAccordion = {
+    animationSpeed: 200,
+    traverse: function () {
+        var cpTargets = $("*").filter(function () {
+            return typeof $(this).attr('data-cptarget') !== 'undefined';
+        });
+        $(cpTargets).each(function (index) {
+            CpAccordion.setAccordion.call(this, $(this).attr('data-cptarget'));
+        });
+    },
+    setAccordion: function (targetElement) {
+        if ($(targetElement).length == 0)
+            return;
+        $(targetElement).hide();
+        $(this).unbind('click').click(function () {
+            CpAccordion.toggleSlide(targetElement);
+        });
+    },
+    toggleSlide: function (targetElement) {
+        $(targetElement).stop().slideToggle(CpAccordion.animationSpeed);
+    },
+    init: function () {
+        this.traverse();
+    }
+};
+
+$(document).ready(function(){
+    $(document).on("click", "a[class^=combi_]:not(.combi_0), .tooltipCombi", function(){
+        var parentRow = $(this).hasClass("tooltipCombi") ? $(this).prev() : $(this).parents("table");
+        if(parentRow.length==0){
+            parentRow = $(this).parents(".live_quotelist");
+        }
+        if(parentRow.length>0){
+            var elemTT = parentRow.next(".tooltipCombi");
+            if(elemTT.hasClass("hidden")){
+                elemTT.removeClass("hidden");
+            }else{
+                elemTT.addClass("hidden");
+            }
+        }
+    });
+    CpAccordion.init();
+});
+
+function passwordStrength(password, username, showstrength, usertype, callbackfunc)
+{
+    var dataString ="data="+encodeURIComponent(password);
+    if(typeof username !== 'undefined' && username != '')
+    {
+        dataString += '&uname='+username;
+    }
+    if(typeof showstrength !== 'undefined' && showstrength == true)
+    {
+        dataString += '&strength=1';
+    }
+    if(typeof usertype !== 'undefined' && usertype != '')
+    {
+        dataString += '&type='+usertype;
+    }
+    var retob = new Object();
+    retob.valid = false;
+    retob.message = "Password not valid";
+    //console.log(checkpw_url);
+    $.ajax({
+        url:checkpw_url,
+        data:dataString,
+        type:"POST",
+        complete: function(jqXHR, textstatus)
+        {
+            if(jqXHR.status == 200)
+            {
+                if(typeof showstrength !== 'undefined' && showstrength == true)
+                {
+                    var pwTexts = jqXHR.responseText.split("::pws::");
+                    retob.strength = pwTexts[0]*1;
+                    retob.message = pwTexts[1];
+                }
+                else
+                {
+                    retob.message = jqXHR.responseText.replace(/^([0-9]+::pws::)/, "");
+                }
+                if (retob.message == 'valid')
+                {
+                    retob.valid = true;
+                }
+                else
+                {
+                    retob.valid = false;
+                }
+            }
+            else
+            {
+                retob.valid = false;
+            }
+            callbackfunc(retob);
+        }
+    });
+}
+
+// append CSRF token to the AJAX POST request
+if (typeof csrfToken !== 'undefined' && csrfToken.name !== '' && csrfToken.value !== '') {
+    $.ajaxPrefilter(function(options, originalOptions, $xhr) {
+        if (options.type.toUpperCase() === 'POST') {
+            var csrfQueryParam = encodeURIComponent(csrfToken.name) +'='+ encodeURIComponent(csrfToken.value);
+
+            if (typeof options.data === 'undefined' || options.data === '') {
+                options.data = csrfQueryParam;
+            } else {
+                if (options.data.indexOf(csrfQueryParam) === -1) {
+                    options.data += '&'+ csrfQueryParam;
+                }
+            }
+        }
+    });
+}
+
+/* INDEX PAGE, TOP ROTATOR LOAD */
+$(document).ready(function() {
+    (function() {
+        // check if element exist for rotator to be placed there
+        var $rotatorPhObj = $('#banner span[data-type="main-page-top-rotator-placeholder"]');
+        
+        if ($rotatorPhObj.length > 0) {
+            (function($rotatorPhObj, controllerID, cpAjaxBaseUrl, languageISO) {
+                
+                var $parentRotatorObj = $rotatorPhObj.parent();
+                var rotatorContentUrl = (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl + '/' : "") + (typeof languageISO !== "undefined" ? languageISO + '/' : "") + 'staticContent/mainPageTopRotator';
+
+                $.ajax({
+                    type: 'GET',
+                    contentType: 'html',
+                    url: rotatorContentUrl,
+                    data: '',
+                    error: function(response) {
+                        console.log(response);
+                    },
+                    success: function(responseHtml) {
+                        // update content if successfully retrieved result
+                        $rotatorPhObj.replaceWith(responseHtml);
+                        $parentRotatorObj.show();
+                    },
+                    complete: function(jqXHR) {
+                    }
+                });
+            })($rotatorPhObj, controllerID, cpAjaxBaseUrl, languageISO);
+        }
+    })();
+});
+/* INDEX PAGE RIGHT MENU LOAD MINIGAME */
+$(document).ready(function() {
+    (function() {
+        // check if element exist for minigame to be placed there
+        var $minigamePhObj = $('#jpromo_adds span[data-type="right-menu-minigame-placeholder"]');
+        
+        if ($minigamePhObj.length > 0) {
+            (function($minigamePhObj, controllerID, cpAjaxBaseUrl, languageISO) {
+                
+                var minigameContentUrl = (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl + '/' : "") + (typeof languageISO !== "undefined" ? languageISO + '/' : "") + 'staticContent/RightMenuCasinoMinigame';
+
+                $.ajax({
+                    type: 'GET',
+                    contentType: 'html',
+                    url: minigameContentUrl,
+                    data: 'ctrlid='+controllerID,
+                    error: function(response) {
+                        console.log(response);
+                    },
+                    success: function(responseHtml) {
+                        // update content if successfully retrieved result
+                        $minigamePhObj.replaceWith(responseHtml);
+                        RightPromosOverlapCheck(); // to check for showing content
+                    },
+                    complete: function(jqXHR) {
+                    }
+                });
+            })($minigamePhObj, controllerID, cpAjaxBaseUrl, languageISO);
+        }
+    })();
+});
+/* INDEX PAGE RIGHT MENU PROMOS */
+$(document).ready(function() {
+    (function() {
+        // check if element exist for promos to be placed there
+        var $promosPhObj = $('#jpromo_adds span[data-type="right-menu-promos-placeholder"]');
+
+        if ($promosPhObj.length > 0) {
+            (function($promosPhObj, controllerID, cpAjaxBaseUrl, languageISO) {
+                
+                var promosContentUrl = (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl + '/' : "") + (typeof languageISO !== "undefined" ? languageISO + '/' : "") + 'staticContent/RightMenuPromos';
+
+                $.ajax({
+                    type: 'GET',
+                    contentType: 'html',
+                    url: promosContentUrl,
+                    data: '',
+                    error: function(response) {
+                        console.log(response);
+                    },
+                    success: function(responseHtml) {
+                        // update content if successfully retrieved result
+                        $promosPhObj.replaceWith(responseHtml);
+                        RightPromosOverlapCheck(); // to check for showing content
+                    },
+                    complete: function(jqXHR) {
+                    }
+                });
+            })($promosPhObj, controllerID, cpAjaxBaseUrl, languageISO);
+        }
+    })();
+});

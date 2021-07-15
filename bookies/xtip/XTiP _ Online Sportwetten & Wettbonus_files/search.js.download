@@ -1,0 +1,64 @@
+/**
+ * Created by s.jovicic on 17.12.2015.
+ */
+
+
+$(document).on('submit','#searchform',function(e) {
+    e.preventDefault();
+    searchTerm();
+});
+
+var searchTerm = function () {
+    var searchVal = $('#search').val();
+    if (searchVal.length > 2) {
+        $url = '/site/search.html?term='+encodeURIComponent(searchVal);
+        var searchMatches = $('#search_matches');
+        var searchGroups = $('#search_groups');
+        var searchTeams = $('#search_teams');
+        var options = {};
+        if(!searchMatches.is(":checked") || !searchGroups.is(":checked") || !searchTeams.is(":checked")) {
+            if(searchMatches.is(":checked")) {
+                options.match = true;
+            }
+            if(searchGroups.is(":checked")) {
+                options.group = true;
+            }
+            if(searchTeams.is(":checked")) {
+                options.team = true;
+            }
+            $url += '&'+$.param(options);
+        }
+        window.location.replace($url);
+    }
+}
+
+/* 19.01 (s.muscat) - temp disabled as it was causing a console error: $(...).autocomplete is not a function */
+$(document).ready(function () {
+    if ($.isFunction($.fn.autocomplete)) {
+        $("#search").autocomplete({
+            appendTo: ".elasticsearch",
+            delay: 500,
+            minLength: 3,
+            source: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=site/suggestion',
+            focus: function (event, ui) {
+                $("#search").val(ui.item.label);
+                return false;
+            },
+            select: function (event, ui) {
+                searchTerm();
+                return false;
+            },
+            open: function () {
+                $(".ui-autocomplete:visible").css({top: "+=6"});
+            }
+        })
+        $("#search").autocomplete("instance")._renderItem = function (ul, item) {
+            ul.addClass('search--autocomplete');
+            return $("<li class='autocomplete-suggestion'>")
+                .append("<a>" + item.label)// + " <strong>" + item.score + " </strong></a>" )
+                .appendTo(ul);
+
+        };
+    }
+});
+

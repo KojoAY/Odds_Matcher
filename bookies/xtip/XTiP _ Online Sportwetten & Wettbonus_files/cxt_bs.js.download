@@ -1,0 +1,123 @@
+cxt_conf.jsparsers = {};
+cxt_conf.documentDomain = document.domain;
+cxt_conf.abandonedOnce = false; 
+
+cxt_conf.jsparsers.cxt_bs = function (pt) {
+	
+    if (pt !== cxt_conf.clientPrefix+"betabandon" && pt !== "xtip_sportsBetconfirm" && pt !== "xtip_MsportsBetconfirm" && pt !== "betconfirm_at" && pt !== "betconfirm_com" && pt !== "betconfirm_com_mobile") {
+        return {}
+    }
+
+    var resultBetslip = {
+        singles: [],
+        multiples: [],
+        page: pt
+    };
+
+    var translateSingle = function (rawSingle,stake, numberOfSingles) {
+        var single = {};
+        single.eventId = rawSingle.game;
+        single.decimal = (rawSingle['odd1'] / 100).toFixed(2); 
+        single.eventName = rawSingle.team1 + " - "+ rawSingle.team2; 
+        single.marketId = rawSingle.odd_id;
+        single.marketDesc = rawSingle.bettext;
+        single.selectionId = rawSingle.odd_id + rawSingle['tiptext1'];
+        single.selectionName = rawSingle['tiptext1'];
+        single.inPlay = (rawSingle.type === 'L');
+        if(numberOfSingles > 1){
+            single.multiple = rawSingle.active;
+        }else{
+        	single.multiple = false; 
+        }
+        single.stake = stake;
+        single.date = (new Date).getTime() + 3600000;
+        return single;
+    };
+    
+    var buildMulti = function(stake){
+    	var multi = {}
+    	var bets = document.getElementById('betslip_max_bet');
+    	var ways = document.getElementById('betslip_max_way');
+    	multi.stake = stake; 
+    	multi.type = "Multi ("+bets.innerHTML+"/"+ways.innerHTML+")";
+    	return multi; 
+    }
+
+    var pushedSingles = 0;
+    var stake = (Bettingslip.getStake() / 100).toFixed(2); 
+    for (var i = 0; i < Bettingslip.bettingslips.length && pushedSingles < 4; i++) {
+        if (Bettingslip.bettingslips[i] !== null && Bettingslip.bettingslips[i].bets !== null) {
+        	for(var j = 0; j < Bettingslip.bettingslips[i].bets.length && pushedSingles < 4 ; j++){
+        		if(Bettingslip.bettingslips[i].bets[j] !== null){
+            		resultBetslip.singles.push(translateSingle(Bettingslip.bettingslips[i].bets[j],stake,Bettingslip.bettingslips[i].bets.length));
+                    pushedSingles++;
+        		}
+        	}
+        }
+    }
+    
+    if(pushedSingles > 1){
+    	resultBetslip.multiples.push(buildMulti(stake)); 
+    }
+    
+    if(pt == cxt_conf.clientPrefix+"betabandon" && pushedSingles >= 1 && cxt_conf.abandonedOnce == false){
+    	var mmpix=document.createElement("img");
+        var apnpix = document.createElement("img");
+    	if(pt == "betabandon"){
+            mmpix.setAttribute('src', 'https://pixel.mathtag.com/event/img?mt_id=795693&mt_adid=145140&v1=&v2=&v3=&s1=&s2=&s3=');
+            apnpix.setAttribute('src', 'https://secure.adnxs.com/px?id=838390&seg=8353912&t=2');
+    	}else{
+            mmpix.setAttribute('src', 'https://pixel.mathtag.com/event/img?mt_id=806843&mt_adid=116851&v1=&v2=&v3=&s1=&s2=&s3=');
+            apnpix.setAttribute('src', 'https://secure.adnxs.com/px?id=838393&seg=8353911&t=2');
+    	}
+        mmpix.setAttribute('height', '1');
+        mmpix.setAttribute('width', '1');
+        document.body.appendChild(mmpix);
+
+        apnpix.setAttribute('height', '1');
+        apnpix.setAttribute('width', '1');
+        document.body.appendChild(apnpix);
+
+        cxt_conf.abandonedOnce = true ;
+    }
+
+    return resultBetslip;
+
+};
+
+
+
+cxt_conf.validateBetslip = function () {
+    if (typeof Bettingslip === "undefined" || Bettingslip.bettingslips === null || Bettingslip.bettingslips.length < 1) {
+        return false;
+    }else{
+    	return true; 
+    }
+};
+
+cxt_conf.setClientPrefix = function () {
+	if(cxt_conf.documentDomain.indexOf("cashpoint") > -1){
+		cxt_conf.clientPrefix= "cashpoint_"; 
+	}else{
+		cxt_conf.clientPrefix= ""
+	}
+}
+
+cxt_conf.setClientPrefix();
+
+cxt_conf.captureAbandonedBetslip = function(async) {
+    if (cxt_conf.validateBetslip()) {
+        cxt_conf.tag.retrieveDataForPageType(cxt_conf.clientPrefix+'betabandon', async);
+    }
+};
+
+if (cxt_conf.capturingBetslip !== true) {
+    cxt_conf.capturingBetslip = true;
+    cxt_conf.captureAbandonedBetslip(true);
+    window.setInterval(function() {cxt_conf.captureAbandonedBetslip(true)}, 60000);
+}
+if (window.$ && $(window).unload) {
+    $(window).unload(function (event) {
+        cxt_conf.captureAbandonedBetslip(false);
+    })
+}

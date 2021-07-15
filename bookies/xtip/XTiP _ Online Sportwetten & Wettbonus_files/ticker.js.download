@@ -1,0 +1,518 @@
+/**
+ * (Replaces ticker.js) Handles the liveticker-related functions/processes
+ * ----------------------------------------------------------------------------
+ * - most changes involve changing selectors, from IDs to "js-"-prefixed-classes (only to parent containers)
+ *
+ * @file ticker.js
+ * @brief contains various functions for the liveticker in the live section, written by Kilian
+ */
+
+function gameItem(gameID,someIndex,someData)
+{
+    var htmlcode ='<div class="live_game_ticker_scroll_box" id="lgtsb_'+gameID+'_'+someIndex+'">';
+    htmlcode += '<div class="live_game_ticker_scroll_box_b">'+someData[someIndex]['m_time']+'<br/>'+someData[someIndex]['text']+'</div></div>';
+    return htmlcode;
+}
+
+function tickerScrollLeft(gameID, fully, widget_id)
+{
+    if(fully) //fully indicates if a full scroll is needed (after creation or adding of a new message)
+    {
+        lockedItems[gameID] = false;
+        insertItems(5, gameID, widget);
+        leftScrollItem(0, gameID, widget_id);
+    }
+    else //or just a small scroll when a user pushes the left scroll button
+    {
+        if(!lockedItems[gameID])
+        {
+            lockedItems[gameID] = true;
+            leftScrollItem(findFirstItem(gameID), gameID, widget_id);
+        }
+    }
+}
+
+function tickerScrollRight(gameID, fully, widget_id)
+{   
+    if(fully) //fully indicates if a full scroll is needed (after creation or adding of a new message)
+    {
+        lockedItems[gameID] = false;
+        insertItems(gameMsgs[gameID].length-6, gameID, widget_id);
+        rightScrollItem(gameMsgs[gameID].length-1, gameID, widget_id);
+    }    
+    else //or just a small scroll when a user pushes the right scroll button
+    {
+        if(!lockedItems[gameID])
+        {
+            lockedItems[gameID] = true;
+            rightScrollItem(findLastItem(gameID), gameID, widget_id);
+        }
+    }
+}
+
+function findLastItem(gameID, widget_id)
+{
+    var widget = $("#" + widget_id);
+    if (widget.length == 0) return false;
+
+    var tscroll_r = widget.find("#tscroll_r_"+gameID);
+    var rightOffset = tscroll_r.offset().left, i = 0, maxitem = activeItems[gameID].length-1;
+    while(i<maxitem && widget.find("#lgtsb_"+gameID+"_"+activeItems[gameID][i]).offset().left<rightOffset) {i++;}
+    return activeItems[gameID][i];
+}
+
+function findFirstItem(gameID, widget_id)
+{
+    var widget = $("#" + widget_id);
+    if (widget.length == 0) return false;
+
+    var tscroll_l = widget.find("#tscroll_l_"+gameID);
+    var leftOffset = tscroll_l.offset().left + tscroll_l.width(), i = 0;
+    while(widget.find("#lgtsb_"+gameID+"_"+activeItems[gameID][i]).offset().left<leftOffset) {i++;}
+    if(i<1) {i=1;}
+    return activeItems[gameID][i-1];
+}
+
+function rightScrollItem(itemID, gameID, widget_id)
+{
+    var widget = $("#" + widget_id);
+    if (widget.length == 0) return false;
+
+    if ( itemID != -1 && widget.find("#scrollable_"+gameID).length > 0 )
+    {
+        var rightOffset = widget.find("#tscroll_r_"+gameID).offset().left+1;
+        var lastItem = "#lgtsb_"+gameID+"_"+itemID;
+        var itemWidth = widget.find(lastItem).width();
+        var itemOffset = widget.find(lastItem).offset().left+itemWidth;
+        var distance = itemOffset-rightOffset + widget.find("#tscroll_r_"+gameID).width();
+        widget.find(lastItem).parent().animate({"left": "-="+distance+"px"}, tickerSpeed, function()
+        {
+            widget = $("#" + widget_id);
+
+            if(activeItems[gameID][activeItems[gameID].length-1]<gameMsgs[gameID].length-1)
+            {
+                insertItems(activeItems[gameID][activeItems[gameID].length-1]-itemMinNumber+2, gameID, widget_id);
+                var parentOffset = widget.find(lastItem).parent().offset();
+                itemOffset = widget.find(lastItem).offset().left+itemWidth;
+                distance = itemOffset-rightOffset + widget.find("#tscroll_r_"+gameID).width();
+                widget.find(lastItem).parent().offset({top:parentOffset.top, left:parentOffset.left-distance});
+            }
+            lockedItems[gameID]=false;
+        });
+    }
+}
+
+function leftScrollItem(itemID, gameID, widget_id)
+{
+    var widget = $("#" + widget_id);
+    if (widget.length == 0) return false;
+
+    if ( itemID != -1 && widget.find("#scrollable_"+gameID).length > 0 )
+    {
+        var leftOffset = widget.find("#tscroll_l_"+gameID).offset().left + widget.find("#tscroll_l_"+gameID).width()+1;
+        var firstItem = "#lgtsb_"+gameID+"_"+itemID;
+        var itemOffset = widget.find(firstItem).offset().left;
+        var distance = leftOffset-itemOffset;
+        widget.find(firstItem).parent().animate({"left": "+="+distance+"px"}, tickerSpeed ,function()
+        {
+            widget = $("#" + widget_id);
+
+            if(activeItems[gameID][0]>0)
+            {
+                insertItems(activeItems[gameID][0]+itemMinNumber-1,gameID);
+                var parentOffset = widget.find(firstItem).parent().offset();
+                itemOffset = widget.find(firstItem).offset().left;
+                distance = itemOffset-leftOffset;
+                widget.find(firstItem).parent().offset({top:parentOffset.top, left:parentOffset.left-distance});
+            }
+            lockedItems[gameID]=false;
+        });
+    }
+}
+
+
+function insertItems(itemID, gameID, widget_id)
+{
+    var widget = $("#" + widget_id);
+    if (widget.length == 0) return false;
+
+    var first = itemID-itemMinNumber, last = itemID+itemMinNumber;
+    if(first<0) {first=0;}
+    if(last>=gameMsgs[gameID].length) {last=gameMsgs[gameID].length;}
+    widget.find("#tickerItems_"+gameID).html("");
+    activeItems[gameID]=null;
+    activeItems[gameID]=[];
+    for(i=first;i<last;i++){
+        widget.find("#tickerItems_"+gameID).append(gameItem(gameID,i,gameMsgs[gameID]));
+        activeItems[gameID][i-first]=i;
+    }
+
+}
+
+/**
+ * @author Sebastian Holzer
+ * toogles the dropdwon for the tennis messages
+ * @param int gameid messages for which games should be shown
+ */
+function toggleCPTicker(gameid, widget_id)
+{
+    if (widget_id) {
+        var widget = $("#" + widget_id);
+    }
+    else {
+        var widget = $("#mc-messages_container_"+gameid).parents(".js-games-widget:visible");
+        var widget_id = widget.attr("id");
+    }
+
+    widget.find("#mc-messages_container_"+gameid+" .live_messages_content").toggleClass('closed');// show the messages
+    widget.find("#mc-tennis_toggle_button_"+gameid).toggleClass('open').toggleClass('close');
+    if(widget.find("#mc-tennis_toggle_button_"+gameid).hasClass('open'))
+    {
+        arrGamesOpened[widget_id][gameid].ticker_opened = true;
+        if(widget.find("#mc-scrollarea_"+gameid).children().length > 6) // at least 6 elements in the scroll area
+        {
+            widget.find("#mc-scrollarea_"+gameid).perfectScrollbar();
+        }
+    }
+    else
+    {
+        widget.find("#mc-messages_container_"+gameid+" .live_messages_content").css('overflow', 'hidden');
+        widget.find("#mc-scrollarea_"+gameid).perfectScrollbar('destroy');
+        arrGamesOpened[widget_id][gameid].ticker_opened = false;
+    }
+}
+
+/**
+ * @author Sebastian Holzer
+ * adds a new message to the live ticker
+ * @param gameid the id of the game
+ */
+function addMessage(gameid, widget_id)
+{
+    var widget = $("#" + widget_id);
+    if (widget.length == 0) return false;
+
+    var firstmessagehtml = "", dropdownbutton = "";
+    if( (widget.find("#mc-scrollarea_"+gameid).length > 0) && gameMsgs[gameid].length > 1) // scrollbar we need to move the elements around a little
+    {
+        widget.find("#mc-message_"+gameid+"_"+gameMsgs[gameid][gameMsgs[gameid].length-2]['m_time']).prependTo("#" + widget_id + " .js-scrollarea_"+gameid); // move the current top element into scroll area
+
+        widget.find("#mc-message_"+gameid+"_"+gameMsgs[gameid][gameMsgs[gameid].length-2]['m_time']).removeClass("first_ticker_message").addClass("ticker_message");
+    }
+
+    firstmessagehtml += "<div class='first_ticker_message' id='mc-message_"+gameid+"_"+gameMsgs[gameid][gameMsgs[gameid].length-1]['m_time']+"'>"+gameMsgs[gameid][gameMsgs[gameid].length-1]['text'];
+    firstmessagehtml += "</div>";
+    widget.find("#mc-messages_container_"+gameid+" div.live_messages_wrapper").prepend(firstmessagehtml); // add the new message
+
+    if(gameMsgs[gameid].length > 1 && !widget.find("#mc-tennis_toggle_button_"+gameid).length) // more than one message, and the button doesn't already exists
+    {
+        dropdownbutton = "<a title='show/hide messages' onclick='toggleCPTicker("+gameid+")' class='close' id='mc-tennis_toggle_button_"+gameid+"'></a>";
+        widget.find("#mc-messages_container_"+gameid+" div div:first").append(dropdownbutton); // add the button to the first message
+    }
+}
+
+/**
+ * function to switch between the status of Betradar Ticker (small and full)
+ * @param action - 'show' or 'hide'
+ * @param gameid
+ * @param widget_id - the ID of the parent widget container of this live game
+ */
+function toggleBetradarTicker(action, gameid, widget_id)
+{
+
+    var myIndex = 0;
+
+    if (widget_id) {
+        var widget = $("#" + widget_id);
+    }
+    else {
+        var widget = $("div[id^='mc-newliveticker"+gameid+"']").parents(".js-games-widget:visible");
+        var widget_id = widget.attr("id");
+    }
+
+    // open or close dropdown
+    if (action == undefined || action == '') {
+        if (widget.find("div[id^='mc-newliveticker"+gameid+"']").hasClass("liveticker_extern_open")) {
+            var action = 'hide';
+        } else {
+            var action = 'show';
+        }
+    }      
+
+    if (action == "hide" && widget.find("div[id^='mc-newliveticker"+gameid+"']").hasClass("liveticker_extern_open"))
+    {
+        widget.find("div[id^='mc-newliveticker"+gameid+"']").removeClass("liveticker_extern_open").addClass("liveticker_extern_closed");
+        widget.find("#mc-game_container_"+gameid+" .live_dropdown_flag_top").removeClass("betradar_opened");
+        arrGamesOpened[widget_id][gameid].ticker_opened = false;
+    }
+    else if (action == "show" && widget.find("div[id^='mc-newliveticker"+gameid+"']").hasClass("liveticker_extern_closed"))
+    {
+        widget.find("div[id^='mc-newliveticker"+gameid+"']").removeClass("liveticker_extern_closed").addClass("liveticker_extern_open");
+        widget.find("#mc-game_container_"+gameid+" .live_dropdown_flag_top").addClass("betradar_opened");
+        arrGamesOpened[widget_id][gameid].ticker_opened = true;
+    }
+}
+
+/**
+ * add the betradar liveticker with the given statid to the game with the given gameid
+ * @param gameid
+ * @param statid
+ * @param widget_id
+ * @param open_betradar_type - int - (0 - closed, 1 - fully open on page load, 2 - half way open up till timeline)
+ */
+if(betradarWidgets === undefined) {
+    var betradarWidgets = {};
+}
+function addBetradarTicker(gameid, statid, widget_id, open_betradar_type)
+{
+    var widget = $("#"+widget_id);
+    if (widget.length == 0) return false;
+
+    var htmlcode = '';
+        htmlcode += '<div class="liveticker_extern_closed_iframe">';
+        htmlcode += '<div id="mc-gameBetradar'+statid+'" class="srw-container gameBetradar widget-loading" style="width: 678px;">';
+        htmlcode += '<div class="container450">';
+        htmlcode += '<div class="middle column">';
+        htmlcode += '    <div id="mc-cont'+gameid+'" class="srlive_container">';
+        htmlcode += '    </div>';
+        htmlcode += '    </div>';
+        htmlcode += ' </div>';
+        htmlcode += '</div>';
+        htmlcode += ' </div>    ';
+    htmlcode += '<div class="liveticker_extern_button">';
+        htmlcode += '<div class="open">';
+            htmlcode += '<a onclick="toggleBetradarTicker(\'show\', '+gameid+', \''+widget_id+'\');"></a>';
+        htmlcode += '</div>';
+        htmlcode += '<div class="open_inactive">';
+            htmlcode += '<a ></a>';
+        htmlcode += '</div>';
+        htmlcode += '<div class="close">';
+            htmlcode += '<a onclick="toggleBetradarTicker(\'hide\', '+gameid+', \''+widget_id+'\');"></a>';
+        htmlcode += '</div>';
+        htmlcode += '<div class="close_inactive">';
+            htmlcode += '<a></a>';
+        htmlcode += '</div>';
+    htmlcode += '</div>';
+    
+    widget.find("div[id^='mc-newliveticker"+gameid+"']").append(htmlcode);
+
+    initialiseBetradarWidgetObject(widget_id, gameid, statid, open_betradar_type);
+
+    // open betradar widget
+    if (open_betradar_type > 0) {
+        setTimeout(function(){
+            // betradar ticker opened half way up till ticker
+            if (open_betradar_type == 2) {
+                widget.find("div[id^='mc-newliveticker"+gameid+"']").addClass("liveticker_half_open");
+            }
+            // betradar ticker fully maximised
+            else if (open_betradar_type == 1) {
+                toggleBetradarTicker('show', gameid, widget_id);
+            }
+        }, 1000);
+    }
+
+    widget.find("div[id^='mc-newliveticker"+gameid+"']").removeClass("liveticker_extern_dummy").addClass("liveticker_extern_closed");
+
+    var game_container = widget.find("#mc-game_container_"+gameid);
+    game_container.find(".live_game_ticker_main, .ticker.live_sports").css("display", "none");
+
+    // add class to identify new ticker for other styling purposes (ex: close icon)
+    game_container.find(".scores").addClass("betradar2_x betradar_ticker_styling");
+
+    game_container.find(".live_dropdown_flag_top").removeClass("hidden");
+
+    game_container.find(".liveticker_close_button").off('click'); // bind the toggleGame function to the Button
+    game_container.find(".liveticker_close_button").prop("onclick", null);
+    game_container.find(".liveticker_close_button").click(function () {
+        var live_gamecontainer = $(this).parents(".live_gamecontainer");
+        toggleGame(live_gamecontainer, 'hide');
+    });
+}
+
+
+/**
+ * Add Betradar live widget only used for live video stream
+ */
+function addBetradarTickerForLiveVideoStream(gameid, statid, widget_id, open_betradar_type)
+{
+    var widget = $("#"+widget_id);
+    if (widget.length == 0) return false;
+
+    var htmlcode = '';
+    htmlcode += '<div class="liveticker_extern_closed_iframe">';
+    htmlcode += '<div id="mc-gameBetradar'+statid+'" class="srw-container gameBetradar widget-loading" style="width: 678px;">';
+    htmlcode += '<div class="container450">';
+    htmlcode += '<div class="middle column">';
+    htmlcode += '    <div id="mc-cont'+gameid+'" class="srlive_container">';
+    htmlcode += '    </div>';
+    htmlcode += '    </div>';
+    htmlcode += ' </div>';
+    htmlcode += '</div>';
+    htmlcode += ' </div>    ';
+    htmlcode += '<div class="liveticker_extern_button">';
+    htmlcode += '<div class="open">';
+    htmlcode += '<a onclick="toggleBetradarTicker(\'show\', '+gameid+', \''+widget_id+'\');"></a>';
+    htmlcode += '</div>';
+    htmlcode += '<div class="open_inactive">';
+    htmlcode += '<a ></a>';
+    htmlcode += '</div>';
+    htmlcode += '<div class="close">';
+    htmlcode += '<a onclick="toggleBetradarTicker(\'hide\', '+gameid+', \''+widget_id+'\');"></a>';
+    htmlcode += '</div>';
+    htmlcode += '<div class="close_inactive">';
+    htmlcode += '<a></a>';
+    htmlcode += '</div>';
+    htmlcode += '</div>';
+
+    widget.append(htmlcode);
+
+    //===============================================================
+    // if betradar widget has already been started, first remove previous instance before re-initalising it
+    if (lastVideoBetRadarWidget !== null) {
+        SRLive.removeWidget(lastVideoBetRadarWidget);
+    }
+
+    // initialise betradar widget
+    lastVideoBetRadarWidget = SRLive.addWidget({
+        name: 'widgets.lmts',
+        config: {
+            container: '#'+widget_id+' #mc-gameBetradar'+statid+' .srlive_container',
+            showTitle: false,
+            matchId: statid,
+            showScoreboard: true,
+            showMomentum: true,
+            showPitch: true,
+            showSidebar: true,
+            collapse_enabled: false,
+            collapse_startCollapsed: false,
+            sidebarLayout:'dynamic',
+            pitchCrowd: true
+        },
+        callback: function() {
+            $("mc-gameBetradar"+statid).removeClass("widget-loading");
+        }
+    });
+    //===============================================================
+
+    // open betradar widget
+    if (open_betradar_type > 0) {
+        setTimeout(function(){
+            // betradar ticker opened half way up till ticker
+            if (open_betradar_type == 2) {
+                widget.addClass("liveticker_half_open");
+            }
+        }, 1000);
+    }
+}
+
+/**
+ * Initialise the Betradar Widget as an instance using the SRLive functionality
+ * @param gameswidget_id string
+ * @param gameid int
+ * @param statid int
+ */
+function initialiseBetradarWidgetObject(gameswidget_id, gameid, statid) {
+
+    statid = parseInt(statid);
+    gameid = parseInt(gameid);
+
+    if (betradarWidgets[gameswidget_id] === undefined) {
+        betradarWidgets[gameswidget_id] = {};
+    }
+
+    if (betradarWidgets[gameswidget_id][gameid] === undefined) {
+        betradarWidgets[gameswidget_id][gameid] = {
+            object: {}, // an object containing the respective initialised betradar object of this game
+            statid: statid
+        };
+    }
+
+    // if betradar widget has already been started, first remove previous instance before re-initalising it
+    if (betradarWidgets[gameswidget_id][gameid].object !== undefined) {
+        SRLive.removeWidget(betradarWidgets[gameswidget_id][gameid].object);
+    }
+
+    // initialise betradar widget
+    betradarWidgets[gameswidget_id][gameid].object = SRLive.addWidget({
+        name: 'widgets.lmts',
+        config: {
+            container: '#'+gameswidget_id+' #mc-gameBetradar'+statid+' .srlive_container',
+            showTitle: false,
+            matchId: statid,
+            showScoreboard: true,
+            showMomentum: true,
+            showPitch: true,
+            showSidebar: true,
+            collapse_enabled: false,
+            collapse_startCollapsed: false,
+            sidebarLayout:'dynamic',
+            pitchCrowd: true
+        },
+        callback: function() {
+            $("mc-gameBetradar"+statid).removeClass("widget-loading");
+        }
+    });
+
+}
+
+/**
+ * Stop a Betradar Widget Instance (and stop the update ajax call to betradar)
+ * @param gameswidget_id string
+ * @param gameid int
+ */
+function destroyBetradarWidgetObject(gameswidget_id, gameid) {
+
+    gameid = parseInt(gameid);
+
+    if (betradarWidgets[gameswidget_id][gameid].object !== undefined) {
+        SRLive.removeWidget(betradarWidgets[gameswidget_id][gameid].object);
+        delete betradarWidgets[gameswidget_id][gameid];
+
+        if (Object.keys(betradarWidgets[gameswidget_id]).length == 0) {
+            delete betradarWidgets[gameswidget_id];
+        }
+    }
+}
+
+/**
+ * Find any ongoing initialised Betradar Widget instances, and stop them
+ * -- either destroy one instance, or multiple instances
+ * @param gameswidget_id string
+ * @param gameid int
+ */
+function destroyActiveBetradarWidgetsObjects(gameswidget_id, gameid) {
+
+    // destroy one instance of betradar
+    if (gameswidget_id !== '' && gameid !== undefined) {
+        gameid = parseInt(gameid);
+
+        // check that instance of the game wasn't already destroyed
+        if (betradarWidgets[gameswidget_id] !== undefined && betradarWidgets[gameswidget_id][gameid] !== undefined) {
+            if (betradarWidgets[gameswidget_id][gameid].object !== undefined) {
+                destroyBetradarWidgetObject(gameswidget_id, gameid);
+            }
+        }
+    }
+
+    // destroy all instances of betradar in one particular games widget
+    else if (gameswidget_id !== '') {
+        if (betradarWidgets[gameswidget_id] !== undefined) {
+            $.each(betradarWidgets[gameswidget_id], function(gameid, game) {
+                destroyBetradarWidgetObject(gameswidget_id, gameid);
+            });
+        }
+    }
+
+    // destroy all instances of betradar of one particular game (in any games widget)
+    else if (gameswidget_id === '' && gameid !== undefined) {
+        gameid = parseInt(gameid);
+
+        $.each(betradarWidgets, function(widget_id, widget) {
+            if (widget[gameid] !== undefined) {
+                destroyBetradarWidgetObject(widget_id, gameid);
+            }
+        });
+    }
+
+}

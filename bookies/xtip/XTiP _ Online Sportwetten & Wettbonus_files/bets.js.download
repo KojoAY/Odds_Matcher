@@ -1,0 +1,4910 @@
+var totalOddCount = 26;// the maximal number of odds for one market (26 is now for result bets)
+var maxAllowedBettingslipLength = 30;
+var taxPercentage = 0.95;
+var factorialArray = new Array(1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800, 39916800, 479001600, 6227020800, 87178291200, 1307674368000, 20922789888000, 355687428096000, 6402373705728000, 121645100408832000, 2432902008176640000, 51090942171709440000, 1124000727777607680000);
+var lastbettingslips = new Array();
+var Sportsbook = {
+    openLeagues: [], // array of IDs of open leagues (selected from left menu)
+};
+var Bettingslip =
+{
+    bettingslips: new Array(),
+    mode: 1,
+    active: true,
+    sysChangeTimer: null,
+    placeBetActive: false,
+    lockButtonChanges: false, // if true, betslip button doesn't change
+    pendingOddsAcceptance :false,
+    placingBetAllowed: true,
+    currentMultiwayCounter: 1,
+    bonierror: '',
+    lastBetAmount: null,
+
+
+    /**
+     * Show main betslip loader which covers the whole betslip
+     */
+    showMainLoader: function()
+    {
+        var loader = $("#betslip-main-loader");
+        if (!loader.is(":visible")) {
+            loader.fadeIn("normal");
+        }
+    },
+
+    /**
+     * Hide main betslip loader which covers the whole betslip
+     */
+    hideMainLoader: function()
+    {
+        var loader = $("#betslip-main-loader");
+        if (loader.is(":visible")) {
+            loader.fadeOut("fast");
+        }
+    },
+
+    addBet: function (bet, refString)
+    {
+        var rest_of_game_text = (rest_of_game_translation !== undefined && rest_of_game_translation != "") ? rest_of_game_translation : "Rest of Game"; // yalt text set in bettingslip.php
+        if(bet.type=='X'){bet.bettext="("+rest_of_game_text+") "+bet.bettext;}//add XZero Text @ betslip
+
+        if ((bet.type == 'L' || bet.type == 'X') && (bet.ref == null && refString != null))
+        {
+            var ref = refString.match(/#sti([0-9]+_[0-9]+)_[0-9]+/);
+            if (ref.length > 1)
+            {    bet.ref = ref[1]; } // game_id + betid
+        }
+        if(bet.sub_group == null)
+        {
+            bet.sub_group = 0;
+        }
+        if(bet.combi_cat == null)
+        {
+            bet.combi_cat = 0;
+        }
+
+        if (bet.odd <= 100)
+        {    return;}
+        if(Bettingslip.placeBetActive)
+        {
+            return;
+        }
+        if (Bettingslip.tipExists(bet)) // is the bet already saved in the bettingslip?
+        {
+            Bettingslip.removeTip(bet); // if yes remove it
+        }
+        else
+        {
+            if(Bettingslip.checkLength()==false){
+                return;
+            }
+            if (bet.active == null)
+            {   bet.active = true;}
+
+            Bettingslip.addTip(bet); // add the tip to the bettingslip
+
+            // reactivate toggle button
+            if (! Bettingslip.active && bet.active)
+            {
+                Bettingslip.active = true;
+                imgsrc = $("#betslip_statall").attr("src");
+                imgsrc = imgsrc.replace(/_off\./, "_on.");
+                $("#betslip_statall").attr("src", imgsrc);
+            }
+        }
+
+        if(Bettingslip.mode == 0 || Bettingslip.mode == 2 || Bettingslip.mode == 3){Bettingslip.updateSystem();}
+
+        Bets.checkBets(); // check for locked tips
+
+        if(bet.type.substr(0,1) == 'R')
+        {
+            Powerraces.calcValuesPR();
+        }
+        else
+        {
+            Bettingslip.calcValues();
+            Bettingslip.saveBettingslip();
+        }
+        Bettingslip.hideErrorMessage();
+        Bettingslip.hideInfoMessage();
+
+        RightPromosOverlapCheck(); // hide right sidebar promos if they overlap on footer
+
+        toggleBetslipHiddenContent(); // toggle hidden betslip content depending if it has odds listed inside
+        if (Bettingslip.hasGGL) {
+            if (Bettingslip.bettingslips[0].alreadyShownGGLMessage === undefined || Bettingslip.bettingslips[0].alreadyShownGGLMessage !== true) {
+                openPopupNotification("text_popup", "ggl_betslip_message");
+                Bettingslip.bettingslips[0].alreadyShownGGLMessage = true;
+            }
+            Bettingslip.rebuildBettingslipWithGGL();
+        }
+    },
+
+    tipExists: function (bet)
+    {
+        var i, j;
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                var entry = Bettingslip.bettingslips[i].bets[j];
+                if ((entry.odd_id == bet.odd_id || (entry.ref != null && entry.ref == bet.ref))
+                    && (entry.tip1 == bet.tip || entry.tip2 == bet.tip || entry.tip3 == bet.tip))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    },
+
+    addTip: function (bet)
+    {
+        var i, j, k, l;
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                var entry = Bettingslip.bettingslips[i].bets[j]; // get a single tip from the bettingslip
+                entry.slipnumber = i;
+                entry.betnumber = j;
+                if (entry.odd_id == bet.odd_id ) // the tip in the bettingslip is for the same bet as the new tip
+                {
+                    // its the same tip
+                    if (entry.tip1 == bet.tip || entry.tip2 == bet.tip || entry.tip3 == bet.tip){
+                        return;
+                    } //stop adding the tip
+
+                    if(entry.tip2) // add third tip
+                    {
+                        entry.tip3 = bet.tip;
+                        entry.tiptext3 = bet.tiptext;
+                        entry.odd3 = bet.odd;
+                        if (bet.ref != null){
+                            entry.ref3 = bet.ref;
+                        }
+                        entry.status3 = (bet.status == null ? 0 : bet.status);
+                        entry.active = (bet.active == null ? true : bet.active);
+                        entry.bank = (bet.bank == null ? false : bet.bank);
+
+                        Bets.selectTip(bet.odd_id, bet.tip); // set active state of button
+                        $("#betslip_item_" + entry.odd_id+" #betslip_item_bottom").append($("#bettingslipNewTip").tmpl({
+                            tipnumber: 3,
+                            tiptext: bet.tiptext,
+                            odd: oddoutput(oddformat, bet.odd),
+                            odd_id: bet.odd_id,
+                            slipnumber: entry.slipnumber,
+                            betnumber: entry.betnumber + 1
+                        }));
+                    }
+                    else // add second tip
+                    {
+                        entry.tip2 = bet.tip;
+                        entry.tiptext2 = bet.tiptext;
+                        entry.odd2 = bet.odd;
+                        if (bet.ref != null)
+                        {
+                            entry.ref2 = bet.ref;
+                        }
+                        entry.status2 = (bet.status == null ? 0 : bet.status);
+                        entry.active = (bet.active == null ? true : bet.active);
+                        entry.bank = (bet.bank == null ? false : bet.bank);
+
+                        Bets.selectTip(bet.odd_id, bet.tip); // set active state of button
+                        $("#betslip_item_" + entry.odd_id+" #betslip_item_bottom").append($("#bettingslipNewTip").tmpl({
+                            tipnumber: 2,
+                            tiptext: bet.tiptext,
+                            odd: oddoutput(oddformat, bet.odd),
+                            odd_id: bet.odd_id,
+                            slipnumber: entry.slipnumber,
+                            betnumber: entry.betnumber + 1
+                        }));
+                    }
+                    if(Bettingslip.mode == 2 || Bettingslip.mode == 3)
+                    {
+                        $("#betstip_bank" + entry.odd_id).css("display", "inline");
+                    }
+
+                    return;
+                }
+                else if(bet.sub_group == 1) // the bet is a subgroup (more than 3 way)
+                {
+                    for (k in Bettingslip.bettingslips)
+                    {
+                        for (l in Bettingslip.bettingslips[k].bets)
+                        {
+                            var entry = Bettingslip.bettingslips[k].bets[l]; // get a single tip from the bettingslip
+                            if (bet.game == entry.game && bet.betstyle == entry.betstyle) // the tip in the bettingslip is for the same game as the new tip and has the same offset
+                            {
+                                Bets.selectTip(bet.odd_id, bet.tip); // set active state of button
+                                $("#betslip_item_" + entry.odd_id +" #betslip_item_bottom").append($("#bettingslipNewTip").tmpl({
+                                    tipnumber: 2,
+                                    tiptext: bet.tiptext,
+                                    odd: oddoutput(oddformat, bet.odd),
+                                    odd_id: bet.odd_id,
+                                    slipnumber: entry.slipnumber,
+                                    betnumber: entry.betnumber + 1
+                                }));
+                                Bettingslip.addNewBet(bet, false);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Bettingslip.addNewBet(bet, true);
+    },
+
+    /**
+     * add a new bet to the bettingslip
+     * @param {type} bet
+     * @param {boolean} template
+     * @returns {undefined}
+     */
+    addNewBet: function (bet, template , pushToBettingslipArray)
+    {
+        var i = 0, entry;
+        var gamecombiexists = Bettingslip.gameCombiExists(bet);
+        /*if (Bettingslip.mode == 0) // single bets
+        {    i = Bettingslip.bettingslips.length;}*/
+
+        if (Bettingslip.bettingslips.length <= i){
+            Bettingslip.bettingslips[i] = {bets: new Array()};
+        }
+
+        entry = // create an variable to store the betdata
+        {
+            type: bet.type,
+            team1: bet.team1,
+            team2: bet.team2,
+            bettext: bet.bettext,
+            game: bet.game,
+            tip1: bet.tip,
+            tiptext1: bet.tiptext,
+            odd1: bet.odd,
+            status1: (bet.status == null ? 0 : bet.status),
+            active: (bet.active == null ? true : bet.active),
+            bank: (bet.bank == null ? false : bet.bank),
+            sub_group: bet.sub_group,
+            combi_cat: bet.combi_cat,
+            odd_id: bet.odd_id,
+            groupId: (bet.groupId == null ? false : bet.groupId)
+        };
+
+        if(bet.type.substr(0,1) == 'R')
+        {
+            entry.amount = bet.amount;
+        }
+
+        if (bet.ref != null) // game_id + betid are present
+        {    entry.ref = bet.ref;} // store it in the entry
+
+        if (bet.tip2 != null)
+        {
+            entry.tip2 = bet.tip2;
+            entry.tiptext2 = bet.tiptext2;
+            entry.odd2 = bet.odd2;
+            entry.status2 = (bet.status2 == null ? 0 : bet.status2);
+            if (bet.ref2 != null)
+            {    entry.ref2 = bet.ref2;}
+        }
+
+        if (bet.tip3 != null)
+        {
+            entry.tip3 = bet.tip3;
+            entry.tiptext3 = bet.tiptext3;
+            entry.odd3 = bet.odd3;
+            entry.status3 = (bet.status3 == null ? 0 : bet.status3);
+            if (bet.ref3 != null)
+            {    entry.ref3 = bet.ref3;}
+        }
+
+        if (bet.betstyle != null)
+        {
+            entry.betstyle = bet.betstyle;
+        }
+        else
+        {
+            entry.betstyle = 0;
+        }
+
+        // add bet to the bettingslip array
+        if (pushToBettingslipArray === undefined || pushToBettingslipArray === true) {
+            Bettingslip.bettingslips[i].bets.push(entry);
+        }
+
+
+
+        // set active state of button
+        if (bet.type == 'N')
+        {    Bets.selectTip(bet.odd_id, bet.tip);}
+        else if (bet.type == 'L' || bet.type == 'X')
+        {    Livebets.selectTip(bet.ref, bet.tip);}
+
+        if(template)// add bet entry to bettingslip, if wanted
+        {
+            entrytmpl =
+            {
+                team1: bet.team1,
+                team2: bet.team2,
+                bettext: bet.bettext,
+                slipnumber: i,
+                betnumber: Bettingslip.bettingslips[i].bets.length,
+                odd_id: bet.odd_id,
+                odd_id_tmpl: bet.odd_id,
+                tiptext1: bet.tiptext,
+                odd1: oddoutput(oddformat, bet.odd),
+                active: entry.active,
+                bank: entry.bank,
+                amount: 0,
+                tip: bet.tip,
+                newContainer: true,
+                game: bet.game,
+                combi_cat: bet.combi_cat,
+                subGroupCount: bet.sub_group == 1 ? totalOddCount : 0
+            };
+
+            if (bet.tip2 != null)
+            {
+                entrytmpl.tiptext2 = bet.tiptext2;
+                entrytmpl.odd2 = oddoutput(oddformat, bet.odd2);
+            }
+            if (bet.tip3 != null)
+            {
+                entrytmpl.tiptext3 = bet.tiptext3;
+                entrytmpl.odd3 = oddoutput(oddformat, bet.odd3);
+            }
+
+            // GGL Specific
+            if (Bettingslip.hasGGL) {
+                entrytmpl.tip = bet.tip1;
+                entrytmpl.tiptext1 = bet.tiptext1;
+                entrytmpl.odd1 =oddoutput(oddformat, bet.odd1);
+            }
+
+            if(bet.type[0]!="R")
+            {
+                if(gamecombiexists)
+                {
+                    entrytmpl.newContainer = false;
+                    if (bet.gameIdToAttach) {
+                        $("#bettingslipBetEntry").tmpl(entrytmpl).appendTo("#betslip_gamecombi_container_"+bet.gameIdToAttach+bet.combiCatToAttach);
+                    } else {
+                        $("#bettingslipBetEntry").tmpl(entrytmpl).appendTo("#betslip_gamecombi_container_"+bet.game+bet.combi_cat);
+                    }
+
+                }
+                else
+                {
+                    $("#bettingslipBetEntry").tmpl(entrytmpl).appendTo("#betslip_tabs_content");
+                }
+                if($("#betslip_gamecombi_container_"+bet.game+bet.combi_cat).find(".betslip_team").length>1){
+                    if (!bet.gameIdToAttach) {
+                        $("#betslip_gamecombi_container_"+bet.game+bet.combi_cat).find(".betslip_team:not(:first)").hide();
+                    }
+                }
+            }
+            else
+            {
+                entrytmpl.amount = bet.amount;
+                entrytmpl = Powerraces.transformTemplate(entrytmpl);
+                $("#bettingslipBetEntryRace").tmpl(entrytmpl).appendTo("#betslip_tabs_content");
+            }
+            if (Bettingslip.mode == 2 || Bettingslip.mode == 3)
+            {    $("#betstip_bank" + bet.odd_id).css("display", "inline");}
+        }
+    },
+
+    /**
+     * checks if the combination of game and combi category already exists in the bettingslip
+     * @param {object} bet
+     * @returns {Boolean}
+     */
+    gameCombiExists: function (bet)
+    {
+        if (bet.gameIdToAttach) {
+            if($("#betslip_gamecombi_container_"+bet.gameIdToAttach+bet.combiCatToAttach).length > 0) {
+                return true;
+            }
+        } else if($("#betslip_gamecombi_container_"+bet.game+bet.combi_cat).length > 0)
+        {
+            return true;
+        }
+        return false;
+    },
+
+    removeTip: function (bet)
+    {
+        var i, j;
+        var replacementId = bet.odd_id;
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                var entry = Bettingslip.bettingslips[i].bets[j];
+
+                if ((entry.odd_id == bet.odd_id || (entry.ref != null && entry.ref == bet.ref)) && (entry.tip1 == bet.tip || entry.tip2 == bet.tip || entry.tip3 == bet.tip))
+                {
+                    if (entry.tip2 == null && entry.tip3 == null) // no multiway --> remove completely
+                    {
+                        // remove entry from array
+                        Bettingslip.bettingslips[i].bets.splice(j, 1);
+                        if (Bettingslip.bettingslips[i].bets.length == 0)
+                        {    Bettingslip.bettingslips.splice(i, 1);}
+
+                        // remove active  state of button
+                        if (entry.type == 'N')
+                        {    Bets.deselectTip(bet.odd_id, bet.tip);}
+                        else if (entry.type == 'L' || entry.type == 'X')
+                        {   Livebets.deselectTip(entry.ref, bet.tip);}
+
+                        // remove game from bettingslip
+                        var oldReplacementId = entry.odd_id;
+                        var betslipContainer = $("#betslip_tabs_content");
+                        if( betslipContainer.find("#betslip_item_" + replacementId).find("[id^=bs]").length == 1 ){
+                            betslipContainer.find("#betslip_item_" + replacementId).remove();
+                        }else{
+                            //If replacement id is not present, the use the old replacement id from entry object
+                            if(betslipContainer.find("#betslip_item_" + oldReplacementId).find("[id^=bs]").length == 1){
+                                    betslipContainer.find("#betslip_item_" + oldReplacementId).remove();
+                            }
+                            else{
+                                betslipContainer.find("#betslip_item_" + oldReplacementId).find("[id=bs"+ entry.odd_id +"]").remove();
+                            }
+                            //-----------------------------
+                            if(betslipContainer.find("#betslip_item_" + replacementId).find("[id=bs"+bet.odd_id+"]").length > 0){
+                                betslipContainer.find("#betslip_item_" + replacementId).find("[id=bs"+bet.odd_id+"]").remove();
+                            }
+                        }
+                        var parentcont = $("#betslip_gamecombi_container_" + entry.game + entry.combi_cat);
+                        if(parentcont.children().length == 0)
+                        {
+                            parentcont.remove();
+                        }
+                        $("#betslip_gamecombi_container_"+bet.game+bet.combi_cat).find(".betslip_team:first").show();
+                    }
+                    else if (entry.tip3 == null) // multiway with 2 tips
+                    {
+                        // replace first tip with second if first is removed
+                        if (entry.tip1 == bet.tip)
+                        {
+                            entry.tip1 = entry.tip2;
+                            entry.tiptext1 = entry.tiptext2;
+                            entry.odd1 = entry.odd2;
+                        }
+
+                        // remove second tip
+                        entry.tip2 = null;
+                        entry.tiptext2 = null;
+                        entry.odd2 = null;
+
+                        // remove active state of button
+                        if (entry.type == 'N')
+                        {   Bets.deselectTip(bet.odd_id, bet.tip);}
+                        else if (entry.type == 'L' || entry.type == 'X')
+                        {    Livebets.deselectTip(entry.ref, bet.tip);}
+
+                        // check if team is present, if so don't remove it
+                        entry.newContainer = false;
+                        if($("#betslip_team_" + bet.odd_id).length > 0)
+                        {
+                            entry.newContainer = true;
+                        }
+
+                        // replace bet entry
+                        $("#betslip_item_" + replacementId).replaceWith($("#bettingslipBetEntry").tmpl({
+                            team1: entry.team1,
+                            team2: entry.team2,
+                            bettext: entry.bettext,
+                            odd_id: entry.odd_id,
+                            odd_id_tmpl: entry.odd_id,
+                            tiptext1: entry.tiptext1,
+                            odd1: oddoutput(oddformat, entry.odd1),
+                            active: entry.active,
+                            bank: entry.bank,
+                            newContainer: false,
+                            subGroupCount: entry.sub_group == 1 ? totalOddCount : 0,
+                        }));
+                        $("#betslip_gamecombi_container_"+bet.game+bet.combi_cat).find(".betslip_team:not(:first)").hide();
+                    }
+                    else // multiway with 3 tips
+                    {
+                        // replace first tip with third if first is removed
+                        if (entry.tip1 == bet.tip)
+                        {
+                            entry.tip1 = entry.tip3;
+                            entry.tiptext1 = entry.tiptext3;
+                            entry.odd1 = entry.odd3;
+                        }
+                        else if (entry.tip2 == bet.tip)// replace second tip with third if second is removed
+                        {
+                            entry.tip2 = entry.tip3;
+                            entry.tiptext2 = entry.tiptext3;
+                            entry.odd2 = entry.odd3;
+                        }
+
+                        // remove third tip
+                        entry.tip3 = null;
+                        entry.tiptext3 = null;
+                        entry.odd3 = null;
+
+                        // check if team is present, if so don't remove it
+                        entry.newContainer = false;
+                        if($("#betslip_team_" + bet.odd_id).length > 0)
+                        {
+                            entry.newContainer = true;
+                        }
+
+                        // remove active state of button
+                        Bets.deselectTip(bet.odd_id, bet.tip);
+
+                        // replace bet entry
+                        $("#betslip_item_" + replacementId).replaceWith($("#bettingslipBetEntry").tmpl({
+                            team1: entry.team1,
+                            team2: entry.team2,
+                            bettext: entry.bettext,
+                            odd_id: entry.odd_id,
+                            odd_id_tmpl: entry.odd_id,
+                            tiptext1: entry.tiptext1,
+                            odd1: oddoutput(oddformat, entry.odd1),
+                            tiptext2: entry.tiptext2,
+                            odd2: oddoutput(oddformat, entry.odd2),
+                            active: entry.active,
+                            bank: entry.bank,
+                            newContainer: false,
+                            subGroupCount: entry.sub_group == 1 ? totalOddCount : 0
+                        }));
+                        $("#betslip_gamecombi_container_"+bet.game+bet.combi_cat).find(".betslip_team:not(:first)").hide();
+                        if (Bettingslip.mode == 2 || Bettingslip.mode == 3)
+                        {   $("#betstip_bank" + bet.odd_id).css("display", "inline");}
+                    }
+                }
+            }
+        }
+    },
+
+    delBet: function (bet, tip)
+    {
+        var i,j;
+        if(Bettingslip.bettingslips.length===0) // there is no bet in the array, but there must be a bet in the bettingslip,
+        { //otherwise the function would not have been called
+            $("div[id^='betslip_item_']").remove();
+        }
+
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                var entry = Bettingslip.bettingslips[i].bets[j];
+
+                if (entry.odd_id == bet)
+                {
+                    if(entry.type.substr(0,1) != 'R') // if the bet is not a Powerrace
+                    {
+                        Bettingslip.bettingslips[i].bets.splice(j, 1);
+                        if (Bettingslip.bettingslips[i].bets.length == 0) // last bet in betslip
+                        {   Bettingslip.bettingslips.splice(i, 1);} // remove betslip
+
+                        if (entry.type == 'N')
+                        {
+                            Bets.deselectGame(entry.odd_id);
+                            var replacementId = entry.odd_id;
+                            $("#betslip_item_" + replacementId).remove();
+                        }
+                        else if (entry.type == 'L' || entry.type == 'X')
+                        {
+                            Livebets.deselectGame(entry.ref);
+                            $("#betslip_item_" + entry.odd_id).remove();
+                        }
+                        /** delete the gamecombi container if no more games are present */
+                        var parentcont = $("#betslip_gamecombi_container_" + entry.game + entry.combi_cat);
+                        if(parentcont.children().length == 0)
+                        {
+                            parentcont.remove();
+                        }
+                        $("#betslip_gamecombi_container_"+entry.game+entry.combi_cat).find(".betslip_team:first").show();
+
+                        if(Bettingslip.mode == 0 || Bettingslip.mode == 2 || Bettingslip.mode == 3)
+                        {
+                            Bettingslip.updateSystem();
+                            Bettingslip.sysChange(0);
+                        }
+
+                        // check for locked tips
+                        Bets.checkBets();
+                        Bettingslip.calcValues();
+
+                        Bettingslip.saveBettingslip();
+
+                    }
+                    else if(entry.tip1 == tip) // the bet is a Powerrace and the ids match
+                    {
+                        Bettingslip.bettingslips[i].bets.splice(j, 1);
+                        if(Bettingslip.bettingslips[i].bets.length == 0)
+                        {
+                            Bettingslip.bettingslips.splice(i, 1);
+                        }
+                        delRaceBet(entry.game,tip,entry.odd1); //race.js
+                        $("div#betslip_item_" + entry.game+tip).remove();
+
+                        // check for locked tips
+                        Bets.checkBets();
+                        Powerraces.calcValuesPR();
+                    }
+                }
+            }
+        }
+        // hide right sidebar promos if they overlap on footer
+        RightPromosOverlapCheck();
+
+        // toggle hidden betslip content depending if it has odds listed inside
+        toggleBetslipHiddenContent();
+    },
+
+    delSlip: function (id)
+    {
+        var i, entry, parentcont;
+        if (Bettingslip.bettingslips.length > id)
+        {
+            for (i in Bettingslip.bettingslips[id].bets)
+            {
+                entry = Bettingslip.bettingslips[id].bets[i];
+                if(entry.type.substr(0,1) != 'R')
+                {
+                    if (entry.gameIdToAttach) {
+                        parentcont = $("#betslip_item_" + entry.game).parent();// + entry.combi_cat);
+                    } else {
+                        parentcont = $("#betslip_gamecombi_container_" + entry.game + entry.combi_cat);
+                    }
+
+
+                    if (entry.type == 'N')
+                    {
+                        Bets.deselectGame(entry.odd_id);
+                    }
+                    else if (entry.type == 'L' || entry.type == 'X')
+                    {    Livebets.deselectGame(entry.ref);}
+                    var replacementId = entry.odd_id;
+                    $("#betslip_item_" + replacementId).remove();
+
+                    if(parentcont.children().length == 0) // no more bets in this container, delete it
+                    {
+                        parentcont.remove();
+                    }
+                }
+                else // powerraces
+                {
+                    var replacementId = entry.game+entry.tip1;
+                    $("#betslip_item_" + replacementId).remove();
+                }
+            }
+            Bettingslip.bettingslips.splice(id, 1);
+        }
+
+    },
+
+    /**
+     *
+     * @param idarray - array/mixed - contains the ids of the bettingslip which should be deleted
+     * @param removeMessages - bool - if true, remove any error/success messages in the betslip
+     * @returns {undefined}
+     */
+    delAll: function (idarray, removeMessages)
+    {
+        var betsliparr = new Array();
+
+        if(idarray === undefined || idarray === '')
+        {
+            for (i in Bettingslip.bettingslips)
+            {
+                betsliparr.push(i);
+            }
+        }
+        else
+        {
+            betsliparr = idarray;
+        }
+        betsliparr.sort(function(a,b){
+            return a*1-b*1;
+        });
+        betsliparr.reverse();
+
+        for (i in betsliparr)
+        {
+          Bettingslip.delSlip(betsliparr[i]);
+        }
+
+        Bettingslip.setSys(0);
+        Bettingslip.setSys(0, 2);
+        Bettingslip.setSys(0, 3);
+
+        if(Bettingslip.mode == 2 || Bettingslip.mode == 3){Bettingslip.updateSystem();}
+
+        // check for locked tips
+        Bets.checkBets();
+        Bettingslip.calcValues();
+        Bettingslip.saveBettingslip();
+
+        if (Bettingslip.bettingslips.length == 0)
+        {
+            Bettingslip.stakeSet(defaultstake);
+        }
+        if(controllerID == "race")
+        {
+            clearTips(); // in race.js
+        }
+
+        // hide right sidebar promos if they overlap on footer
+        RightPromosOverlapCheck();
+
+        // toggle hidden betslip content depending if it has odds listed inside
+        if(controllerID != "race"){
+            toggleBetslipHiddenContent();
+        }
+
+        if (removeMessages) {
+            Bettingslip.hideErrorMessage();
+            Bettingslip.hideInfoMessage();
+        }
+    },
+
+    toggleStatus: function (bet)
+    {
+        var i,j, imgsrc, entry, powerraces = false;
+        if (bet === undefined)
+        {
+            $("img[id^='betstip_stat']").each( function()
+            {
+                imgsrc = $(this).attr("src");
+
+                if (Bettingslip.active)
+                {
+                    imgsrc = imgsrc.replace(/_on\./, "_off.");
+                }
+                else
+                {
+                    imgsrc = imgsrc.replace(/_off\./, "_on.");
+                }
+
+                $(this).attr("src", imgsrc);
+            });
+            imgsrc = $("#betslip_statall").attr("src");
+            if (Bettingslip.active)
+            {
+                Bettingslip.active = false;
+                imgsrc = imgsrc.replace(/_on\./, "_off.");
+            }
+            else
+            {
+                Bettingslip.active = true;
+                imgsrc = imgsrc.replace(/_off\./, "_on.");
+            }
+            $("#betslip_statall").attr("src", imgsrc);
+        }
+
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                entry = Bettingslip.bettingslips[i].bets[j];
+                if(entry.type.substr(0,1) == 'R')
+                {
+                    powerraces = true;
+                }
+                if (entry.status != null && entry.status < 0)
+                { continue; }
+
+                if (bet === undefined)
+                { entry.active = Bettingslip.active; }
+
+                if (entry.odd_id == bet || bet === undefined)
+                {
+                    imgsrc = $("#betstip_stat" + entry.odd_id).attr("src");
+
+                    if (entry.active)
+                    {
+                        entry.active = false;
+                        imgsrc = imgsrc.replace(/_on\./, "_off.");
+                    }
+                    else
+                    {
+                        entry.active = true;
+                        imgsrc = imgsrc.replace(/_off\./, "_on.");
+                    }
+
+                    $("#betstip_stat" + entry.odd_id).attr("src", imgsrc);
+
+                    if (entry.active && ! Bettingslip.active && bet !== undefined)
+                    {
+                        Bettingslip.active = true;
+                        imgsrc = $("#betslip_statall").attr("src");
+                        imgsrc = imgsrc.replace(/_off\./, "_on.");
+                        $("#betslip_statall").attr("src", imgsrc);
+                    }
+                }
+            }
+        }
+        if (bet === undefined)
+        {
+            imgsrc = $("#betslip_statall").attr("src");
+            if (Bettingslip.active)
+            {
+                Bettingslip.active = false;
+                imgsrc = imgsrc.replace(/_on\./, "_off.");
+            }
+            else
+            {
+                Bettingslip.active = true;
+                imgsrc = imgsrc.replace(/_off\./, "_on.");
+            }
+            $("#betslip_statall").attr("src", imgsrc);
+        }
+
+        if(Bettingslip.mode == 2 || Bettingslip.mode == 3){Bettingslip.updateSystem();}
+
+        // check for locked tips
+        Bets.checkBets();
+        if(powerraces == false)
+        {
+            Bettingslip.calcValues();
+        }
+        else
+        {
+            Powerraces.calcValuesPR();
+        }
+        Bettingslip.saveBettingslip();
+    },
+
+    toggleBank: function (bet)
+    {
+        var i, j, entry, imgsrc;
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                entry = Bettingslip.bettingslips[i].bets[j];
+
+                if (entry.odd_id == bet)
+                {
+                    if (entry.active == -1) break; // inactive odds cannot be set as bank
+
+                    imgsrc = $("#betstip_bank" + entry.odd_id).attr("src");
+
+                    if (entry.bank)
+                    {
+                        entry.bank = false;
+                        imgsrc = imgsrc.replace(/_on\./, "_off.");
+                    }
+                    else
+                    {
+                        if(imgsrc.indexOf("deactivated") == -1) // check if the bank button is not deactivated
+                        {
+                            entry.bank = true;
+                            imgsrc = imgsrc.replace(/_off\./, "_on.");
+                        }
+                    }
+
+                    $("#betstip_bank" + entry.odd_id).attr("src", imgsrc);
+                }
+            }
+        }
+
+        if(Bettingslip.mode == 2 || Bettingslip.mode == 3){Bettingslip.updateSystem();}
+
+        Bets.checkBets(); // check for locked tips
+        Bettingslip.calcValues();
+        Bettingslip.saveBettingslip();
+
+    },
+
+    placeBet: function ()
+    {
+        Bettingslip.hideErrorMessage();
+        Bettingslip.hideInfoMessage();
+        if(controllerID != "race")
+        {
+            if (Bettingslip.placeBetActive || Bettingslip.placingBetAllowed == false)
+            { return;}
+
+
+            if(Bettingslip.checkBettingslipCookie())
+            {
+                Bettingslip.swapButton(4);
+                Bettingslip.placeBetActive = true;
+                Bettingslip.lockButtonChanges = true;
+                data = Bettingslip.buildBetslipXML(false);
+                $.ajax({
+                    type: 'POST',
+                    url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/placeBet',
+                    data: data,
+                    complete: Bettingslip.placeBetComplete
+                });
+            }
+            else
+            {
+                if(typeof site_label !== 'undefined' && site_label.toLowerCase() == "betcenter"){
+                    Bettingslip.showErrorMessage(error_betcookie_notmatching_text);
+                }
+                else{
+                    Bettingslip.showErrorMessage("Bet already placed");
+                }
+
+                Bettingslip.placeBetActive = false;
+                Bettingslip.lockButtonChanges = false;
+            }
+        }
+        else
+        {
+            Powerraces.placeBet();
+        }
+
+    },
+
+    placeBetComplete: function (jqXHR)
+    {
+        Bettingslip.lockButtonChanges = false;
+
+        if (jqXHR.status == 200)
+        {
+            var ids = new Array(), finished = true, i, chkError = false, oddChangesPopup = false;
+
+            $(jqXHR.responseXML).children("response").each(function ()
+            {
+                var $responseErrorTagObjects = $(this).children("error"); // top level error tags
+                var $responseBettingslipTagObj = $(this).children("bettingslip");
+                var $responseRetcodeTagObj = $responseBettingslipTagObj.children("retcode");
+                var $responseBookieAmountChangedTagObj = $responseBettingslipTagObj.children("amount_changed");
+                var responseErrMsgText; // final text to display, no need to be the same with backend response..
+                var responseRetcodeVal; // <retcode> val
+                var responseAmountChangedVal; // <smount_changed> val
+
+                if ($(this).children("transaction").length > 0)
+                {
+                    var transactionid = $(this).children("transaction").find("id");
+                    if (transactionid.length > 0)
+                    {   transactionid = $(transactionid[0]).text();}
+                    else
+                    {    transactionid = 0;}
+
+                    window.setTimeout(function ()
+                    {
+                        var firsttry =
+                        $.ajax
+                        ({
+                            type: 'GET',
+                            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/placeBet&data=&transactionid=' + transactionid
+                        });
+                        firsttry.done( function(data, text, response) {Bettingslip.placeBetComplete(response);}); // request was successful
+                        firsttry.fail(
+                            function()
+                            {
+                                var retry = $.ajax
+                                ({
+                                    type: 'GET',
+                                    url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/placeBet&data=&transactionid=' + transactionid
+                                });
+                                retry.always( function(data, text, response) {Bettingslip.placeBetComplete(response);});
+                            }
+                        );
+                    }, 1000);
+
+                    finished = false;
+                }
+
+                //handles transaction id
+                if(typeof Bettingslip.transactionretry == 'undefined') {
+                    Bettingslip.transactionretry = 0;
+                }
+                var skiperror = false;
+                if ($(this).children('bettingslip').children('transaction_id').length > 0)
+                {
+                    if(Bettingslip.transactionretry < 30) {
+                        Bettingslip.transactionids = []; //$(this).children('bettingslip').children('transaction_id').text();
+                        $(this).children('bettingslip').each(function(){
+                            var betslip = $(this);
+                            var betslip_id = betslip.attr('id');
+                            var transaction = betslip.children('transaction_id');
+                            if(transaction.length > 0) {
+                                var transaction_id = transaction.text();
+                                Bettingslip.transactionids[betslip_id] = transaction_id;
+                            }
+                        });
+                        Bettingslip.transactionretry++;
+                        Bettingslip.swapButton(4);
+                        data = Bettingslip.buildBetslipXML(false);
+                        window.setTimeout(function () {
+                            var firsttry =
+                                $.ajax
+                                ({
+                                    type: 'POST',
+                                    url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/placeBet',
+                                    data: data,
+                                });
+                            firsttry.done(function (data, text, response) {
+                                Bettingslip.hideErrorMessage();
+                                Bettingslip.placeBetComplete(response);
+                            }); // request was successful
+                            firsttry.fail(
+                                function () {
+                                    if(Bettingslip.transactionretry < 30) {
+                                        Bettingslip.transactionretry++;
+                                        var retry = $.ajax
+                                        ({
+                                            type: 'POST',
+                                            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/placeBet',
+                                            data: data,
+                                        });
+                                        retry.always(function (data, text, response) {
+                                            Bettingslip.placeBetComplete(response);
+                                        });
+                                    }
+                                }
+                            );
+                        }, 5000);
+                        finished = false;
+                    } else {
+                        delete Bettingslip.transactionretry;
+                        delete Bettingslip.transactionids;
+                        Bettingslip.hideErrorMessage();
+                        Bettingslip.showErrorMessage(bet_timeout);
+                        Bettingslip.placeBetActive = false;
+                        Bettingslip.calcValues(true);
+                        skiperror = true;
+                    }
+                } else {
+                    delete Bettingslip.transactionretry;
+                    delete Bettingslip.transactionids;
+                }
+
+                $(jqXHR.responseXML).find("bettingslip").each(function ()
+                {
+                    if($(this).children('transaction_id').length > 0) {
+                        return true;
+                    }
+                    var id = null, retcode = null;
+
+                    if ($(this).attr("id").length > 0)
+                    {    id = Number($(this).attr("id"));}
+
+                    if ($(this).find("retcode").length > 0)
+                    {
+                        retcode = Number($(this).find("retcode").text());
+                    }
+
+                    $(this).find("bet").each(function ()
+                    {
+                        if($(this).find("changes").attr("changeRelevance") > 0) {
+                            var entry = {active: true};
+                            entry = Bettingslip.createEntryFromReturnXml($(this), entry);
+                            Bettingslip.updateBet(entry);
+                            skiperror = true;
+                        }
+                        if($(this).find("changes").attr("changeRelevance") == 2) {
+                            oddChangesPopup = true;
+                        }
+                    });
+
+                    if (retcode == null)
+                    {    Bettingslip.showErrorMessage(connection_error);}
+                    else
+                    {
+                        if (retcode == 0)
+                        {
+                            if (id != null)
+                            {    ids.push(id);}
+                            else
+                            {
+                                Bettingslip.delAll();
+                                Bettingslip.stakeSet(defaultstake);
+                            }
+                        }
+                    }
+                });
+
+                if(oddChangesPopup && $(this).find("explicitBetAcceptanceTimeout").length > 0 && $(this).find("explicitBetAcceptanceTimeout").text() != 0)
+                {
+                    var accepttimeout = Number($(this).find("explicitBetAcceptanceTimeout").text()) * 1000;
+                    $(".info-bubble.explicitOddsAccept").show();
+                    Bettingslip.pendingOddsAcceptance = true;
+                    setTimeout(function(){
+                        Bettingslip.pendingOddsAcceptance = false;
+                        $(".info-bubble.explicitOddsAccept").hide();
+                        Bets.checkBets();
+                        }, accepttimeout);
+                }
+
+                if ($responseErrorTagObjects.length > 0 && !skiperror)
+                {
+                    responseErrMsgText = $($responseErrorTagObjects[0]).text();
+                    responseRetcodeVal = parseInt($($responseRetcodeTagObj[0]).text());
+                    responseAmountChangedVal = $($responseBookieAmountChangedTagObj[0]).text();
+
+                    // showing error if the user is not logged in and tries to bet.
+                    if ( responseRetcodeVal == 1)
+                    {
+                        chkError = true;
+                        Bettingslip.swapButton(6);
+                        //openPopupNotification("logreg");
+                        trackIT('overlay', 'show', 'place-a-bet'); // GoogleAnalytics tracking
+                    }
+                    // showing error if account balance is too low and tries to bet.
+                    else if ( responseRetcodeVal == 3)
+                    {
+                        chkError = true;
+                        Bettingslip.swapButton(7);
+                        //trackIT('overlay', 'show', 'place-a-bet'); // GoogleAnalytics tracking
+                    }
+                    else
+                    {
+                        if (responseRetcodeVal == 1010118) { // amount changed by bookie case
+
+                            responseErrMsgText += "(" + NumberFormatLanguageSpecific(parseInt(responseAmountChangedVal) / 100) + " " + stateCasinoAccountCurrency + ")";
+                        }
+
+                        Bettingslip.showErrorMessage(responseErrMsgText);
+                        // Showing terms & conditions popup if error code is 9 (t&c not accepted yet)
+                        if ( responseRetcodeVal == 9 ) {
+                            openUpdatedTcPopup("newtc");
+                        }
+                    }
+                }
+                if ($(this).children("info").length > 0){
+                    Bettingslip.showInfoMessage($($(this).children("info")[0]).text());
+                    Bettingslip.swapButton(2);
+                    trackIT('user-information', 'click', 'bet-placed-successfully'); // GoogleAnalytics tracking
+                    Bettingslip.lastBetAmount = Bettingslip.getStake();
+
+                    if (typeof(fbq) !== 'undefined' && site_label == "betcenter") {
+                        fbq('track', 'Bettings', {
+                            stake: Bettingslip.getStake()
+                        });
+                    }
+
+                    // for tracking
+                    lastbettingslips = $.extend(true,{},Bettingslip.bettingslips);
+
+                    document.cookie = "bettingslip=; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/"+secureCookie;
+                    Bettingslip.saveBettingslip();
+                }
+            });
+
+            if (jqXHR.getResponseHeader('Content-Type').split(';')[0] === "application/json")
+            {
+                var jsonmessage = JSON.parse(jqXHR.responseText);
+                if (jsonmessage.message == "selflock")
+                {
+                    openPopupNotification("selflock", jsonmessage.value);
+                }
+                else if (jsonmessage.message == "sh_wrong_data")
+                {
+                    openPopupNotification("text_popup", "sh_wrong_data");
+                }
+                else if(jsonmessage.message == "newtc")
+                {
+                    // open updated T&C popup - linking to function openUpdatedTcPopup to handle custom functionality of popup
+                    openUpdatedTcPopup("newtc");
+                } else if(jsonmessage.message == "account_not_verified") {
+                    openPopupNotification("text_popup", "account_not_verified");
+                } else if(jsonmessage.message == "account_not_verified_uk") {
+                    openPopupNotification("text_popup", "account_not_verified_uk");
+                }
+                else if(jsonmessage.message == "not_belgium")
+                {
+                    openPopupNotification("text_popup", "not_belgium")
+                }
+            }
+
+            if (ids.length > 0)
+            {
+                Bettingslip.delAll(ids);
+
+                if (Bettingslip.bettingslips.length == 0)
+                {
+                  Bettingslip.stakeSet(defaultstake);
+                }
+            }
+            if (finished)
+            {
+                Bettingslip.placeBetActive = false;
+                $("#xtremeBonusTeaser").hide();
+            }
+
+            if(chkError == false){
+                Bettingslip.calcValues(true);
+            }
+            try {stateCasinoAccount(true);} catch (e) {}
+            if(typeof (sportsInBetslip) != "undefined") // it exists (live section) so clear it
+            {
+                sportsInBetslip = [];
+            }
+
+        }
+        else
+        {
+            Bettingslip.showErrorMessage(connection_error);
+            Bettingslip.placeBetActive = false;
+            Bettingslip.calcValues(true);
+        }
+    },
+
+
+    /**
+     *  called when nee4ded to retrieve the last bet amount
+     * 
+     * @param {type} amount
+     * @returns {int} amount
+     *          The amount of the last bet
+     */
+    getbettingamount: function ()
+    {
+        return Bettingslip.lastBetAmount;
+    },
+
+    /**
+     *  called when Bettingmode is changed
+     *      displays / hides Systembet elements
+     *      splits or merges bettingslip -> singlemode
+     *
+     *  @param {int} mode
+     *      0 = Single
+     *      1 = Kombi
+     *      2 = System
+     *      3 = SystemPlus
+     */
+    changeMode: function (mode)
+    {
+        var h,i;
+
+        var modes = ['single', 'combi', 'system'];
+
+        trackIT('click: betslip mode', 'betslip changed mode', modes[mode]);
+
+        // split or merge bettingslip
+        if (Bettingslip.mode == 0 || mode == 0)
+        {
+            if(typeof Bettingslip.bettingslips[0] !== 'undefined'){
+                h = Bettingslip.bettingslips[0].bets;
+                Bettingslip.bettingslips = [];
+                Bettingslip.bettingslips[0] = {bets: []};
+                for (i in h)
+                {
+                    Bettingslip.bettingslips[0].bets.push(h[i]);
+                }
+            }
+        }
+        if(Bettingslip.mode == 0){
+            Bettingslip.checkLength();
+        }
+        if(mode == 0)// single
+        {
+            $("#betslip_tabs_content").addClass("singleMode");
+            $("#stake_per_bet_text").css("display", "none");
+            $("#stake_text").css("display", "block");
+        }
+        else
+        {
+            $("#betslip_tabs_content").removeClass("singleMode");
+            $("#stake_per_bet_text").css("display", "none");
+            $("#stake_text").css("display", "block");
+        }
+
+        if(mode == 2 || mode == 3) // system bets elements which are needed for both
+        {
+            $("#betslip_system_header_container").show();
+            $(".betslip_system_info").css("display", "block").html("");
+            $("img[id^='betstip_bank']").css("display", "inline");
+        }
+        else
+        {
+            Bettingslip.placingBetAllowed = true; // because only need in the system
+        }
+
+        if (mode == 2) // display system elements
+        {
+            $("#betslip_system_header").css("display", "block").addClass("bs_system_header_active");
+            $("#betslip_system_plus_header").css("display", "block").removeClass("bs_system_header_active");
+            $("#betslip_system_bodyk").css("display", "block");
+            $("#betslip_system_bodyk1").css("display", "none");
+            $("#betslip_system_bodyk2").css("display", "none");
+        }
+        else if (mode == 3) // system in system elements
+        {
+            $("#betslip_system_header").css("display", "block").removeClass("bs_system_header_active");
+            $("#betslip_system_plus_header").css("display", "block").addClass("bs_system_header_active");
+            $("#betslip_system_bodyk1").css("display", "block");
+            $("#betslip_system_bodyk2").css("display", "block");
+            $("#betslip_system_bodyk").css("display", "none");
+        }
+        else // hide system elements
+        {
+            $("#betslip_system_header_container").hide();
+            $("#betslip_system_header").css("display", "none");
+            $("#betslip_system_plus_header").css("display", "none");
+            $("div[id^='betslip_system_body']").css("display", "none");
+            $(".betslip_system_info").css("display", "none");
+            $("img[id^='betstip_bank']").css("display", "none");
+
+            //Bettingslip.placingBetAllowed = false; //because of systembetrules & deactivation of place bet button
+        }
+
+        $("#betslip_tabs .betslip_tabs").removeClass("betslip_tabs_active");
+        Bettingslip.mode = mode;
+        $("#betslip_tabs #reiter_" + (mode + 1)).addClass("betslip_tabs_active");
+
+        if (mode == 2 || mode == 0) {Bettingslip.updateSystem();}
+        else if(mode == 3)
+        {
+            $("#betslip_tabs #reiter_" + (mode)).addClass("betslip_tabs_active"); // set system to active
+            Bettingslip.updateSystem();
+        }
+
+        // check for locked tips
+        Bets.checkBets();
+        Bettingslip.calcValues();
+        Bettingslip.saveBettingslip();
+    },
+
+    /**
+     *
+     * @param {type} betslippos
+     * @returns {undefined}
+     */
+    addSystemPlusInfo: function(betslippos)
+    {
+        var tempsysk = Bettingslip.bettingslips[betslippos].sysk;
+        var numberofbets = 0;
+        $(".betslip_system_info").html("");
+        while(tempsysk <= Bettingslip.bettingslips[betslippos].sysk2)
+        {
+            numberofbets = Bettingslip.calculateNumberOfBets(Bettingslip.bettingslips[betslippos].sysn, tempsysk);
+            infotmpl =
+            {
+                sysk: tempsysk,
+                sysn: Bettingslip.bettingslips[betslippos].sysn,
+                banks: Bettingslip.bettingslips[betslippos].sysb,
+                totalbets: numberofbets
+            };
+            $("#bettingslipSystemPlusEntry").tmpl(infotmpl).appendTo(".betslip_system_info");
+            tempsysk ++;
+        }
+    },
+
+    /**
+     *
+     * @param {type} betslippos
+     * @returns {undefined}
+     */
+    addSystemInfo: function(betslippos)
+    {
+        var tempsysk = Bettingslip.bettingslips[betslippos].sysk;
+        var numberofbets = 0;
+        $(".betslip_system_info").html("");
+        numberofbets = Bettingslip.calculateNumberOfBets(Bettingslip.bettingslips[betslippos].sysn, tempsysk);
+        infotmpl =
+        {
+            sysk: tempsysk,
+            sysn: Bettingslip.bettingslips[betslippos].sysn,
+            banks: Bettingslip.bettingslips[betslippos].sysb,
+            totalbets: numberofbets
+        };
+        $("#bettingslipSystemPlusEntry").tmpl(infotmpl).appendTo(".betslip_system_info");
+    },
+
+    calcValues: function (noSwap)
+    {
+        var i;
+        var stake = Bettingslip.getStake();
+        var valid = true, bonus = 0, cashpoints = 0, maxodd = 0, totalTax=0, stakeInklTax=0, winnings = 0;
+        var totalStake = 0, betscount = 0, j = 0, poss = 0, numberofbets = 0;
+        if(Bettingslip.bettingslips.length > 0){
+            for (i in Bettingslip.bettingslips)
+            {
+                if (Bettingslip.bettingslips[i].bets[0].active===false && Bettingslip.mode==0){
+                    continue;
+                }
+                stake = 0, j = 0;
+                betscount=Bettingslip.bettingslips[i].bets.length;
+                while(j < betscount && stake == 0)
+                {
+                    if(Bettingslip.bettingslips[i].bets[j].active!=false)
+                    {
+                        stake = Bettingslip.getStake();
+                    }
+                    j++;
+                }
+
+                if(Bettingslip.bettingslips[i].possibilities){
+                    poss += Bettingslip.bettingslips[i].possibilities;
+                }
+
+                var mult = 1, win = 0, b = 0;
+                mult = Bettingslip.bettingslips[i].maxodd;
+                maxodd += mult;
+                if (Bettingslip.bettingslips[i].bonus != null)
+                {
+                    b = Bettingslip.bettingslips[i].bonus;
+                    bonus += b;
+                    mult *= 1 + b/100;
+                }
+                if (Bettingslip.bettingslips[i].maxmult != null && mult > Bettingslip.bettingslips[i].maxmult)
+                {
+                    mult = Bettingslip.bettingslips[i].maxmult;
+                }
+
+                win = Bettingslip.calcMaxWin(mult, stake, Bettingslip.bettingslips[i].possibilities);
+
+                if (Bettingslip.bettingslips[i].maxwin != null && win > Bettingslip.bettingslips[i].maxwin)
+                {
+                    win = Bettingslip.bettingslips[i].maxwin;
+                }
+                winnings += win;
+                totalStake += stake;
+                valid &= Bettingslip.bettingslips[i].valid;
+                if (Bettingslip.bettingslips[i].cashpoints != null)
+                {
+                    cashpoints += parseInt(Bettingslip.bettingslips[i].cashpoints * stake, 10);
+                }
+            }
+        }
+
+        if (maxodd == 0)
+        {
+            valid = false;
+        }
+
+        /**
+         * Germany 5% tax
+         * countryID set in main layout
+         */
+        if(countryID == 82)
+        {
+            stakeInklTax = totalStake;
+            totalTax = stakeInklTax * (1 - taxPercentage);
+
+            totalTax = Math.round(totalTax);
+            totalStake = stakeInklTax - totalTax;
+            $("#betslip_total_totalTax").html(cp_round(totalTax, 0));
+        }
+
+        $("#betslip_total_stake").html(cp_round(totalStake, 0));
+        $("#betsip_max_odd").html(cp_round(maxodd, 0));
+        $("#betslip_winnings").html(cp_round(winnings));
+
+        for (i = 0; i < Bettingslip.bettingslips.length; i++)
+        {
+            if(Bettingslip.mode == 0 || Bettingslip.mode == 2) {
+                numberofbets += Bettingslip.calculateNumberOfBets(Bettingslip.bettingslips[i].sysn, Bettingslip.bettingslips[i].sysk);
+            }else if(Bettingslip.mode == 3){
+                if(typeof Bettingslip.bettingslips[i].bets !== 'undefined' && Bettingslip.bettingslips[i].bets.length < Bettingslip.bettingslips[i].sysk2) {
+                    Bettingslip.bettingslips[i].sysk2 = Bettingslip.bettingslips[i].bets.length;
+                    $("#betslip_sysk2").val(Bettingslip.bettingslips[i].sysk2);
+                    Bettingslip.updateSystem();
+                }
+                if(typeof Bettingslip.bettingslips[i].bets !== 'undefined' && Bettingslip.bettingslips[i].bets.length < Bettingslip.bettingslips[i].sysk) {
+                    Bettingslip.bettingslips[i].sysk = Bettingslip.bettingslips[i].bets.length;
+                    $("#betslip_sysk1").val(Bettingslip.bettingslips[i].sysk);
+                    Bettingslip.updateSystem();
+                }
+                var tempsysk = Bettingslip.bettingslips[i].sysk;
+                while(tempsysk <= Bettingslip.bettingslips[i].sysk2)
+                {
+                    numberofbets += Bettingslip.calculateNumberOfBets(Bettingslip.bettingslips[i].sysn, tempsysk);
+                    tempsysk ++;
+                }
+            }
+            else{
+                var presentOddIds = [];
+                for (var j = 0; j < Bettingslip.bettingslips[i].bets.length; j++)
+                {
+                    var bet = Bettingslip.bettingslips[i].bets[j];
+
+                    if (presentOddIds.indexOf(bet.game+""+bet.combi_cat)>=0)
+                    {
+                        continue;
+                    }
+                    if(Bettingslip.bettingslips[i].bets[j].active) {
+                        numberofbets += 1;
+                        presentOddIds.push(bet.game + "" + bet.combi_cat);
+                    }
+                }
+            }
+        }
+        $("#betslip_max_bet").html(numberofbets);
+        $("#betslip_max_way").html(poss);
+
+        var stakeperway = totalStake;
+        if(poss > 0) {
+            stakeperway = Math.round(totalStake/poss);
+        }
+        $("#betslip_stake_way").html(cp_round(stakeperway, 0));
+
+        // adjust xtreme bonus level
+        var bonuslevelbar = $("#bonus_level_bar");
+        bonuslevelbar.width(3.3333 * bonus + '%');
+
+        $("#betslip_xtrembonus_text").html(bonus + "%");
+
+        cashpoints = cashpoints.toString();
+        cashpoints = cashpoints.substr(0, cashpoints.length - 2) + "." + cashpoints.substr(cashpoints.length - 2);
+        $("#betslip_cashpoints_text").html(Math.round(parseFloat(cashpoints)));
+        if (Bettingslip.checkBetStatus() == 0)
+        {
+            if (valid == true && Bettingslip.placeBetActive == false && Bettingslip.placingBetAllowed == true)
+            { // place is not currently being placed and it is allowed to place a bet
+                if (isLogged == 1)
+                {
+                    $.ajax({
+                        type: 'POST',
+                        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/accountBalCheck&bonus=1',
+                        dataType: 'json',
+                        success: function (jqXHR)
+                        {
+                            if(Bettingslip.proceedPlaceBet(jqXHR.balance))
+                            {
+                                if (userSHbutNotWithSHZip && userSHbutNotWithSHZip==1){
+                                    Bettingslip.swapButton(10); // place bet
+                                } else {
+                                    Bettingslip.swapButton(1); // place bet
+                                }
+
+                            }else{
+                                var button = 7;
+                                if(!isNaN(jqXHR.bonus_balance) && jqXHR.bonus_balance > Bettingslip.getStake()) {
+                                    if (Bettingslip.bonierror !== '') {
+                                        button = 9;
+                                    } else {
+                                        Bets.checkBets();
+                                        if (Bettingslip.bonierror !== '') {
+                                            button = 9;
+                                        }
+                                    }
+                                }
+                                if (userSHbutNotWithSHZip && userSHbutNotWithSHZip==1){
+                                    button = 10;
+                                }
+                                Bettingslip.swapButton(button);
+                                Bettingslip.bonierror = '';
+                            }
+                        }
+                    });
+                }
+                else // user is not logged in
+                {
+                    Bettingslip.swapButton(6);
+                }
+            }
+            else
+            {
+                if(noSwap == undefined){
+                    Bettingslip.swapButton(2);
+                }
+            }
+        }
+    },
+
+    /**
+     * Check if a user can place bet - Process available user's bonus money and user's account balance
+     *
+     * For the user to be able to place the bet, the following 2 conditions need to be met:
+     * 1. x <= m
+     * 2. y <= (b + (m-x))
+     * where:
+     * - x -> total unqualified stake (no. of unqualified [for bonus] bettingslip items x stake per bet)
+     * - y -> total qualified stake
+     * - m -> available account balance (real money)
+     * - b -> available bonus balance
+     *
+     * @param accountBalance - int - current account balance (real money)
+     * @return bool - true if bet can be placed from available balance (inc. bonus), false if not (user needs to deposit)
+     */
+    proceedPlaceBet: function(accountBalance)
+    {
+        var proceed = false;
+
+        var stake                 = Bettingslip.getStake();
+        var availableBonus        = Bettingslip.boni.availableBonus !== undefined ? Bettingslip.boni.availableBonus : 0;
+        var countQualifiedItems   = Bettingslip.boni.countQualifiedItems !== undefined ? Bettingslip.boni.countQualifiedItems : 0;
+        var countUnqualifiedItems = Bettingslip.boni.countUnqualifiedItems !== undefined ? Bettingslip.boni.countUnqualifiedItems : 0;
+        if (accountBalance === undefined || isNaN(accountBalance)) accountBalance = 0;
+
+        var qualifiedStake   = countQualifiedItems * stake;
+        var unqualifiedStake = countUnqualifiedItems * stake;
+
+        if (
+            ( unqualifiedStake <= accountBalance )
+            &&
+            ( qualifiedStake <= (availableBonus + (accountBalance - unqualifiedStake)) )
+            &&
+            Bettingslip.bonierror == ''
+        ) {
+            proceed = true;
+        }
+
+        return proceed;
+    },
+    toggleOptions: function ()
+    {
+        var imgsrc = $("#betslip_footer_bottom_arrow").attr("src");
+        if (imgsrc.match(/_right\./))
+        {
+            imgsrc = imgsrc.replace(/_right\./, "_down.");
+            $("#betslip_footer_bottom_item1").css("display", "block");
+            $("#betslip_footer_bottom_item2").css("display", "block");
+        }
+        else if (imgsrc.match(/_down\./))
+        {
+            imgsrc = imgsrc.replace(/_down\./, "_right.");
+            $("#betslip_footer_bottom_item1").css("display", "none");
+            $("#betslip_footer_bottom_item2").css("display", "none");
+        }
+        $("#betslip_footer_bottom_arrow").attr("src", imgsrc);
+    },
+
+    getStake : function()
+    {
+        var stake = $.trim($("#amount_bs").val());
+        if ((stake.charAt(stake.length - 2) == ".") || (stake.charAt(stake.length - 2) == ",")) { //if the comma or the point is on the second last position add an 0
+            stake = stake.replace(/,/g, ""); // remove unwanted commas
+            stake = stake.replace(/\./g, ""); // remove unwanted points
+            stake = stake.substr(0, stake.length - 1) + "." + stake.substr(stake.length - 1, 1) + "0"; // add point for start of fractional digits
+        } else if (stake.charAt(stake.length - 3) == "." || stake.charAt(stake.length - 3) == ",") { // if the comma or the point is on the third last positon,
+            //remove the points and the commas, add the point on the third last position
+            stake = stake.replace(/,/g, "");
+            stake = stake.replace(/\./g, "");
+            stake = stake.substr(0, stake.length - 2) + "." + stake.substr(stake.length - 2, 2);
+        } else { // no commas on the second or the last position, therefore ignore them, count it as number
+            stake = stake.replace(/,/g, "");
+            stake = stake.replace(/\./g, "");
+        }
+        stake = parseInt((parseFloat(stake) + 0.00001) * 100,10);
+        if(stake < 100)
+        {
+            stake = 100;
+            Bettingslip.stakeSet(stake);
+        }
+        else if(stake > 999900)
+        {
+            stake=999900;
+            Bettingslip.stakeSet(stake);
+        }
+
+        if(stake < 1000 && (typeof stateCasinoAccountCurrency !== 'undefined') && stateCasinoAccountCurrency == "DKK") // Users with DKK need to bet at least 10 DKK
+        {
+            stake=1000;
+            Bettingslip.stakeSet(stake);
+        }
+        if(stake == 100)
+        {
+            $("#betslip_max_odd_container").hide();
+        }
+        else
+        {
+            $("#betslip_max_odd_container").show();
+        }
+        return stake;
+    },
+
+    updateOdd: function (newodd)
+    {
+        // newodd.game: game ID / bet ID
+        // newodd.odd_id: the odd ID of new odd (0 for delete)
+        // newodd.tip: tip of new odd
+        // newodd.odd: new odd
+        // newodd.status: status of oddchanges
+
+        var i, j, entry, old_odd_id, newref = null, marketchangeref = -1;
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                entry = Bettingslip.bettingslips[i].bets[j];
+                var replacementId = entry.odd_id;
+                old_odd_id = entry.odd_id;
+
+                // if ref isset use the one from the newodd object
+                if(typeof (newodd.ref) != "undefined" && newodd.ref != null)
+                {
+                    newref = newodd.ref;
+                }
+                else if (typeof (newodd.gameid) != "undefined" && newodd.gameid != null && typeof (newodd.text_id) != "undefined"){
+                    newref = newodd.gameid+"_"+newodd.text_id; // ref is needed if the bet in the bettingslip has no old ID
+                    // for example when a bet gets deleted there is no other way to locate the bet in the bettingslip than with ref
+                }
+
+                if(typeof (newodd.gameid) != "undefined" && newodd.gameid != null && typeof (newodd.oldmarket) != "undefined")
+                {
+                    marketchangeref = newodd.gameid+"_"+newodd.oldmarket;
+                }
+
+                if (old_odd_id == newodd.odd_id || (newref == entry.ref && newref != null) || marketchangeref == entry.ref)
+                {
+                    if(entry.tip1 == newodd.tip1)
+                    {
+                        if (newodd.odd1 != null)
+                        {    entry.odd1 = newodd.odd1;}
+                        if (newodd.status1 != null)
+                        {    entry.status1 = newodd.status1;}
+                        if (newodd.tiptext1 != null)
+                        {   entry.tiptext1 = newodd.tiptext1;}
+                    }
+                    else if (entry.tip1 == newodd.tip2)
+                    {
+                        if (newodd.odd2 != null)
+                        {    entry.odd1 = newodd.odd2;}
+                        if (newodd.status2 != null)
+                        {    entry.status1 = newodd.status2;}
+                        if (newodd.tiptext2 != null)
+                        {   entry.tiptext1 = newodd.tiptext2;}
+                    }
+                    else if (entry.tip1 == newodd.tip3)
+                    {
+                        if (newodd.odd3 != null)
+                        {    entry.odd1 = newodd.odd3;}
+                        if (newodd.status3 != null)
+                        {    entry.status1 = newodd.status3;}
+                        if (newodd.tiptext3 != null)
+                        {   entry.tiptext1 = newodd.tiptext3;}
+                    }
+
+                    if(entry.tip2 == newodd.tip1)
+                    {
+                        if (newodd.odd1 != null)
+                        {    entry.odd2 = newodd.odd1;}
+                        if (newodd.status1 != null)
+                        {    entry.status2 = newodd.status1;}
+                        if (newodd.tiptext1 != null)
+                        {   entry.tiptext2 = newodd.tiptext1;}
+                    }
+                    else if (entry.tip2 == newodd.tip2)
+                    {
+                        if (newodd.odd2 != null)
+                        {    entry.odd2 = newodd.odd2;}
+                        if (newodd.status2 != null)
+                        {    entry.status2 = newodd.status2;}
+                        if (newodd.tiptext2 != null)
+                        {   entry.tiptext2 = newodd.tiptext2;}
+                    }
+                    else if (entry.tip2 == newodd.tip3)
+                    {
+                        if (newodd.odd3 != null)
+                        {    entry.odd2 = newodd.odd3;}
+                        if (newodd.status3 != null)
+                        {    entry.status2 = newodd.status3;}
+                        if (newodd.tiptext3 != null)
+                        {   entry.tiptext2 = newodd.tiptext3;}
+                    }
+
+                    if(entry.tip3 == newodd.tip1)
+                    {
+                        if (newodd.odd1 != null)
+                        {    entry.odd3 = newodd.odd1;}
+                        if (newodd.status1 != null)
+                        {    entry.status3 = newodd.status1;}
+                        if (newodd.tiptext1 != null)
+                        {   entry.tiptext3 = newodd.tiptext1;}
+                    }
+                    else if (entry.tip3 == newodd.tip2)
+                    {
+                        if (newodd.odd2 != null)
+                        {    entry.odd3 = newodd.odd2;}
+                        if (newodd.status2 != null)
+                        {    entry.status3 = newodd.status2;}
+                        if (newodd.tiptext2 != null)
+                        {   entry.tiptext3 = newodd.tiptext2;}
+                    }
+                    else if (entry.tip3 == newodd.tip3)
+                    {
+                        if (newodd.odd3 != null)
+                        {    entry.odd3 = newodd.odd3;}
+                        if (newodd.status3 != null)
+                        {    entry.status3 = newodd.status3;}
+                        if (newodd.tiptext3 != null)
+                        {   entry.tiptext3 = newodd.tiptext3;}
+                    }
+
+                    if (newodd.tip1 == null)
+                    {
+                        if (newodd.odd1 != null)
+                        {    entry.odd1 = newodd.odd1;}
+                        if (newodd.status1 != null)
+                        {    entry.status1 = newodd.status1;}
+                    }
+                    if (newodd.tip2 == null)
+                    {
+                        if (newodd.odd2 != null)
+                        {   entry.odd2 = newodd.odd2;}
+                        if (newodd.status2 != null)
+                        {    entry.status2 = newodd.status2;}
+                    }
+                    if (newodd.tip3 == null)
+                    {
+                        if (newodd.odd3 != null)
+                        {   entry.odd3 = newodd.odd3;}
+                        if (newodd.status3 != null)
+                        {    entry.status3 = newodd.status3;}
+                    }
+
+                    if (newodd.odd_id != null)
+                    {   entry.odd_id = newodd.odd_id;}
+
+                    if (newodd.bettext != null) {
+                        entry.bettext = newodd.bettext;
+                    }
+
+                    if (newref != null) {
+                        entry.ref = newref; // update the reference if it has changed
+                    }
+
+                    Bettingslip.bettingslips[i].bets[j] = entry;
+
+                    // add bet entry
+                    entrytmpl =
+                    {
+                        team1: entry.team1,
+                        team2: entry.team2,
+                        bettext: entry.bettext,
+                        slipnumber: i,
+                        betnumber: j,
+                        odd_id: entry.odd_id,
+                        odd_id_tmpl: entry.odd_id,
+                        tiptext1: entry.tiptext1,
+                        odd1: oddoutput(oddformat, entry.odd1),
+                        active: entry.active,
+                        bank: entry.bank,
+                        groupId: (entry.groupId == null ? false : entry.groupId),
+                        subGroupCount: entry.sub_group == 1 ? totalOddCount : 0,
+                    };
+
+                    if (entry.tip2 != null)
+                    {
+                        entrytmpl.tiptext2 = entry.tiptext2;
+                        entrytmpl.odd2 = oddoutput(oddformat, entry.odd2);
+                    }
+                    if (entry.tip3 != null)
+                    {
+                        entrytmpl.tiptext3 = entry.tiptext3;
+                        entrytmpl.odd3 = oddoutput(oddformat, entry.odd3);
+                    }
+
+                    // replace bet entry
+                    if(entry.sub_group ==  1)
+                    {
+                        $("#bs" + newodd.odd_id).replaceWith($("#bettingslipNewTip").tmpl({
+                            tipnumber: 2,
+                            tiptext: entry.tiptext1,
+                            odd: oddoutput(oddformat, newodd.odd1),
+                            odd_id: newodd.odd_id
+                        }));
+                    }
+                    else
+                    {
+                        $("#betslip_item_" + replacementId).replaceWith($("#bettingslipBetEntry").tmpl(entrytmpl));
+                    }
+
+                    if($("#betslip_gamecombi_container_"+entry.game+entry.combi_cat).find(".betslip_team").length>1){
+                        if (!entry.gameIdToAttach) {
+                            $("#betslip_gamecombi_container_"+entry.game+entry.combi_cat).find(".betslip_team:not(:first)").hide();
+                        }
+                    }
+
+
+
+                    if (Bettingslip.mode == 2 || Bettingslip.mode == 3)
+                    {    $("#betstip_bank" + entry.odd_id).css("display", "inline");}
+
+                    if (newodd.status != null && newodd.status == -1)
+                    {
+                        Bettingslip.deactivateBet(newodd);
+                    }
+                    else
+                    {
+                        //if odd was already deactive once, reactivate it
+                        if(entry.active === -1)
+                        {
+                            entry.active = true;
+                        }
+                        $("#betslip_item_" + replacementId).removeClass("odd--update");
+                    }
+
+                    Bettingslip.checkBetStatus();
+                    Bets.remarkSingleBet(entry); // mark the new tip
+
+                    /* remove marking of the old tip */
+                    if(marketchangeref != -1) {
+                        if (entry.type != 'N')
+                        {   Livebets.deselectTip(marketchangeref, entry.tip1);}
+
+                        if (entry.tip2 && entry.type != 'N')
+                        {
+                            Livebets.deselectTip(marketchangeref, entry.tip2);
+                        }
+                        if (entry.tip3 && entry.type != 'N')
+                        {
+                            Livebets.deselectTip(marketchangeref, entry.tip3);
+                        }
+                    }
+                }
+            }
+        }
+    },
+
+    checkBetStatus: function ()
+    {
+        var state = 0, accept = 0, i, j, entry, inactivefound = false;
+
+        try
+        {
+            if ($("#betslip_setting_51").attr("src").match(/_on\./))
+            {   accept = 2;}
+            else if ($("#betslip_setting_50").attr("src").match(/_on\./))
+            {   accept = 1;}
+        }
+        catch (e) {}
+
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                entry = Bettingslip.bettingslips[i].bets[j];
+                if (entry.status1 != null)
+                {
+                    var replacementId = entry.odd_id;
+                    $("#betslip_item_" + replacementId + " #betslip_item_locked").hide();
+                    if (entry.status1 == 0 || entry.status1 == -2) { // changes accepted by user
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd span").removeClass();
+                    }
+
+                    if (entry.status1 == -1)
+                    {
+                        state |= 1;
+                        $("#betslip_item_" + replacementId + " #betslip_item_locked").show();
+                    }
+                    else if (entry.status1 == 1 || entry.status1 == 3)
+                    {
+                        if (entry.status1 == 1)
+                        {
+                            if (accept >= 1)
+                            {
+                                Bettingslip.bettingslips[i].bets[j].status1 = 3;
+                                setTimeout(function(){Bettingslip.removeStatusChanges(entry.odd_id, entry.tip1, 3)}, 5000);
+                            }
+                            else
+                            {    state |= 2;}
+                        }
+
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd span").removeClass().addClass("betslip_item_odd_up");
+                    }
+                    else if (entry.status1 == 2 || entry.status1 == 4)
+                    {
+                        if (entry.status1 == 2)
+                        {
+                            if (accept >= 2)
+                            {
+                                Bettingslip.bettingslips[i].bets[j].status1 = 4;
+                                setTimeout(function(){Bettingslip.removeStatusChanges(entry.odd_id, entry.tip1, 4)}, 5000);
+                            }
+                            else
+                            {    state |= 4;}
+                        }
+
+                        var replacementId = entry.odd_id;
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd span").removeClass().addClass("betslip_item_odd_down");
+                    }
+                }
+
+                if (entry.status2 != null)
+                {
+                    var replacementId = entry.odd_id;
+                    $("#betslip_item_" + replacementId + " #betslip_item_locked").hide();
+                    if (entry.status2 == 0 || entry.status2 == -2) { // changes accepted by user
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd2 span").removeClass();
+                    }
+
+                    if (entry.status2 == -1)
+                    {
+                        state |= 1;
+                        $("#betslip_item_" + replacementId + " #betslip_item_locked").show();
+                    }
+                    else if (entry.status2 == 1 || entry.status2 == 3)
+                    {
+                        if (entry.status2 == 1)
+                        {
+                            if (accept >= 1)
+                            {
+                                Bettingslip.bettingslips[i].bets[j].status2 = 3;
+                                setTimeout(function(){Bettingslip.removeStatusChanges(entry.odd_id, entry.tip2, 3)}, 5000);
+                            }
+                            else
+                            {   state |= 2;}
+                        }
+
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd2 span").removeClass().addClass("betslip_item_odd_up");
+                    }
+                    else if (entry.status2 == 2 || entry.status2 == 4)
+                    {
+                        if (entry.status2 == 2)
+                        {
+                            if (accept >= 2)
+                            {
+                                Bettingslip.bettingslips[i].bets[j].status2 = 4;
+                                setTimeout(function(){Bettingslip.removeStatusChanges(entry.odd_id, entry.tip2, 4)}, 5000);
+                            }
+                            else
+                            {   state |= 2;}
+                        }
+
+                        var replacementId = entry.odd_id;
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd2 span").removeClass().addClass("betslip_item_odd_down");
+                    }
+                }
+
+                if (entry.status3 != null)
+                {
+                    var replacementId = entry.odd_id;
+                    $("#betslip_item_" + replacementId + " #betslip_item_locked").hide();
+                    if (entry.status3 == 0 || entry.status3 == -2) { // changes accepted by user
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd3 span").removeClass();
+                    }
+
+                    if (entry.status3 == -1)
+                    {
+                        state |= 1;
+                        $("#betslip_item_" + replacementId + " #betslip_item_locked").show();
+                    }
+                    else if (entry.status3 == 1 || entry.status3 == 3)
+                    {
+                        if (entry.status3 == 1)
+                        {
+                            if (accept >= 1)
+                            {
+                                Bettingslip.bettingslips[i].bets[j].status3 = 3;
+                                setTimeout(function(){Bettingslip.removeStatusChanges(entry.odd_id, entry.tip3, 3)}, 5000);
+                            }
+                            else
+                            {   state |= 2;}
+                        }
+
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd3 span").removeClass().addClass("betslip_item_odd_up");
+                    }
+                    else if (entry.status3 == 2 || entry.status3 == 4)
+                    {
+                        if (entry.status3 == 2)
+                        {
+                            if (accept >= 2)
+                            {
+                                Bettingslip.bettingslips[i].bets[j].status3 = 4;
+                                setTimeout(function(){Bettingslip.removeStatusChanges(entry.odd_id, entry.tip3, 4)}, 5000);
+                            }
+                            else
+                            {   state |= 2;}
+                        }
+
+                        var replacementId = entry.odd_id;
+                        $("#betslip_item_" + replacementId + " #betslip_item_odd3 span").removeClass().addClass("betslip_item_odd_down");
+                    }
+                }
+
+                if(entry.active === -1)
+                {
+                    inactivefound = true;
+                    state = -1;
+                }
+            }
+        }
+        if (state > 0)
+        {    Bettingslip.swapButton(3, state);}
+        else if(inactivefound)
+        {
+            Bettingslip.swapButton(8);
+        }
+        return state;
+    },
+
+    stakeChange: function (value)
+    {
+        var stake = Bettingslip.getStake();
+        stake += value;
+        if (stake < 0)
+        {    stake = 0;}
+
+        $("#amount_bs").val(cp_round(stake, 0));
+        Bettingslip.calcValues();
+
+        Bettingslip.saveBettingslip();
+    },
+
+    stakeSet: function (value)
+    {
+        $("#amount_bs").val(cp_round(value, 0));
+        Bettingslip.calcValues();
+        Bettingslip.saveBettingslip();
+    },
+
+    setSys: function (value, arg)
+    {
+        if(value == 0) // set the bank and the possibilities to 0
+        {
+            $("#sysn").text(0);
+            $("#sysb").text(0);
+        }
+
+        if(arg == 3){
+            $("#betslip_sysk2").val(value);
+        }else if(arg == 2){
+            $("#betslip_sysk1").val(value);
+        }else{
+            $("#betslip_sysk").val(value);
+        }
+    },
+
+    sysMouseChange: function (value)
+    {
+        if (value == 0 && Bettingslip.sysChangeTimer == null)
+        {
+            Bettingslip.sysChangeTimer = window.setTimeout(function () {
+                Bettingslip.updateSystem();
+                Bets.checkBets();
+                Bettingslip.calcValues();
+                Bettingslip.saveBettingslip();
+            }, 500);
+        }
+        else if (value == 1 && Bettingslip.sysChangeTimer != null)
+        {
+            window.clearTimeout(Bettingslip.sysChangeTimer);
+            Bettingslip.sysChangeTimer = null;
+        }
+    },
+
+    sysInputChange: function ()
+    {
+        Bettingslip.sysChange(0);
+    },
+
+    showErrorMessage: function (text)
+    {
+        $("#betslip_msg_red_text").html(text);
+        $("#betslip_msg_red_top").show();
+        $("#betslip_msg_red_middle").show();
+        $("#betslip_msg_red_bottom").show();
+    },
+
+    hideErrorMessage: function ()
+    {
+        $("#betslip_msg_red_text").html("");
+        $("#betslip_msg_red_top").hide();
+        $("#betslip_msg_red_middle").hide();
+        $("#betslip_msg_red_bottom").hide();
+        toggleBetslipHiddenContent();
+    },
+
+    showInfoMessage: function (text)
+    {
+        $("#betslip_msg_green_text").html(text);
+        $("#betslip_msg_green_top").show();
+        $("#betslip_msg_green_middle").show();
+        $("#betslip_msg_green_bottom").show();
+    },
+
+    hideInfoMessage: function ()
+    {
+        $("#betslip_msg_green_text").html("");
+        $("#betslip_msg_green_top").hide();
+        $("#betslip_msg_green_middle").hide();
+        $("#betslip_msg_green_bottom").hide();
+        toggleBetslipHiddenContent();
+    },
+
+    toggleSetting: function (id)
+    {
+        var imgsrc = $("#betslip_setting_" + id).attr("src");
+        var imgsrcnew = imgsrc, data, value = 0;
+
+        if (imgsrc.match(/_on\./))
+        {
+            imgsrcnew = imgsrc.replace(/_on\./, "_off.");
+            value = 0;
+        }
+        else
+        {
+            imgsrcnew = imgsrc.replace(/_off\./, "_on.");
+            value = 1;
+        }
+
+        if (id == 79 && value == 0)
+        {
+            value = 1;
+        }
+        else if (id == 79 && value == 1)
+        {
+            value = 0;
+        }
+
+        $("#betslip_setting_" + id).attr("src", imgsrcnew);
+        
+        Bettingslip.saveSetting(
+            {setting: id, value: value}, 
+            function(data, text, response)
+            {        
+                if (response.status == 200 && response.responseText)
+                {        
+                    try
+                    {
+                        if (parseInt(data) != 1 && parseInt(data) != 0)
+                        {
+                            // set back to old value, because no valid return
+                            $("#betslip_setting_" + id).attr("src", imgsrc);
+                        }
+                    }
+                    catch (e)
+                    {
+                        $("#betslip_setting_" + id).attr("src", imgsrc);
+                    }
+                }
+                else
+                {
+                    $("#betslip_setting_" + id).attr("src", imgsrc);
+                }
+            }
+        );
+    },
+    
+    saveSetting: function(data, alwaysCallback)
+    {
+        var settingsrequest = $.ajax({
+            type: 'POST',
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/changeSetting',
+            data: data,
+            async: true
+        });
+        
+        if (typeof alwaysCallback === "function") {
+            settingsrequest.always(alwaysCallback);
+        }
+    },
+
+    changeBankButtonState: function (id, toGetState)
+    {
+        if(Bettingslip.mode != 0)
+        {
+            var imgsrc = $("#betstip_bank" + id).attr("src");
+            if (toGetState == 0)
+            {
+                imgsrc = imgsrc.replace(/_off\./, "_deactivated."); // just change the image
+                $("#betstip_bank" + id).attr("src", imgsrc);
+                $("#betstip_bank" + id).css("cursor", "default"); // and the cursor
+            }
+            else
+            {
+                imgsrc = imgsrc.replace(/_deactivated\./, "_off.");
+                $("#betstip_bank" + id).attr("src", imgsrc);
+                $("#betstip_bank" + id).css("cursor", "pointer");
+            }
+        }
+    },
+
+    swapButton: function (button, changes)
+    {
+        if (changes == null)
+        {   changes = 0;}
+
+        if (Bettingslip.lockButtonChanges || Bettingslip.pendingOddsAcceptance) return false; // do not change button while the bet is being processed
+
+        $("#btn-betslip-container > div").hide();
+
+        switch(button)
+        {
+            case 3:
+                $("#betslip_btnbet_icons_closed").hide();
+                $("#betslip_btnbet_icons_odd_both").hide();
+
+                // outdated bets
+                if ((changes & 1) != 0)
+                {
+                    $("#betslip_btnbet_icons_closed").show();
+                }
+
+                // higher odds
+                if ((changes & 2) != 0)
+                {
+                    $("#betslip_btnbet_icons_odd_both").show();
+                }
+
+                // lower odds
+                if ((changes & 4) != 0)
+                {
+                    $("#betslip_btnbet_icons_odd_both").show();
+                }
+
+                $("#btn-betslip-changes").show();
+                break;
+            case 1:
+                if (userSHbutNotWithSHZip && userSHbutNotWithSHZip==1){
+                    Bettingslip.swapButton(10);
+                } else {
+                    $("#btn-betslip-active").show();
+                }
+                break;
+            case 4:
+                $("#btn-betslip-loading").show();
+                break;
+            case 5:
+                $("#btn-betslip-stake-change").show();
+                break;
+            case 6:
+                $("#betslip_notlogin").show();
+                break;
+            case 7:
+                $("#betslip_depositNow").show();
+                break;
+            case 8:
+                if (userSHbutNotWithSHZip && userSHbutNotWithSHZip==1){
+                    Bettingslip.swapButton(10);
+                } else {
+                    $("#btn-betslip-inactive-odds").show();
+                }
+                break;
+            case 9:
+                $('#betslip_bonus_error p').text(Bettingslip.bonierror);
+                $("#betslip_bonus_error").show();
+                break;
+            case 10:
+                $("#notSHZip").show();
+                break;
+            default:
+                if (userSHbutNotWithSHZip && userSHbutNotWithSHZip==1){
+                    Bettingslip.swapButton(10);
+                } else {
+                    $("#btn-betslip-deactivated").show();
+                }
+                break;
+        }
+    },
+
+    checkLength: function ()
+    {
+        if(Bettingslip.bettingslips.length != 0)
+        {
+            var betsCount = 0;
+            for(var i = 0; i < Bettingslip.bettingslips.length; i++){
+                for(var j = 0; j < Bettingslip.bettingslips[i].bets.length; j++){
+                    if(Bettingslip.bettingslips[i].bets[j].tip1){
+                        betsCount ++;
+                    }
+                    if(Bettingslip.bettingslips[i].bets[j].tip2){
+                        betsCount ++;
+                    }
+                    if(Bettingslip.bettingslips[i].bets[j].tip3){
+                        betsCount ++;
+                    }
+                    if(betsCount >= maxAllowedBettingslipLength){
+                        openPopupNotification("text_popup", 'max_30_combi');
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    },
+
+    /* Returns all the ids of the live games in the betslip - in an array */
+    getLiveGameIds: function()
+    {
+        var gameids = [];
+        if (Bettingslip.bettingslips.length > 0) {
+            for (var i = 0, l = Bettingslip.bettingslips.length; i<l; i++) {
+                var bettingslip_item = Bettingslip.bettingslips[i];
+                for (var j = 0, k = bettingslip_item.bets.length; j<k; j++) {
+                    var entry = bettingslip_item.bets[j];
+                    if ((entry.type == "L" || entry.type == "X") && (entry.game !== undefined && entry.game != "")) {
+                        gameids.push(entry.game);
+                    }
+                }
+            }
+        }
+        return gameids;
+    },
+
+    deactivateBet: function(newodd)
+    {
+        // newodd.game: game ID / bet ID
+        // newodd.odd_id: the odd ID of new odd (0 for delete)
+
+        var i, j, entry, old_odd_id, newref;
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                entry = Bettingslip.bettingslips[i].bets[j];
+                var replacementId = entry.odd_id;
+                old_odd_id = entry.odd_id;
+
+                // if ref isset use the one from the newodd object
+                if(typeof (newodd.ref) != "undefined" && newodd.ref != null)
+                {
+                    newref = newodd.ref;
+                }
+                else if (typeof (newodd.gameid) != "undefined" && newodd.gameid != null){
+                    newref = newodd.gameid+"_"+newodd.text_id; // ref is needed if the bet in the bettingslip has no old ID
+                    // for example when a bet gets deleted there is no other way to locate the bet in the bettingslip than with ref
+                }
+
+                if (old_odd_id == newodd.odd_id || (newref == entry.ref && newref != null))
+                {
+                    Bettingslip.bettingslips[i].bets[j].active = -1;
+
+                    // replace bet entry
+                    $("#betslip_item_" + replacementId + " .odd--warning").show();
+                    $("#betslip_item_" + replacementId).addClass("odd--update");
+                }
+            }
+        }
+    }
+};
+
+var Bets =
+{
+    groupUpdateTimeouts : new Array(),
+    remarkBets: function ()
+    {
+        var i, j, bet;
+        if (Bettingslip.bettingslips.length > 0)
+        {
+            for (i in Bettingslip.bettingslips)
+            {
+                for (j in Bettingslip.bettingslips[i].bets)
+                {
+                    bet = Bettingslip.bettingslips[i].bets[j];
+                    Bets.remarkSingleBet(bet);
+                }
+            }
+        }
+    },
+
+    remarkSingleBet: function(bet)
+    {
+        if (bet.type == 'N')
+        {    Bets.selectTip(bet.odd_id, bet.tip1);}
+        else
+        {   Livebets.selectTip(bet.ref, bet.tip1);}
+
+        if (bet.tip2)
+        {
+            if (bet.type == 'N')
+            {    Bets.selectTip(bet.odd_id, bet.tip2);}
+            else
+            {   Livebets.selectTip(bet.ref, bet.tip2);}
+        }
+        if (bet.tip3)
+        {
+            if (bet.type == 'N')
+            {    Bets.selectTip(bet.odd_id, bet.tip3);}
+            else
+            {   Livebets.selectTip(bet.ref, bet.tip3);}
+        }
+    },
+
+    updateXtremeBonusTeaser: function ()
+    {
+        $.when( Bets.getXtremeBonusType(site_label, domain) )
+         .done(function(xtremeBonusType) {
+
+            if (xtremeBonusType == "ONE_PERC_PER_BET_XTREME_BONUS") {
+                Bets.updateByOnePercPerBetXtremeBonusRules();
+            } else if (xtremeBonusType == "ONE_PERC_PER_BET_XTIP_PREMIUM_BONUS") {
+                Bets.updateByOnePercPerBetXtipPremiumBonusRules();
+            } else {
+                Bets.updateByStandardXtremeBonusRules();
+            }
+        });
+    },
+    // method based on current bonus conditions (every type of bonus, own rules, its own method..)
+    updateByStandardXtremeBonusRules: function()
+    {
+        $.when( Bets.checkXtremeBonusTeaser(site_label, userType, domain) )
+         .done(function(xBonusCountsObj) {
+
+             var bonusType='big'; // should be 'big' or 'small'
+            // "BIG" Bonus =  you need 5 none live/3 live bets to get 5% bonus, every new bet adds 5% of bonus.
+            // "SMALL" Bonus =  5 bets (live or none live is not important) are needed, and 5 additional bets are needed to get another 5% of bonus.
+            if ((site_label==='xtip'  && userType ==2) || (xtip_big_bonus_active==0 && site_label=='xtip' ) ){ // xtip and anonymous member card user
+                bonusType='small';
+            }
+            //bonusType='small';   //For Testing only
+            var valid = false;
+            var remainingBets=0;
+            var maxBets=0;
+            var percentage=0;
+
+            if (bonusType == 'big') {
+                maxBets = 10;
+                if (xBonusCountsObj.totalValidBetsCountingValue < maxBets) {
+                    if (xBonusCountsObj.totalValidBetsCountingValue > 5) {
+                        percentage = 5 + ((xBonusCountsObj.totalValidBetsCountingValue - 5) + 1) * 5;
+                        remainingBets = 1;
+                    } else {
+                        remainingBets = 5 - xBonusCountsObj.totalValidBetsCountingValue;
+                        percentage=5;
+                        if (remainingBets==0){
+                            remainingBets=1;
+                            percentage=10;
+                        }
+                    }
+                } else {
+                    remainingBets=0;
+                }
+            } else if (bonusType == 'small') {
+                maxBets = 25;
+                if (xBonusCountsObj.totalValidBetsCountingValue < maxBets) {
+                    remainingBets = ((Math.ceil(xBonusCountsObj.totalValidBetsCountingValue / 5) * 5) - Bettingslip.numberOfBets);
+                    percentage = (Math.ceil(xBonusCountsObj.totalValidBetsCountingValue / 5) * 5);
+                    if (remainingBets == 0) {
+                        remainingBets = 5;
+                        percentage = (Math.ceil(xBonusCountsObj.totalValidBetsCountingValue / 5) * 5) + 5;
+                    }
+                }
+            }
+
+            Bets.updateXtremeBonusHtml({
+                betsToNextBonus: remainingBets,
+                nextBonusPercentage: percentage,
+                minLiveBetsRequired: 0, // for old bonus nothing is printed related to live bets
+                minimumBetOdd: xBonusCountsObj.minimumBetOdd
+            });
+        });
+    },
+    // method based on current bonus conditions (every type of bonus, own rules, its own method..)
+    updateByOnePercPerBetXtremeBonusRules: function()
+    {
+        $.when( Bets.checkXtremeBonusTeaser(site_label, userType, domain) )
+         .done(function(xBonusCountsObj) {
+
+            var betsToNextBonus; // bets needed for next bonus level
+            var minLiveBetsReq; // min live bets requirement
+            var nextBonusPercentage;
+            // for anycase to prevent problems for other javascript code
+            if (typeof xBonusCountsObj == 'undefined') {
+                console.log(xBonusCountsObj);
+                return;
+            }
+            // for up to 29 bets check for bonus
+            if (xBonusCountsObj.bonusValidTotalBetsCount < 30) {
+                // calculate and setup required data for next bonus level
+                if (xBonusCountsObj.bonusValidTotalBetsCount < 4) {
+                    // first three bets are limited to 3-4% next bonus, 1 live game required
+                    betsToNextBonus = xBonusCountsObj.bonusValidTotalBetsCount == 3
+                                        ? 1 // 1 bet to 4 %
+                                        : (3 - xBonusCountsObj.bonusValidTotalBetsCount);
+                    minLiveBetsReq = xBonusCountsObj.bonusValidLiveBetsCount > 0 ? 0 : 1; // if no live bets, require 1
+                    nextBonusPercentage = xBonusCountsObj.bonusValidTotalBetsCount == 3 ? 4 : 3; // 3 or 4% next bonus
+                }  else {
+                    betsToNextBonus = 1;
+                    minLiveBetsReq = 0;
+                    nextBonusPercentage = xBonusCountsObj.bonusValidTotalBetsCount + 1; // every next bet is one percent up
+                }
+            }
+            // update html teaser data
+            Bets.updateXtremeBonusHtml({
+                betsToNextBonus: betsToNextBonus,
+                nextBonusPercentage: nextBonusPercentage,
+                minLiveBetsRequired: minLiveBetsReq, // for old bonus nothing is printed related to live bets
+                minimumBetOdd: xBonusCountsObj.minimumBetOdd
+            });
+        });
+    },
+    updateByOnePercPerBetXtipPremiumBonusRules: function(dataObj)
+    {
+        $.when( Bets.checkXtremeBonusTeaser(site_label, userType, domain) )
+         .done(function(xBonusCountsObj) {
+
+            var betsToNextBonus; // bets needed for next bonus level
+            var minLiveBetsReq = 0; // min live bets requirement (STATIC, no req. here..)
+            var nextBonusPercentage;
+            // for anycase to prevent problems for other javascript code
+            if (typeof xBonusCountsObj == 'undefined') {
+                console.log(xBonusCountsObj);
+                return;
+            }
+            // for up to 29 bets check for bonus
+            if (xBonusCountsObj.bonusValidTotalBetsCount < 30) {
+                if (xBonusCountsObj.bonusValidTotalBetsCount < 5) {
+                    // first three bets are limited to 3-4% next bonus, 1 live game required
+                    betsToNextBonus = 5 - xBonusCountsObj.bonusValidTotalBetsCount;
+                    nextBonusPercentage = 5;
+                } else {
+                    betsToNextBonus = 1;
+                    nextBonusPercentage = xBonusCountsObj.bonusValidTotalBetsCount + 1; // every next bet is one percent up
+                }
+            }
+            // update html teaser data
+            Bets.updateXtremeBonusHtml({
+                betsToNextBonus: betsToNextBonus,
+                nextBonusPercentage: nextBonusPercentage,
+                minLiveBetsRequired: minLiveBetsReq,
+                minimumBetOdd: xBonusCountsObj.minimumBetOdd
+            });
+        });
+    },
+    /**
+     * @param dataObj Data to be printed, ex. format:
+     *  {
+     *      betsToNextBonus: 1,
+     *      nextBonusPercentage: 15,
+     *      minLiveBetsRequired: 0,
+     *      minimumBetOdd: 150
+     *  }
+     */
+    updateXtremeBonusHtml: function(dataObj)
+    {
+        var temp_teaser_text = teaser_text;
+        var temp_min_req_text = ''; // text to replace {bets} part which can hold bet(s) word and min. req.
+        var temp_requrements_arr = []; // array to hold requirements for live bets and minimum odd
+
+        if (typeof dataObj != 'undefined'
+            && typeof dataObj.betsToNextBonus != 'undefined'
+            && typeof dataObj.nextBonusPercentage != 'undefined'
+            && typeof dataObj.minLiveBetsRequired != 'undefined'
+            && typeof dataObj.minimumBetOdd != 'undefined'
+            && dataObj.betsToNextBonus > 0
+        ) {
+            temp_teaser_text = temp_teaser_text.replace("{num_bets}",'<span id="teaserCounter">' + dataObj.betsToNextBonus + '</span>');
+
+            temp_min_req_text = (dataObj.betsToNextBonus == 1) ? bet_singular : bet_plural;
+            if (dataObj.minLiveBetsRequired > 0 || dataObj.minimumBetOdd > 100) {
+                if (dataObj.minLiveBetsRequired > 0) { // 1 Live
+                    temp_requrements_arr.push(dataObj.minLiveBetsRequired + ' ' + livebet_trans);
+                }
+                if (dataObj.minimumBetOdd > 100) { // (>= 1.5)
+                    temp_requrements_arr.push('&ge; ' + oddoutput(oddformat, dataObj.minimumBetOdd));
+                }
+            }
+            // if at least one requrements element, add data
+            if (temp_requrements_arr.length > 0) {
+                temp_min_req_text += '(' + temp_requrements_arr.join('; ') + ')';
+            }
+
+            temp_teaser_text = temp_teaser_text.replace("{bets_text}", temp_min_req_text);
+
+            temp_teaser_text = temp_teaser_text.replace("{percentage}",'<span id="teaserPercentage">' + dataObj.nextBonusPercentage + '</span>');
+            $("#xtremeBonusTeaser").html(temp_teaser_text);
+            $("#xtremeBonusTeaser").show();
+        } else {
+            //dohide
+            $("#xtremeBonusTeaser").hide();
+        }
+    },
+
+    checkBets: function ()
+    {
+        if(!Bettingslip.hasGGL) {
+            Bettingslip.checkMultiway();
+        }
+
+        var data;
+        var currentstake = Bettingslip.getStake();
+        if (Bettingslip.bettingslips.length > 0) // are there any bets in the bettingslip
+        {
+            data = Bettingslip.buildBetslipXML(false);
+
+            $.ajax({
+                type: 'POST',
+                url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/checkBets',
+                data: data,
+                async: false,
+                complete: function (jqXHR)
+                {
+                    if (jqXHR.status == 200 && jqXHR.responseXML)
+                    {
+                        Bettingslip.boni = {
+                            availableBonus        : 0, // total of available bonus
+                            countQualifiedItems   : 0, // number of bettingslip items which qualify for bonus
+                            countUnqualifiedItems : 0, // number of bettingslip items which do not qualify
+                        };
+
+                        if (Bettingslip.mode==1) {
+                            Bets.updateXtremeBonusTeaser(); //check number of tips to display specific teaser
+                        } else {
+                            $("#xtremeBonusTeaser").hide();
+                        }
+                        $(jqXHR.responseXML).find("bettingslip").each(function ()
+                        {
+                            var id = 0;
+                            var betslipBetsLength = $(this).find("bet").length;
+
+                            //show/hide EURO2016 opt-out checkbox
+                            /*
+                            if($("#opt_out_euro_2016_checkbox").length > 0)
+                            {
+                                if($(this).find("wm").text()=='true') {
+                                    //show
+                                    $("#opt_out_euro_2016_checkbox").show();
+                                }
+                                else if($(this).find("wm").text() == 'false') {
+                                    //hide
+                                    $("#opt_out_euro_2016_checkbox").hide();
+                                }
+                            }
+                            */
+
+                            if ($(this).attr("id"))
+                            {    id = Number($(this).attr("id"));}
+
+                            if ($(this).find("bonus").length > 0)
+                            {
+                                Bettingslip.bettingslips[id].bonus = Number($(this).find("bonus").text());
+                            }
+
+                            if ($(this).find("cashpoints").length > 0)
+                            {
+                                Bettingslip.bettingslips[id].cashpoints = Number($(this).find("cashpoints").text()) / currentstake;
+                            }
+
+                            Bettingslip.bettingslips[id].maxodd = Number($(this).find("maxodd").text());
+
+                            if ($(this).find("ggl"))
+                            {
+                                var allGgl = $(this).find("ggl");
+                                Bettingslip.bettingslips[id].ggl = allGgl;
+                            }
+
+
+                            if ($(this).find("maxwin").length > 0)
+                            {    Bettingslip.bettingslips[id].maxwin = Number($(this).find("maxwin").text());}
+
+                            if ($(this).find("maxmult").length > 0)
+                            {    Bettingslip.bettingslips[id].maxmult = Number($(this).find("maxmult").text()) * 100;}
+                            //--  predefine validity and check for flag  -------
+                            Bettingslip.bettingslips[id].valid = false;
+
+                            if ($(this).find("valid").length > 0)
+                            {
+                                var valid = $(this).find("valid").text();
+
+                                if (valid == "true" && betslipBetsLength > 0)
+                                {
+                                    Bettingslip.bettingslips[id].valid = true;
+                                }
+                            }
+
+                            if ($(this).find("possibilities").length > 0)
+                            {
+                                Bettingslip.bettingslips[id].possibilities = Number($(this).find("possibilities").text());
+                            }
+
+                            $(this).find("bet").each(function ()
+                            {
+                                if($(this).find("changes").attr("changeRelevance") > 0) {
+                                    var entry = {active: true};
+                                    entry = Bettingslip.createEntryFromReturnXml($(this), entry);
+                                    Bettingslip.updateBet(entry);
+                                }
+                            });
+
+                            // Bonus check
+                            var boni = $(this).find("Boni");
+                            Bettingslip.bonierror = '';
+                            if (boni.length > 0 && boni.find("ApplicableBonus").length > 0) {
+                                var availableBonus = parseInt(boni.find("ApplicableBonus").text());
+                                if (availableBonus > 0) {
+                                    // bonus available
+                                    Bettingslip.boni.availableBonus = availableBonus;
+                                    Bettingslip.boni.countQualifiedItems++;
+                                }
+                                else { // bonus unavailable
+                                    Bettingslip.boni.countUnqualifiedItems++;
+                                }
+                                var bonierror = boni.find('ErrorTag');
+                                if(bonierror.length > 0 && bonierror.text().length > 0) {
+                                    if(Bettingslip.bonierror.length > 0) {
+                                        Bettingslip.bonierror += '<br />';
+                                    }
+                                    Bettingslip.bonierror += bonierror.text();
+                                }
+                            }
+                            else { // bonus unavailable
+                                Bettingslip.boni.countUnqualifiedItems++;
+                            }
+                        });
+                        Bettingslip.saveBettingslip();
+                        Bettingslip.checkGGL(Bets.checkBets);
+                        if (Bettingslip.hasBeenGGLed === true && Bettingslip.hasGGL==false) {
+                            Bettingslip.rebuildBettingslipWithoutGGL();
+                        }
+                    }
+                }
+            });
+        }
+        else
+        {    $("#main").find(".sportbet_rate_locked").removeClass("sportbet_rate_locked");}
+    },
+
+    /*
+     * Opening a sportsbook league/group
+     *
+     * @param group - league id
+     * @param menu_item - optional - object - the <li> of the league's menu item in the left menu
+     * @param refresh - optional - boolean - renew the content of the container
+     */
+    selectGroup: function (group, menu_item, refresh)
+    {
+        bettingMarketEnabled=false;
+
+        var groupcontlength = $("#mc-gr" + group).length;
+        if(typeof refresh === 'undefined' || refresh == '')
+        {
+            refresh = "false";
+        }
+
+        // get league id from given group id
+        var leagueId = 0;
+        if (menu_item !== undefined && menu_item !== '') {
+            leagueId = parseInt(menu_item.find(".menu_link").data("league-id"));
+        }
+        else {
+            leagueId = parseInt($("#league_id_"+group).data("league-id"));
+        }
+
+        // reset loader, add and show new loader
+        if(refresh == "false")
+        {
+            main_content_loader('show', 'selectgroup');
+        }
+        if(typeof menu_item == 'undefined' && $('#main').has('.elasticsearch--results')) {
+            $("#hidden_results").html($('#main .elasticsearch--results'));
+            $("#hidden_results").data('load', 'search');
+        } else {
+            $("#hidden_results").data('load', 'menu');
+        }
+        // include leagues container if it's not already included
+        if ($("#container_bets").length == 0)
+        {
+            var leagues_container_html = '<div id="container_bets"><div id="container_bets_groups"></div></div>';
+
+            if (check_if_game_widgets_enabled())
+            {
+                $("#main").append(leagues_container_html); // if games widgets enabled, place leagues container beneath them
+            }
+            else{
+                $("#main").html(leagues_container_html); // else clear the main content and insert leagues container
+            }
+        }
+
+        // (for selectGroup) remove if selected second time, or if not present group is refreshed
+        if (groupcontlength > 0 && refresh == "false" || groupcontlength === 0 && refresh == "true")
+        {
+            // hide loader
+            main_content_loader('hide', 'selectgroup');
+
+            if ($("#mc-gr" + group).is(":visible"))
+            {
+                Bets.closeGroup(group);
+            }
+        }
+
+        // get league view
+        else
+        {
+            // URL for selectGroup
+            var sportId='';
+            if (typeof menu_item !== 'undefined' && menu_item.attr('data-sportid')){
+                sportId=menu_item.attr('data-sportid');
+            }
+            var request_url = (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/bets&group=' + group + '&filter=' + LeftMenu.activeTimeFilter+'&sportid='+sportId;
+
+            $.ajax({
+                type: 'GET',
+                url: request_url,
+                async: true,
+                error: function()
+                {
+                    main_content_loader('hide', 'selectgroup'); // hide loader
+                    bettingMarketEnabled=true;
+                },
+                complete: function(jqXHR)
+                {
+                    main_content_loader('hide', 'selectgroup'); // hide loader
+
+                    if (jqXHR.status == 200)
+                    {
+                        // load league (first check if it has not already been loaded - to avoid duplicates)
+                        if (groupcontlength != 1)
+                        {
+                            // hide extra page elements (ex: banner)
+                            handle_extra_page_elements('hide');
+
+                            // ensure all tabbed widgets are hidden (function in games.js)
+                            hide_all_games_widgets(true, function()
+                            {
+                                $("#container_bets_groups").prepend(jqXHR.responseText);
+                                var container = $("#mc-gr"+group); // since DOM was changed
+
+                                container.hide().slideDown("fast", function()
+                                {
+                                    // add active classes to left menu items
+                                    leftMenu_leagues_toggle_active_classes('add', menu_item, group);
+                                    addOpenSportsbookLeagueId(leagueId); // store id
+
+                                    // scroll to open league container
+                                    scroll_to_a_container(container, false);
+
+                                    Bets.checkBets();
+                                    Bets.createLiveGameCheck(group);
+                                    Bets.intialiseUpdateGroupContainers(group);
+                                    bettingMarketEnabled=true;
+                                }); // end: show (slideDown) league
+                            }); // end: hide all tabbed widgets
+                        } // end: load league
+                        else if(refresh && groupcontlength == 1) // check if container is still present
+                        {
+                            // ensure all tabbed widgets are hidden (function in games.js)
+                            hide_all_games_widgets(true, function()
+                            {
+                                var container = $("#mc-gr"+group);
+                                container.replaceWith(jqXHR.responseText);
+
+                                container.hide().slideDown("fast", function()
+                                {
+                                    Bets.checkBets();
+                                    Bets.createLiveGameCheck(group);
+                                    Bets.intialiseUpdateGroupContainers(group);
+                                    var leagueid = $("#mc-gr"+group).data("league-id");
+                                    if($("#widget_live_custom_league_" + leagueid).length > 0)
+                                    {
+                                        restoreView("#widget_live_custom_league_" + leagueid);
+                                    }
+                                }); // end: show (slideDown) league
+                            }); // end: hide all tabbed widgets
+                        }
+                    }
+                } // end: complete
+            }); // end: ajax
+        }
+
+        // remove xtra bets if exist
+        var container_xtra = $("#container_xtra");
+        if (container_xtra.length > 0)
+        {
+            container_xtra.remove();
+        }
+
+        $("#container_bets").show();
+
+    },
+
+    createLiveGameCheck: function(groupid)
+    {
+        var firstgamestart = $($("#mc-gr" + groupid).find("div.live_game_time")[0]).data("timestamp") * 1000;
+        var currenttime = Date.now();
+        var timeoutduration = firstgamestart - currenttime;
+        timeoutduration = timeoutduration + 60000;
+        Bets.removeLiveGameCheck(groupid); // always remove timeout before adding it again
+        if(timeoutduration > 0 && timeoutduration < 86400000) // don't reload results
+        {
+            var actualtimeout = setTimeout(function ()
+            {
+                Bets.selectGroup(groupid, '', 'true');
+            }, timeoutduration);
+            Bets.groupUpdateTimeouts[groupid] = actualtimeout;
+        }
+    },
+
+    intialiseUpdateGroupContainers: function(groupid)
+    {
+        var leagueid = $("#mc-gr"+groupid).data("league-id");
+        if($("#widget_live_custom_league_" + leagueid).length > 0) {
+            setTimeout( function() { initialise_widget_complete_reload("widget_live_custom_league_" + leagueid); }, timeouts.success);
+        }
+    },
+
+    removeLiveGameCheck: function(groupid)
+    {
+        if(typeof Bets.groupUpdateTimeouts[groupid] !== "undefined")
+        {
+            //timeout exists, remove timeout
+            clearTimeout(Bets.groupUpdateTimeouts[groupid]);
+            Bets.groupUpdateTimeouts.splice(groupid, 1);
+        }
+    },
+
+    closeSport: function (sportid)
+    {
+        // reset loader, add and show new loader
+        main_content_loader('show', 'closesport');
+
+        // remove sport container
+        $("#type" + sportid).slideUp("fast", function()
+        {
+            $(this).remove();
+
+            $("#spgrp_" + sportid).removeClass("item_active2");
+
+            // closes all groups of the same kind
+            $("#main").find("div.spgrp_league_" + sportid).each(function(){
+                group = $(this).attr("id").substr(2);
+                Bets.closeGroup(group);
+            });
+
+            // if there are no other open leagues
+            if (check_for_open_leagues_or_livesports().open_leagues == false && check_for_open_leagues_or_livesports().open_live_single_sports == false)
+            {
+                // if games widgets enabled, and if there are widgets
+                if (check_if_game_widgets_enabled())
+                {
+                    check_if_no_widgets_visible('reload_widgets', function()
+                    {
+                        handle_extra_page_elements('show');
+                        main_content_loader('hide', 'closesport'); // hide loader
+                    });
+                }
+                // else redirect to live/start page
+                else
+                {
+                    // reload url
+                    var reload_url = (sportsbookURL !== undefined && sportsbookURL != "") ? sportsbookURL : baseURL+'/index.php?r=site/index'; // default is startscreen
+                    if (controllerID == "live")
+                    {
+                        reload_url = (liveURL !== undefined && liveURL != "") ? liveURL : baseURL+'/index.php?r=live/index'; // in in live page
+                    }
+                    window.location.href = reload_url; // reload page
+                }
+            }
+            else
+            {
+                main_content_loader('hide', 'closesport'); // hide loader
+            }
+        });
+    },
+
+    /*
+     * Closing a sportsbook league/group
+     *
+     * @param group - league id
+     * @param menu_item - optional - object - the <li> of the league's menu item in the left menu
+     */
+    closeGroup: function (group, menu_item)
+    {
+        var leagueId = 0;
+        if ($("#mc-gr" + group).length > 0) {
+            leagueId = parseInt($("#mc-gr" + group).data('league-id'));
+        }
+
+        // reset loader, add and show new loader
+        main_content_loader('show', 'closegroup');
+        if(controllerID == 'site' && actionID == 'search' && $("#hidden_results").data('load') == 'search') {
+            $("#main").html($('#hidden_results').html());
+            return;
+        }
+        // remove league container
+        $("#mc-gr" + group).slideUp("fast", function()
+        {
+            $(this).remove();
+
+            removeOpenSportsbookLeagueId(leagueId); // remove stored league id
+
+            leftMenu_leagues_toggle_active_classes('remove', menu_item, group);
+
+            // if there are no other open leagues
+            if (check_for_open_leagues_or_livesports().open_leagues == false && check_for_open_leagues_or_livesports().open_live_single_sports == false)
+            {
+                // if games widgets enabled, and if there are widgets
+                if (check_if_game_widgets_enabled())
+                {
+                    check_if_no_widgets_visible('reload_widgets', function()
+                    {
+                        handle_extra_page_elements('show');
+                    });
+
+                    main_content_loader('hide', 'closegroup'); // hide loader
+                }
+                // else redirect to live/start page
+                else
+                {
+                    // reload url
+                    var reload_url = (sportsbookURL !== undefined && sportsbookURL != "") ? sportsbookURL : baseURL+'/index.php?r=site/index'; // default is startscreen
+                    if (controllerID == "live")
+                    {
+                        reload_url = (liveURL !== undefined && liveURL != "") ? liveURL : baseURL+'/index.php?r=live/index'; // in in live page
+                    }
+                    window.location.href = reload_url; // reload page
+                }
+            }
+            else
+            {
+                main_content_loader('hide', 'closegroup'); // hide loader
+            }
+
+            Bets.removeLiveGameCheck(group);
+        });
+    },
+
+    showXtra: function (game, group, e)
+    {
+        e.preventDefault();
+        if($('#main').has('.elasticsearch--results')) {
+            $("#hidden_results").html($('#main .elasticsearch--results'));
+        }
+        // save scroll position
+        Bets.scrollTop = $(document).scrollTop();
+
+        // store if tabbed widgets are showing or single widgets (to be used later in hideXtra)
+        var filter_parameters = { 'visibility': 'visible' };
+        var get_active_widget_types = get_open_widgets_single_parameter('widget_type', filter_parameters);
+        var active_widget_types = "single";
+        if (get_active_widget_types.indexOf("tabbed") > -1) {
+            active_widget_types = "tabbed";
+        } else if (controllerID == 'videostreams') {
+            active_widget_types = 'grouped';
+        }
+        Bets.active_widget_types = active_widget_types;
+
+        // show main loader
+        main_content_loader('show', 'xtra-'+game);
+
+        // get xtra bets
+        $.ajax({
+            type: 'GET',
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/xtra&group=' + group + '&game=' + game,
+            error: function()
+            {
+                main_content_loader('hide', 'xtra-'+game); // hide loader
+            },
+            complete: function (jqXHR)
+            {
+                if (jqXHR.status == 200)
+                {
+                    var xtra_container = $("#container_xtra");
+                    // remove xtra bets if exist
+                    if (xtra_container.length > 0)
+                    {
+                        xtra_container.remove();
+                    }
+
+                    handle_extra_page_elements('hide', 'xtra'); // hide extra page elements (ex: banner)
+                    hide_all_games_widgets(false); // ensure all games widgets are hidden (function in games.js)
+                    hide_all_sportsbook_leagues(); // hide all sportsbook leagues
+
+                    $("#main").prepend(jqXHR.responseText);
+                    xtra_container = $("#container_xtra"); // update, since DOM was changed
+
+                    // slide Down xtra container
+                    xtra_container.hide().slideDown("normal", function(){
+                        Bets.checkBets();
+                    });
+
+                    // scroll to top
+                    $(document).scrollTop(0);
+
+                    initialise_bet_info_functionality(); // bets info popups
+                }
+
+                main_content_loader('hide', 'xtra-'+game); // hide loader
+            }
+        });
+    },
+
+    hideXtra: function ()
+    {
+        // remove xtra container
+        var xtra_container = $("#container_xtra");
+        if (xtra_container.length > 0)
+        {
+            xtra_container.slideUp("fast", function()
+            {
+                $(this).remove();
+            });
+        }
+        if(controllerID == 'site' && actionID == 'search') {
+            $("#main").html($('#hidden_results').html());
+            return;
+        }
+
+        handle_extra_page_elements('show', 'xtra'); // hide extra page elements (ex: banner)
+        show_all_sportsbook_leagues(); // show sportsbook leagues
+
+        if (Bets.active_widget_types == "single")
+        {
+            var single_widgets = $(".js-games-widget[data-widget_type*='single']");
+            show_games_widgets(single_widgets, '', true, "normal", true);
+        }
+        else
+        {
+            $(document).scrollTop(0);
+            show_all_games_widgets(true, function(){
+                $(document).scrollTop(Bets.scrollTop); // restore scroll position
+            }); // show tabbed widgets (if only tabbed widgets were active before showXtra)
+        }
+
+        var container_startscreen = $("#container_startscreen");
+        if (container_startscreen.length > 0)
+        {
+            container_startscreen.find(".sportbet_rate_locked").removeClass("sportbet_rate_locked");
+            container_startscreen.find(".sportbet_rate_over").removeClass("sportbet_rate_over");
+            container_startscreen.show();
+        }
+
+        $(document).scrollTop(Bets.scrollTop); // restore scroll position
+        Bets.checkBets();
+    },
+
+    checkOdds: function ()
+    {
+        var data = "<?xml version=\"1.0\"?><oddchanges>", i, j, details;
+        // check for startscreen
+        if ($("#startscreenBets").length > 0 || $(".js-games-widget").length > 0)
+        {
+            data += "<startscreen>";
+
+            var startscreen_cont = $("#startscreenBets, .js-games-widget");
+            startscreen_cont.find("div[id^='mc-ti']").each(function ()
+            {
+                details = Bets.getTipDetails(this);
+
+                if (details != null)
+                {   data += "<odd game=\"" + details.game + "\" tip=\"" + details.tip + "\" odd=\"" + details.odd + "\" />";}
+            });
+
+            data += "</startscreen>";
+        }
+
+        // check for betting area
+        var container_bets = $("#container_bets_groups");
+        if (container_bets.length > 0)
+        {
+            data += "<bets>";
+
+            container_bets.find("div[id^='mc-ti']").each(function ()
+            {
+                details = Bets.getTipDetails(this);
+                if (details != null)
+                { data += "<odd game=\"" + details.game + "\" tip=\"" + details.tip + "\" odd=\"" + details.odd + "\" />";}
+            });
+
+            data += "</bets>";
+        }
+
+        // check for xtra bets
+        var container_xtra = $("#container_xtra");
+        if (container_xtra.length > 0)
+        {
+            data += "<xtra>";
+
+            container_xtra.find("div[id^='mc-ti']").each(function ()
+            {
+                details = Bets.getTipDetails(this);
+
+                if (details != null)
+                {   data += "<odd game=\"" + details.game + "\" tip=\"" + details.tip + "\" odd=\"" + details.odd + "\" />";}
+            });
+
+            data += "</xtra>";
+        }
+
+        // check bettingslip
+        if (Bettingslip.bettingslips.length > 0)
+        {
+            data += "<bettingslip>";
+
+            for (i in Bettingslip.bettingslips)
+            {
+                for (j in Bettingslip.bettingslips[i].bets)
+                {
+                    var bet = Bettingslip.bettingslips[i].bets[j];
+
+                    data += "<odd game=\"" + bet.game + "\" tip=\"" + bet.tip1 + "\" odd=\"" + bet.odd1 + "\" />";
+                    if (bet.tip2 != null)
+                    {    data += "<odd game=\"" + bet.game + "\" tip=\"" + bet.tip2 + "\" odd=\"" + bet.odd2 + "\" />";}
+                    if (bet.tip3 != null)
+                    {    data += "<odd game=\"" + bet.game + "\" tip=\"" + bet.tip3 + "\" odd=\"" + bet.odd3 + "\" />";}
+                }
+            }
+
+            data += "</bettingslip>";
+        }
+
+        data += "</oddchanges>";
+
+        data = "data=" + encodeURI(data);
+
+        $.ajax({
+            type: 'POST',
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/oddchanges',
+            data: data,
+            async: true,
+            complete: function (jqXHR)
+            {
+                if (jqXHR.status == 200 && jqXHR.responseXML)
+                {
+                    // startscreen
+                    if ($(jqXHR.responseXML).find("startscreen").length > 0)
+                    {
+                        var startscreen = $(jqXHR.responseXML).find("startscreen");
+
+                        var startscreen_cont = $("#startscreenBets");
+                        var games_widgets = $(".js-games-widget");
+
+                        $(startscreen).find("odd").each(function ()
+                        {
+                            var game = parseInt($(this).attr('game'),10);
+                            var tip = parseInt($(this).attr('tip'),10);
+                            var odd = parseInt($(this).attr('odd'),10);
+                            var status = parseInt($(this).attr('status'),10);
+
+                            switch (status)
+                            {
+                            case -1:
+                                startscreen_cont.find("#mc-ga" + game).remove();
+                                games_widgets.find("#mc-ga" + game).remove();
+                                break;
+                            case 1:
+                            case 2:
+                                Bets.updateTipDetails(startscreen_cont.find("#mc-ti" + game + "_" + tip), odd);
+                                Bets.updateTipDetails(games_widgets.find("#mc-ti" + game + "_" + tip), odd);
+                                if(game<1000000){
+                                    Bets.updateTipDetails($("#qb" + game + " .qbOdd.qbTip" + tip), odd);
+                                }else{
+                                    Bets.updateTipDetails($("#qb" + game % 1000000 + " .qbOdd.qbTip" + (tip==1? 'O' : 'U')), odd);
+                                }
+                                break;
+                            }
+                        });
+                    }
+
+                    // bets
+                    if ($(jqXHR.responseXML).find("bets").length > 0)
+                    {
+                        var bets = $(jqXHR.responseXML).find("bets");
+
+                        var container_bets = $("#container_bets_groups");
+
+                        $(bets).find("odd").each(function ()
+                        {
+                            var game = parseInt($(this).attr('game'),10);
+                            var tip = parseInt($(this).attr('tip'),10);
+                            var odd = parseInt($(this).attr('odd'),10);
+                            var status = parseInt($(this).attr('status'),10);
+
+                            switch (status)
+                            {
+                            case -1:
+                                container_bets.find("#mc-ga" + game).remove();
+                                break;
+                            case 1:
+                            case 2:
+                                Bets.updateTipDetails(container_bets.find("#mc-ti" + game + "_" + tip), odd);
+                                if(game<1000000){
+                                    Bets.updateTipDetails($("#qb" + game + " .qbOdd.qbTip" + tip), odd);
+                                }else{
+                                    Bets.updateTipDetails($("#qb" + game % 1000000 + " .qbOdd.qbTip" + (tip==1? 'O' : 'U')), odd);
+                                }
+                                break;
+                            }
+                        });
+                    }
+
+                    // xtra
+                    if ($(jqXHR.responseXML).find("xtra").length > 0)
+                    {
+                        var xtra = $(jqXHR.responseXML).find("xtra");
+
+                        var container_xtra = $("#container_xtra");
+
+                        $(xtra).find("odd").each(function ()
+                        {
+                            var game = parseInt($(this).attr('game'),10);
+                            var tip = parseInt($(this).attr('tip'),10);
+                            var odd = parseInt($(this).attr('odd'),10);
+                            var status = parseInt($(this).attr('status'),10);
+
+                            switch (status)
+                            {
+                            case -1:
+                                container_xtra.find(".sportbet_extra_content").empty();
+                                break;
+                            case 1:
+                            case 2:
+                                Bets.updateTipDetails(container_xtra.find("#mc-ti" + game + "_" + tip), odd);
+                                if(game<1000000){
+                                    Bets.updateTipDetails($("#qb" + game + " .qbOdd.qbTip" + tip), odd);
+                                }else{
+                                    Bets.updateTipDetails($("#qb" + game % 1000000 + " .qbOdd.qbTip" + (tip==1? 'O' : 'U')), odd);
+                                }
+                                break;
+                            }
+                        });
+                    }
+
+                    // bettingslip
+                    if ($(jqXHR.responseXML).find("bettingslip").length > 0)
+                    {
+                        var bettingslip = $(jqXHR.responseXML).find("bettingslip");
+
+                        $(bettingslip).find("odd").each(function ()
+                        {
+                            var game = parseInt($(this).attr('game'),10);
+                            var tip = parseInt($(this).attr('tip'),10);
+                            var odd = parseInt($(this).attr('odd'),10);
+                            var status = parseInt($(this).attr('status'),10);
+
+                            switch (status)
+                            {
+                            case -1:
+                                Bettingslip.updateOdd({game: game, tip1: tip, status: status});
+                                break;
+                            case 1:
+                            case 2:
+                                Bettingslip.updateOdd({game: game, tip1: tip, odd1: odd, status: status});
+                                break;
+                            }
+                        });
+                    }
+                }
+
+                //window.setTimeout("Bets.checkOdds();", 30000);
+            }
+        });
+    },
+
+    getTipDetails: function (button)
+    {
+        var id = $(button).attr('id').match(/mc-ti(\d+)_(\d+)$/); // then check for class
+        var onclick = $(button).attr('onclick'), odd = 0;
+        if (onclick != null)
+        {
+            odd = onclick.match(/odd: ?([0-9]+)[,)]/);
+            if (odd != null && odd.length > 1)
+            {    odd = parseInt(odd[1],10);}
+            else
+            {    odd = 0;}
+        }
+
+        if (id != null && id.length > 2 && odd > 0)
+        {    return {game: id[1], tip: id[2], odd: odd};}
+        else
+        {    return null;}
+    },
+
+    updateTipDetails: function (button, odd)
+    {
+        if ($(button).find(".sportbet_rate_right").length > 0)
+        {    $(button).find(".sportbet_rate_right").text(oddoutput(oddformat, odd));}
+
+        if ($(button).find(".sportbet_rate_right2").length > 0)
+        {    $(button).find(".sportbet_rate_right2").text(oddoutput(oddformat, odd));}
+
+        if ($(button).find(".sportbet_rate_middle").length > 0)
+        {    $(button).find(".sportbet_rate_middle").text(oddoutput(oddformat, odd));}
+
+        if ($(button).find(".sportbet_content_rate_right").length > 0)
+        {   $(button).find(".sportbet_content_rate_right").text(oddoutput(oddformat, odd));}
+
+        var onclick = $(button).attr('onclick');
+        if (onclick != null)
+        {
+            onclick = onclick.replace(/(odd: ?)[0-9]+([,)])/, "$1" + odd + "$2");
+            $(button).attr('onclick', onclick);
+        }
+    },
+
+    setFavorite: function (team, league)
+    {
+        var img, imgsrcold, state, newtitle="";
+        if (team != null && team > 0)
+        {
+            if ($("a[name='bets_fav_team_" + team + "']").length > 0)
+            {
+                img = $("a[name='bets_fav_team_" + team + "']:first img").attr("src");
+                imgsrcold = img;
+                state = 0;
+
+                if (img.match(/star1/))
+                {
+                    state = 0;
+                    newtitle="Add to favorites";
+                    img = img.replace(/star1/, "star2");
+                }
+                else
+                {
+                    state = 1;
+                    newtitle="Remove from favorites";
+                    img = img.replace(/star2/, "star1");
+                }
+                $("a[name='bets_fav_team_" + team + "'] img").attr("src", img);
+                $("a[name='bets_fav_team_" + team + "']").attr("title",newtitle);
+
+                setFavorite(0, team, state, function (active, team, img) {
+                    $("a[name='bets_fav_team_" + team + "'] img").attr("src", img);
+                }, team, imgsrcold);
+            }
+        }
+        if (league != null && league > 0)
+        {
+            if ($("a[name='bets_fav_league_" + league + "']").length > 0)
+            {
+                img = $("a[name='bets_fav_league_" + league + "']:first img").attr("src");
+                imgsrcold = img;
+                state = 0;
+                if (img.match(/star1/))
+                {
+                    state = 0;
+                    newtitle="Add to favorites";
+                    img = img.replace(/star1\./, "star2");
+                }
+                else
+                {
+                    state = 1;
+                    newtitle="Remove from favorites";
+                    img = img.replace(/star2\./, "star1");
+                }
+                $("a[name='bets_fav_league_" + league + "'] img").attr("src", img);
+                $("a[name='bets_fav_league_" + league + "']").attr("title", newtitle);
+
+                setFavorite(league, 0, state, function (active, league, img) {
+                    $("a[name='bets_fav_league_" + league + "'] img").attr("src", img);
+                }, league, imgsrcold);
+            }
+        }
+    },
+
+    checkForMultiway: function (game)
+    {
+        if(Bettingslip.bettingslips[0].bets.length < maxAllowedBettingslipLength)
+        {
+            return true;
+        }
+        return false;
+    },
+
+    checkIfLocked: function (odd_id, tip)
+    {
+        if ($("#mc-ti" + odd_id + "_" + tip + ":visible").hasClass("sportbet_rate_locked"))
+        {
+            return true;
+        }else if(odd_id < 1000000 && $("#qb" + odd_id + " .qbOdd.qbTip"+tip).hasClass("sportbet_rate_locked")){
+            return true;
+        }else if(odd_id >= 1000000 && $("#qb" + odd_id % 1000000 + " .qbOdd.qbTip"+(tip==1 ? 'O' : 'U')).hasClass("sportbet_rate_locked")){
+            return true;
+        }
+
+        return false;
+    },
+
+    deselectGame: function (game)
+    {
+        var i, j, k;
+        var current_market_odds = $("[id^='mc-ti" + game + "']");
+        for (k = 0; k < current_market_odds.length; k++) {
+            $(current_market_odds[k]).removeClass("sportbet_rate_over");
+        }
+
+        var qb_cont = $("#qb" + game + "");
+        if (qb_cont.length > 0)
+        {
+            qb_cont.find(".qbOdd").removeClass("sportbet_rate_over");
+        }
+        else {
+            var qb_cont_alt = $("#qb" + game % 1000000 + "");
+            if (qb_cont_alt.length > 0)
+            {
+                qb_cont_alt.find(".qbOdd").removeClass("sportbet_rate_over");
+            }
+        }
+
+        try
+        {
+            if (arrBetsIDs != null)
+            {
+                for (i in arrBetsIDs)
+                {
+                    if (arrBetsIDs[i].idBet == game)
+                    {
+                        for (j = 1; j <= 3; j++)
+                        {
+                            toggleBetSelection("#lm-sti" + arrBetsIDs[i].idLive + "_" + j, false);
+                            toggleBetSelection("#mc-sti" + arrBetsIDs[i].idLive + "_" + j, false);
+                        }
+                    }
+                }
+            }
+        }
+        catch (e) { }
+    },
+
+    deselectTip: function (game, tip)
+    {
+        var i;
+        $("#mc-ti" + game + "_" + tip).removeClass("sportbet_rate_over");
+        //$("#ti" + game + "_" + tip + ":visible").removeClass("sportbet_rate_over");
+        if(game<1000000){
+            $("#qb" + game + " .qbOdd.qbTip" + tip).removeClass("sportbet_rate_over");
+        }else{
+            $("#qb" + game % 1000000 + " .qbOdd.qbTip" + (tip==1 ? 'O' : 'U')).removeClass("sportbet_rate_over");
+        }
+        try
+        {
+            if (arrBetsIDs != null)
+            {
+                for (i in arrBetsIDs)
+                {
+                    if (arrBetsIDs[i].idBet == game)
+                    {
+                        toggleBetSelection("#lm-sti" + arrBetsIDs[i].idLive + "_" + tip, false);
+                        toggleBetSelection("#mc-sti" + arrBetsIDs[i].idLive + "_" + tip, false);
+                    }
+                }
+            }
+        }
+        catch (e) { }
+    },
+
+    selectTip: function (game, tip)
+    {
+        var i;
+        $("#mc-ti" + game + "_" + tip).addClass("sportbet_rate_over");
+        if(game<1000000){
+            $("#qb" + game + " .qbOdd.qbTip" + tip).addClass("sportbet_rate_over");
+        }else{
+            $("#qb" + game % 1000000 + " .qbOdd.qbTip" + (tip==1 ? 'O' : 'U')).addClass("sportbet_rate_over");
+        }
+        try
+        {
+            if (arrBetsIDs != null)
+            {
+                for (i in arrBetsIDs)
+                {
+                    if (arrBetsIDs[i].idBet == game)
+                    {
+                        toggleBetSelection("#lm-sti" + arrBetsIDs[i].idLive + "_" + tip, true);
+                        toggleBetSelection("#mc-sti" + arrBetsIDs[i].idLive + "_" + tip, true);
+                    }
+                }
+            }
+        }
+        catch (e) { }
+    },
+
+    deactivateGame: function (game)
+    {
+        if ($("#qb" + game + "").length > 0)
+        {
+            $("#qb" + game + " .qbOdd").each(function ()
+            {
+                if (! $(this).hasClass("sportbet_rate_over"))
+                {    $(this).addClass("sportbet_rate_locked");}
+            });
+        }else if ($("#qb" + game % 1000000 + "").length > 0)
+        {
+            $("#qb" + game % 1000000 + " .qbOdd").each(function ()
+            {
+                if (! $(this).hasClass("sportbet_rate_over"))
+                {    $(this).addClass("sportbet_rate_locked");}
+            });
+        }
+
+        var game_cont = $("#mc-ga" + game + ":visible").find("div[id^='mc-ti" + game + "']");
+        if (game_cont.length > 0)
+        {
+            game_cont.each(function ()
+            {
+                if (! $(this).hasClass("sportbet_rate_over"))
+                {    $(this).addClass("sportbet_rate_locked");}
+            });
+        }
+        else {
+            var game_cont_alt = $("#mc-ga" + game % 1000000 + ":visible").find("div[id^='mc-ti" + game + "']");
+            if (game_cont_alt.length > 0)
+            {
+                game_cont_alt.each(function ()
+                {
+                    if (! $(this).hasClass("sportbet_rate_over"))
+                    {    $(this).addClass("sportbet_rate_locked");}
+                });
+            }
+        }
+    },
+
+    allowMultiway: function (game)
+    {
+        var game_cont = $("#mc-ga" + game + ":visible");
+        if (game_cont.find("div[id^='mc-ti']").length >= 4) // 3way and o/u
+        {
+            game_cont.find("div[id^='mc-ti" + game + "']").removeClass("sportbet_rate_locked");
+        }
+        else if (game_cont.length > 0)
+        {
+            game_cont.find("div[id^='mc-ti']").removeClass("sportbet_rate_locked");
+        }
+        else {
+            var game_cont_alt = $("#mc-ga" + (game % 1000000) + ":visible");
+            if (game_cont_alt.find("div[id^='mc-ti']").length >= 4) // special case for startscreen O/U
+            {
+                game_cont_alt.find("div[id^='mc-ti" + game + "']").removeClass("sportbet_rate_locked");
+            }
+        }
+        if ($("#qb" + game + " .qbOdd").length >= 4) // 3way and o/u
+        {
+            $("#qb" + game + " .qbOdd.qbTip1, #qb" + game + " .qbOdd.qbTip2, #qb" + game + " .qbOdd.qbTip3").removeClass("sportbet_rate_locked");
+        }
+        else if ($("#qb" + game + "").length > 0)
+        {
+            $("#qb" + game + " .qbOdd").removeClass("sportbet_rate_locked");
+        }
+    }
+};
+
+var Livebets =
+{
+    checkIfLocked: function (ref, tip)
+    {
+        if ($("#mc-lti" + ref + "_" + tip + ":visible").hasClass("sportbet_rate_locked"))
+        {    return true;}
+
+        if ($("#lm-sti" + ref + "_" + tip + ":visible").hasClass("sportbet_rate_locked")
+            || $("#mc-sti" + ref + "_" + tip + ":visible").hasClass("sportbet_rate_locked"))
+        {   return true;}
+
+        if ($("#mc-cti" + ref + "_" + tip + ":visible").hasClass("sportbet_rate_locked"))
+        {   return true;}
+
+        return false;
+    },
+
+    deselectTip: function (ref, tip)
+    {
+        $("#mc-lti" + ref + "_" + tip + ":visible").removeClass("sportbet_rate_over");
+
+        try {toggleBetSelection("#lm-sti" + ref + "_" + tip, false);} catch (e) {}
+        try {toggleBetSelection("#mc-sti" + ref + "_" + tip, false);} catch (e) {}
+    },
+
+    selectTip: function (ref, tip)
+    {
+        $($("#mc-lti" + ref + "_" + tip + ":visible").hasClass("live_rate")).addClass("sportbet_rate_over"); // adds the bet is choosen class in live section startingpage
+
+        try {toggleBetSelection("#lm-sti" + ref + "_" + tip, true);} catch (e) {} // the same for live section on the live page
+        try {toggleBetSelection("#mc-sti" + ref + "_" + tip, true);} catch (e) {}
+    },
+
+    deselectGame: function (ref)
+    {
+        var i, game;
+        if (ref == null)
+        {   return;}
+
+        game = ref.match(/^[0-9]+/);
+        if (game.length > 0)
+        {   game = game[0];}
+        else
+        {    game = "0";}
+
+        var container = $("#mc-lga" + game + ":visible").find("div[id^='mc-lti" + ref + "'].sportbet_rate_over");
+        if (container.length > 0)
+        {
+            container.removeClass("sportbet_rate_over");
+        }
+
+        try
+        {
+            for (i = 1; i <= 3; i++)
+            {
+                toggleBetSelection("#lm-sti" + ref + "_" + i, false);
+                toggleBetSelection("#mc-sti" + ref + "_" + i, false);
+            }
+        }
+        catch (e) {}
+    },
+
+    deactivateGame: function (ref, lockcombicat)
+    {
+        if (ref == null)
+        {   return;}
+
+        var game = ref.match(/^[0-9]+/);
+        if (game.length > 0)
+        {   game = game[0];}
+        else
+        {   game = "0";}
+
+        var dropdown = $("#mc-ddodds_" + game);
+        var container = $("#mc-lga" + game);
+        if (dropdown.length > 0 || container.length > 0) // Liveticker
+        {
+
+            if(game in lockcombicat)
+            {
+                container.find("div[id^='mc-sti']").each(function ()
+                {
+                    var oddcontainerid = $(this).attr("id");
+                    var gametextid = oddcontainerid.substr(6);
+
+                    var identifierforbrother = gametextid.substr(0, gametextid.length-1);
+                    var activeodds = false;
+                    $("[id^='"+identifierforbrother+"']").each(function ()
+                    {
+                        if($(this).hasClass("sportbet_rate_over"))
+                        {
+                            activeodds = true;
+                        }
+                    });
+                    if(activeodds === false)
+                    {
+                        if($.inArray($(this).parents("[data-combicat]").attr("data-combicat"), lockcombicat[game]) > -1)
+                        {
+                            $(this).addClass("sportbet_rate_locked");
+                        }
+                    }
+                    else if(activeodds)
+                    {
+                        if ((! $(this).hasClass("sportbet_rate_over"))&&($(this).hasClass("live_rate")))
+                        {
+                            $(this).addClass("sportbet_rate_locked");
+                        }
+                    }
+                });
+                dropdown.find("div[id^='mc-cti']").each(function ()
+                {
+                    var oddcontainerid = $(this).attr("id");
+                    var gametextid = oddcontainerid.substr(6);
+
+                    var identifierforbrother = gametextid.substr(0, gametextid.length-1);
+                    var activeodds = false;
+                    $("[id^='"+identifierforbrother+"']").each(function ()
+                    {
+                        if($(this).hasClass("sportbet_rate_over"))
+                        {
+                            activeodds = true;
+                        }
+                    });
+                    if(activeodds === false)
+                    {
+                        if($.inArray($(this).parents("[data-combicat]").attr("data-combicat"), lockcombicat[game]) > -1)
+                        {
+                            $(this).addClass("sportbet_rate_locked");
+                        }
+                    }
+                    else if(activeodds)
+                    {
+                        if ((! $(this).hasClass("sportbet_rate_over"))) // &&($(this).hasClass("live_rate"))
+                        {
+                            $(this).addClass("sportbet_rate_locked");
+                        }
+                    }
+                    /*if ((! $(this).hasClass("sportbet_rate_over"))&&(!$(this).hasClass("live_rate")))
+                    {
+                        $(this).addClass("sportbet_rate_locked");
+                    }*/
+                });
+            }
+        }
+    }
+};
+
+var Powerraces =
+{
+    firstTimePR: function()
+    {
+        // hide system elements
+        $("#betslip_system_header_container").hide();
+        $("#betslip_system_header").css("display", "none");
+        $("#betslip_system_plus_header").css("display", "none");
+        $("div[id^='betslip_system_body']").css("display", "none");
+        $("img[id^='betstip_bank']").css("display", "none");
+
+        Bettingslip.placeBetActive = false; //because of systembetrules & deactivation of place bet button
+        Bettingslip.lockButtonChanges = false;
+
+        $("#betslip_tabs .betslip_tabs").removeClass("betslip_tabs_active");
+        Bettingslip.mode = 0;
+        $("#betslip_tabs #reiter_1").addClass("betslip_tabs_active");
+    },
+
+    calcValuesPR: function ()
+    {
+        var i; // simple counter
+        var valid = true; // is the betslip still valid?
+        var cashpoints = 0, totalTax=0, stakeInklTax=0, winnings = 0, totalStake = 0, mult= 0, stake = 0, possibilities = 0, tipcount = 0;
+        var racetype =  "", betkind = "", innerxml = "";
+        var checkxml = "<?xml version='1.0'?><bettingslipspr><bettingslippr>";
+        var racearr = new Array(), tiparray = new Array(), oddarray = new Array(), stakearray = new Array(), ergarray = new Array();
+
+        for (i in Bettingslip.bettingslips) // run throw every bettingslip, normally only one
+        {
+            if(Bettingslip.bettingslips[i].bets[0].active != false) // if the bet is active
+            {
+                stake = (Bettingslip.bettingslips[i].bets[0].amount*100); // calculate the stake
+                stakeInklTax += stake; // raise the stake before taxes
+
+                /**
+                * Germany 5% tax
+                * countryID set in views/layouts/main.php
+                */
+                if(countryID == 82)
+                {
+                    stake = Math.round(stake * taxPercentage);
+                }
+
+                racetype = Bettingslip.bettingslips[i].bets[0].type.substr(1);
+                betkind = Bettingslip.bettingslips[i].bets[0].tip1.replace(/[^0-9]/g, '');
+                betkind = parseInt(betkind, 10);
+                racearr.push(Bettingslip.bettingslips[i].bets[0].game);
+                tiparray.push(betkind);
+                oddarray.push( Bettingslip.bettingslips[i].bets[0].odd1);
+                stakearray.push(stake);
+                tipcount ++;
+
+                totalStake += stake; // raise the stake, without taxes
+            }
+
+            if (Bettingslip.bettingslips[i].cashpoints != null)
+            {
+                cashpoints += parseInt(Bettingslip.bettingslips[i].cashpoints * (stake / 100),10);
+            }
+        }
+        if (tipcount == 0) // if not tip is selected
+        {    valid = false;}
+        ergarray = prv2.calculateWinning(6, tipcount, totalStake, racearr, tiparray, oddarray, stakearray, 1000000, 100000, 0);
+
+        mult = Number(ergarray.maxodd);
+        winnings = Number(ergarray.maxwinning);
+        possibilities = Number(ergarray.waycount);
+
+        if (totalStake == 0)
+        {
+            totalStake = Bettingslip.getStake();
+        }
+
+        /**
+         * Germany 5% tax
+         * countryID set in views/layouts/main.php
+         */
+        if(countryID == 82)
+        {
+            totalTax = stakeInklTax - totalStake;
+            totalStake = Math.round(totalStake);
+            $("#betslip_total_totalTax").html(cp_round(totalTax, 2));
+        }
+
+        $("#betslip_total_stake").html(cp_round(totalStake, 0));
+        $("#betsip_max_odd").html(cp_round(mult, 0));
+        $("#betslip_winnings").html(cp_round(winnings));
+
+        $("#betslip_cashpoints_text").html(parseInt(cashpoints / 100,10));
+
+        if (Bettingslip.checkBetStatus() == 0)
+        {
+            if (valid == true && Bettingslip.placeBetActive == false)
+            {// place is not currently being placed and it is allowed to place a bet
+                if (isLogged == 1)
+                {
+                    $.ajax({
+                        type: 'POST',
+                        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/accountBalCheck',
+                        success: function (jqXHR)
+                        {
+                            if(jqXHR >= totalStake)
+                            {
+                                if (userSHbutNotWithSHZip && userSHbutNotWithSHZip==1){
+                                    Bettingslip.swapButton(10);
+                                } else {
+                                    Bettingslip.swapButton(1);
+                                }
+                            }else{
+                                Bettingslip.swapButton(7);
+                            }
+                        }
+                    });
+                }
+                else{
+                    Bettingslip.swapButton(6);
+                }
+            }
+            else
+            {    Bettingslip.swapButton(2);} // deactivate the place bet button
+        }
+    },
+
+    placeBet: function ()
+    {   
+        
+        if (Bettingslip.placeBetActive)
+        {    return;}
+        Bettingslip.swapButton(2);
+        Bettingslip.placeBetActive = true;
+        Bettingslip.lockButtonChanges = true;
+
+        var data = "<?xml version=\"1.0\"?><bettingslipspr><bettingslippr>", innerxml ="";
+        var i, j, totalStake = 0;
+
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                var bet = Bettingslip.bettingslips[i].bets[j];
+
+                if (! bet.active)
+                {    continue;}
+
+                racetype = bet.type.substr(1);
+                betkind = bet.tip1.replace(/[^0-9]/g, '');
+                totalStake += (bet.amount*100);
+
+                innerxml += "<bet>";
+                innerxml += "<type>" + racetype + "</type>";
+                innerxml += "<racenr>" + bet.game + "</racenr>";
+                innerxml += "<tip>" + betkind + "</tip>";
+                innerxml += "<odd>" + bet.odd1 + "</odd>";
+                innerxml += "<amount>" + bet.amount*100 + "</amount>";
+                innerxml += "</bet>";
+            }
+
+        }
+        data += "<amount>" + totalStake + "</amount>";
+        data += "<bets>";
+        data += innerxml;
+        data += "</bets>";
+        data += "</bettingslippr>";
+        data += "</bettingslipspr>";
+
+        data = "data=" + encodeURI(data)+"&pr=true";
+        
+        $.ajax({
+            type: 'POST',
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/placeBet',
+            data: data,
+            complete: Powerraces.placeBetComplete
+        });
+    },
+
+    placeBetComplete: function (jqXHR)
+    {   
+        Bettingslip.lockButtonChanges = false;
+        
+        if (jqXHR.status == 200)
+        {      
+            //alert(jqXHR.responseText);
+            var ids = new Array(), finished = true, i;
+
+            if (jqXHR.getResponseHeader('Content-Type').split(';')[0] === "application/json")
+            {   
+                var jsonmessage = JSON.parse(jqXHR.responseText);
+                if (jsonmessage.message == "selflock")
+                {
+                    openPopupNotification("selflock", jsonmessage.value);
+                }
+                else if (jsonmessage.message == "sh_wrong_data")
+                {   
+                    openPopupNotification("text_popup", "sh_wrong_data");
+                }
+            }
+
+            $(jqXHR.responseXML).find("bettingslippr").each(function ()
+            {
+                var id = null, retcode = null;
+
+                if ($(this).attr("id"))
+                {    id = Number($(this).attr("id"));}
+
+                if ($(this).find("retcode"))
+                {
+                    retcode = Number($(this).find("retcode").text());
+                }
+
+                if (retcode == null)
+                {
+                    Bettingslip.showErrorMessage(connection_error);
+                }
+                else
+                {
+                    if (retcode == 0)
+                    {
+                        if (id != null)
+                        {    ids.push(id);}
+                        else
+                        {
+                           Bettingslip.delAll();
+                           Bettingslip.stakeSet(defaultstake);
+                        }
+                    }
+                }
+            });
+
+            $(jqXHR.responseXML).children("response").each(function ()
+            {
+                if ($(this).children("transaction").length > 0)
+                {
+                    var transactionid = $(this).children("transaction").find("id");
+                    if (transactionid.length > 0)
+                    {   transactionid = $(transactionid[0]).text();}
+                    else
+                    {    transactionid = 0;}
+
+                    window.setTimeout(function () {$.ajax({
+                            type: 'GET',
+                            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=bets/placeBet&data=&transactionid=' + transactionid,
+                            complete: Powerraces.placeBetComplete
+                        });
+                    }, 1000);
+
+                    finished = false;
+                }
+
+                if ($(this).children("error").length > 0)
+                {
+                    // showing error if the user is not logged in and tries to bet.
+                    if ( $($(this).children("bettingslippr").children("retcode")[0]).text() == 1)
+                    {
+                        openPopupNotification("logreg");
+                        trackIT('overlay', 'show', 'place-a-bet'); // GoogleAnalytics tracking
+                    }
+                    else
+                    {
+                        Bettingslip.showErrorMessage($($(this).children("error")[0]).text());
+                        // Showing terms & conditions popup if error code is 9 (t&c not accepted yet)
+                        if ( $($(this).children("bettingslippr").children("retcode")[0]).text() == 9 )
+                        {
+                            openUpdatedTcPopup("newtc");
+                        }
+                        else if ( $($(this).children("bettingslip").children("retcode")[0]).text() == -7 )
+                        {
+                            Bettingslip.swapButton(5);
+                        }
+                    }
+                }
+
+                if ($(this).children("info").length > 0)
+                {
+                    Bettingslip.showInfoMessage($($(this).children("info")[0]).text());
+                }
+            });
+
+            if (finished)
+            {
+                Bettingslip.placeBetActive = false;
+                Bettingslip.setSys(0);
+                Bettingslip.setSys(0, 2);
+                Bettingslip.setSys(0, 3);
+            }
+            Powerraces.calcValuesPR();
+            try {stateCasinoAccount(true);} catch (e) {}
+        }
+        else
+        {
+            Bettingslip.showErrorMessage(connection_error);
+            Bettingslip.placeBetActive = false;
+            Bettingslip.calcValues();
+        }
+    },
+
+    /**
+     *
+     * @param betid
+     * @param amount
+     */
+    updateBet: function (raceid, betid, amount)
+    {
+        var i;
+        for (i in Bettingslip.bettingslips)
+        {
+             if (Bettingslip.bettingslips[i].bets[0].game == raceid && Bettingslip.bettingslips[i].bets[0].tip1==betid )
+             {
+                 Bettingslip.bettingslips[i].bets[0].amount+=amount;
+                 $("#betslip_item_"+raceid+betid+" #betslip_item_odd").html("<span>"+oddoutput(oddformat,Bettingslip.bettingslips[i].bets[0].odd1)+" &agrave; "+Bettingslip.bettingslips[i].bets[0].amount+",-</span>");
+             }
+        }
+        Powerraces.calcValuesPR();
+    },
+
+    toggleStatusPR: function (bet)
+    {
+        var i,j, imgsrc, entry;
+        for (i in Bettingslip.bettingslips)
+        {
+            for (j in Bettingslip.bettingslips[i].bets)
+            {
+                entry = Bettingslip.bettingslips[i].bets[j];
+
+                if (entry.status != null && entry.status < 0)
+                { continue; }
+
+                if (bet === undefined)
+                { entry.active = Bettingslip.active; }
+
+                if (entry.game+entry.tip1 == bet)
+                {
+                    imgsrc = $("#betstip_stat" + entry.game + entry.tip1).attr("src");
+
+                    if (entry.active)
+                    {
+                        entry.active = false;
+                        imgsrc = imgsrc.replace(/_on\./, "_off.");
+                    }
+                    else
+                    {
+                        entry.active = true;
+                        imgsrc = imgsrc.replace(/_off\./, "_on.");
+                    }
+
+                    $("#betstip_stat" + entry.game + entry.tip1).attr("src", imgsrc);
+
+                    if (entry.active && ! Bettingslip.active && bet !== undefined)
+                    {
+                        Bettingslip.active = true;
+                        imgsrc = $("#betslip_statall").attr("src");
+                        imgsrc = imgsrc.replace(/_off\./, "_on.");
+                        $("#betslip_statall").attr("src", imgsrc);
+                    }
+                }
+            }
+        }
+
+        // check for locked tips
+        Bets.checkBets();
+        Powerraces.calcValuesPR();
+    },
+
+    delOldBetsPR: function (raceid)
+    {
+        var i=0, worked=false, bslength = Bettingslip.bettingslips.length, outlauf = -1;
+        for(i; i < bslength; i++)
+        {
+            outlauf ++;
+            entry = Bettingslip.bettingslips[outlauf].bets[0];
+            if(entry.game <= raceid)
+            {
+                Bettingslip.bettingslips[outlauf].bets.splice(0, 1);
+                if(Bettingslip.bettingslips[outlauf].bets.length == 0) // should be true everytime
+                {
+                    Bettingslip.bettingslips.splice(outlauf, 1);
+                    outlauf--;
+                }
+                delRaceBet(entry.game, entry.tip1, entry.odd1); //race.js
+                worked=true;
+                Powerraces.effectBlink("div#betslip_item_" + entry.game+entry.tip1);
+            }
+        }
+
+        if(worked)
+        {
+            Powerraces.calcValuesPR();
+        }
+    },
+
+    /**
+    * makes an element 'blink' and removes it
+    * @param htmlElement the jquery selector for an element out of the dom
+    */
+    effectBlink: function (htmlElement)
+    {
+        $(htmlElement).fadeOut(210).fadeIn(220).fadeOut(240).fadeIn(250).fadeOut(270).fadeIn(280).fadeOut(250, function() { $(htmlElement).remove(); });
+      //  $(htmlElement).remove();
+    },
+
+    transformTemplate: function(entrytmpl)
+    {
+        var tipptext = entrytmpl.team2;
+        var selectedtiparr = entrytmpl.tiptext1.split(" "), newtiptext;
+        if(tipptext.length + entrytmpl.tiptext1.length >14)
+        {
+            newtiptext = selectedtiparr[0]+"<br/>"+selectedtiparr[1];
+            entrytmpl.tiptext1 = newtiptext;
+        }
+        return entrytmpl;
+    }
+};
+
+function Stepper ()
+{
+    this.mousedown = 0;
+    this.stepVal = 10;
+    this.div;
+    this.timer = null;
+    this.count = 0;
+    this.onchange = null;
+    this.onchangemouse = null;
+
+    this.setup = function (divID, onchange, stepVal, onchangemouse)
+    {
+        var that = this;
+        this.div = $("#" + divID);
+        if (onchange != null)
+        {    this.onchange = onchange;}
+        if (onchangemouse != null)
+        {   this.onchangemouse = onchangemouse;}
+        if (stepVal)
+        {   this.stepVal = stepVal;}
+
+        this.div.mouseup(function (e) {that.onmouseup(e);});
+        this.div.mousedown(function (e) {that.onmousedown(e);});
+        this.div.mouseout(function (e) {that.onmouseup(e);});
+    };
+    this.onmousedown = function (e)
+    {
+        if (! e)
+        {    e = window.event;}
+
+        this.mousedown = 1;
+        this.count = 0;
+        var mousepos = e.pageY - this.div.offset().top;
+
+        if (mousepos <= this.div.height() / 2)
+        {   this.step(this.stepVal);}
+        else
+        {   this.step(this.stepVal * -1);}
+
+        if (this.onchangemouse != null)
+        {    this.onchangemouse(1);}
+    };
+    this.onmouseup = function (e)
+    {
+        this.mousedown = 0;
+        if (this.timer != null)
+        {
+            window.clearTimeout(this.timer);
+            this.timer = null;
+        }
+
+        if (this.onchangemouse != null)
+        {   this.onchangemouse(0);}
+    };
+    this.step = function (val)
+    {
+        if (this.mousedown == 1)
+        {
+            var that = this;
+            var time = 150;
+
+            if (this.count == 0)
+            {   time = 300;}
+
+            if (this.onchange != null)
+            {    this.onchange(val);}
+            this.timer = window.setTimeout(function () {that.step(val);}, time);
+            this.count++;
+        }
+    };
+}
+
+history.navigationMode = 'compatible'; // tells the browser to reload the page when the back button is pressed
+// bettingslip setup
+$(document).ready(function ()
+{
+    try
+    {
+        if (! Bettingslip.restoreBettingslip())
+        {   Bettingslip.stakeSet(defaultstake);}
+        var toppos = $("#right_navi").position().top;
+        new Stepper().setup('betslip_stepper_stake', Bettingslip.stakeChange, 100);
+        $("#amount_bs").change(Bettingslip.stakeInputChange);
+        new Stepper().setup('betslip_stepper_sysk', Bettingslip.sysChange, 1, Bettingslip.sysMouseChange);
+        $("#betslip_sysk").change(Bettingslip.sysInputChange);
+
+        Bettingslip.calcValues();
+
+        var checkBSpositionScroll = function ()
+        {
+            var position = $("#right_navi").css("position");
+            var refpos = toppos - 5;
+            var bottom = "", top = "5px";
+
+            // check if window width is less than website content container width and adjust "left" position accordingly
+            var left_position_adjusted = ( $("#content").width() - $("#right_navi").width() ) - $(document).scrollLeft();
+
+            /*
+            if ($("#right_navi").height() > $("#left_navi").height() && $("#right_navi").height() > $("#main").height())
+            {
+                if (position == "fixed")
+                {
+                    $("#right_navi").css("left", "0px");
+                    $("#right_navi").css("top", "0px");
+                    $("#right_navi").css("bottom", "");
+                    $("#right_navi").css("position", "static");
+                }
+
+                return;
+            }
+
+            if ($("#right_navi").height() > $(window).height() - 10)
+            {
+                // refpos += $("#right_navi").height() - $(window).height() + 10;
+                top = "5px";
+                bottom = "";
+            }
+            */
+
+            // if height of betting slip + account menu are bigger than window height, set the sidebar to static (not fixed). This fixes hidden "Place a Bet" button when right sidebar is fixed at the top right
+            if ( ($("#mybettingslip").height() + $("#right_navi #account").height()) > $(window).height()){
+                    $("#right_navi").css("left", "0px");
+                    $("#right_navi").css("top", "0px");
+                    $("#right_navi").css("bottom", "");
+                    $("#right_navi").css("position", "static");
+                return;
+            }
+
+            if (position == "fixed")
+            {
+                if ($(document).scrollTop() <= refpos)
+                {
+                    $("#right_navi").css("left", "0px");
+                    $("#right_navi").css("top", "0px");
+                    $("#right_navi").css("bottom", "");
+                    $("#right_navi").css("position", "static");
+                }
+
+                // on scroll - adjust #right_navi css "left" position if user has to scroll horizontally
+                if ($(window).width() < $("#content").width()){
+                    $("#right_navi").css("left", left_position_adjusted);
+                }
+            }
+            else
+            {
+                if ($(document).scrollTop() >= refpos)
+                {
+                    // initial - adjust #right_navi css "left" position if user has to scroll horizontally
+                    if ($(window).width() < $("#content").width()){
+                        $("#right_navi").css("left", left_position_adjusted);
+                    }
+                    else {
+                        $("#right_navi").css("left", $("#right_navi").position().left);
+                    }
+
+                    $("#right_navi").css("top", top);
+                    $("#right_navi").css("bottom", "");
+                    $("#right_navi").css("position", "fixed");
+                }
+            }
+        };
+
+        $(window).scroll(checkBSpositionScroll);
+        $(window).resize(function() {
+            var position = $("#right_navi").css("position");
+
+            if (position == "fixed") {
+                $("#right_navi").css("left", "0px");
+                $("#right_navi").css("top", "0px");
+                $("#right_navi").css("bottom", "");
+                $("#right_navi").css("position", "static");
+            }
+
+            checkBSpositionScroll();
+        });
+
+        //window.setTimeout( function() {Bets.checkOdds();}, 30000);
+    }
+    catch (e) {}
+});
+
+ /**
+ * Fix for right promos overlapping on footer when scrolling or hidden on scroll
+ */
+
+function RightPromosOverlapCheck()
+{
+    /* ==================== IF RIGHT SIDEBAR POSITION IS FIXED ==================== */
+    if ($("#right_navi").css("position") == "fixed")
+    {
+
+        /* this function compares the dimensions and position of the right sidebar promos with the dimensions and position of the footer */
+        var overlaps = (function () {
+            /* get the absolute position of the footer on the screen, by comparing the scroll amount, document height, and footer position from top */
+            function getPositionsFooter( elem ) {
+                var scroll_amount = $(document).height() - $(window).height();
+                var vertical_scroll_pos = $(document).scrollTop();
+                var scroll_remaining = scroll_amount - vertical_scroll_pos;
+                var footer_height = $("#footer").height();
+                var footer_visible = footer_height - scroll_remaining;
+                var footer_top = $(window).height() - footer_visible;
+                var right_sidebar_height = $("#jpromo_adds").height();
+
+                var pos, width, height;
+                pos = $( elem ).position();
+                width = $( elem ).width();
+                height = $( elem ).height();
+                return [ [ pos.left, pos.left + width ], [ footer_top, footer_top + footer_height + right_sidebar_height ] ];
+            }
+
+            /* get the absolute position of the sidebar promo items */
+            function getPositionsElements( elem ) {
+                var pos, width, height;
+                pos = $( elem ).position();
+                width = $( elem ).width();
+                height = $( elem ).height();
+                return [ [ pos.left, pos.left + width ], [ pos.top, pos.top + height ] ];
+            }
+
+            /* compare the position of the footer with the sidebar promo items */
+            function comparePositions( p1, p2 ) {
+                var r1, r2;
+                r1 = p1[0] < p2[0] ? p1 : p2;
+                r2 = p1[0] < p2[0] ? p2 : p1;
+                return r1[1] > r2[0] || r1[0] === r2[0];
+            }
+
+            return function ( a, b ) {
+                var pos1 = getPositionsFooter( a ),
+                    pos2 = getPositionsElements( b );
+                return comparePositions( pos1[0], pos2[0] ) && comparePositions( pos1[1], pos2[1] );
+            };
+        })();
+
+        var right_sidebar_position = $("#right_navi").css("position");
+        var footer = $( '#footer' )[0];
+
+        var added_promos_height = 0; /* declare var to be used if right sidebar height exceeds window height */
+
+        // for each sidebar promo item
+        $("#jpromo_adds .right_navi").each( function () {
+
+            // if right sidebar height exceeds window height
+            added_promos_height += $(this).height() + 10; /* adds the total height of each sidebar promo */
+            var visible_promos_area = $(window).height() - ($("#mybettingslip").height() + 10 + $("#right_navi #account").height()); /* calculates the height for the right sidebar promos which is visible on screen */
+            if (added_promos_height > visible_promos_area){
+                $(this).show().css({"opacity":"0","z-index":"-1"}); /* hide sidebar promo - with transparency (as this wouldn't affect position of next promos) */
+            }
+            else {
+                if ($(this).attr("id").indexOf("_netentminigame") != -1){
+                    $(this).show().css({"opacity":"1","z-index":"2"});
+                }
+                else if($(this).prev().is(":visible") || !$(this).prev().length) {
+                    $(this).show().css({"opacity":"1","z-index":"1"});
+                } /* show sidebar promo */
+            }
+
+            // check if each sidebar item overlaps on footer - uses the ""
+            if (overlaps( footer, $(this) ) == true){
+                //$(this).show().css({"opacity":"0","z-index":"-1"}); /* hide sidebar promo - with transparency (as this wouldn't affect position of next promos) */
+                $(this).hide();
+            }
+        });
+    }
+
+    /* ==================== IF RIGHT SIDEBAR POSITION IS STATIC ==================== */
+    else
+    {
+        $("#jpromo_adds .right_navi").show();
+
+        // on page load check if right sidebar promos will be hidden (on scroll), depending on the window height
+        if ($(document).scrollTop() < $("#right_navi").position().top){
+            if
+            (
+                ($("#main").height() > $("#left_navi").height()) &&
+                ($("#main").height() > $(window).height())
+            ){
+                var added_promos_height = 0;
+                var visible_promos_area = $(window).height() - ($("#mybettingslip").height() + 10 + $("#right_navi #account").height()); /* calculates the height for the right sidebar promos which is visible on screen */
+                $("#jpromo_adds .right_navi").each( function () {
+                    added_promos_height += $(this).height() + 10;
+                    if (added_promos_height > visible_promos_area){
+                        $(this).show().css({"opacity":"0","z-index":"-1"}); /* hide sidebar promo */
+                    }
+                    else {
+                        if ($(this).attr("id").indexOf("_netentminigame") != -1){
+                            $(this).show().css({"opacity":"1","z-index":"2"});
+                        }
+                        else{
+                            $(this).show().css({"opacity":"1","z-index":"1"});
+                        } /* show sidebar promo */
+                    }
+                });
+                return;
+            }
+        }
+
+        // if main height is bigger than left navigation
+        if ($("#main").height() > $("#left_navi").height()){
+
+            // hide promo items if they exceed main content height
+            var blank_area_under_betslip = $("#main").height() - ($("#mybettingslip").height() + 10 + $("#right_navi #account").height()); /* the content area under the betslip which is empty up till the end of the main content */
+
+            var added_promos_height = 0;
+            // for each sidebar promo
+            $("#jpromo_adds .right_navi").each( function () {
+                added_promos_height += $(this).height() + 10;
+                if (added_promos_height > blank_area_under_betslip){
+                    $(this).css({"opacity":"0","z-index":"-1"}); /* hide sidebar promo */
+                    $(this).hide();
+                }
+                else {
+                    if ($(this).attr("id").indexOf("_netentminigame") != -1){
+                        $(this).show().css({"opacity":"1","z-index":"2"});
+                    }
+                    else{
+                        $(this).show().css({"opacity":"1","z-index":"1"});
+                    } /* show sidebar promo */
+                }
+            });
+        }
+
+        // if left navigation height is bigger than main height
+        else {
+
+            // hide promo items if they exceed left sidebar content height
+            var blank_area_under_betslip = $("#left_navi").height() - ($("#mybettingslip").height() + 10 + $("#right_navi #account").height()); /* the content area under the betslip which is empty up till the end of the main content */
+
+            var added_promos_height = 0;
+            // for each promo - starting from the last
+            $("#jpromo_adds .right_navi").each( function () {
+                added_promos_height += $(this).height() + 10;
+                if (added_promos_height > blank_area_under_betslip){
+                    $(this).css({"opacity":"0","z-index":"-1"}); /* hide sidebar promo */
+                    $(this).hide();
+                }
+                else {
+                    if ($(this).attr("id").indexOf("_netentminigame") != -1) $(this).show().css({"opacity":"1","z-index":"2"});
+                    else $(this).show().css({"opacity":"1","z-index":"1"}); /* show sidebar promo */
+                }
+            });
+        }
+    }
+}
+
+/* ===== initialise right promos fix function ===== */
+$(window).load(function()
+{
+	// we need to show the dropdown underneath the mini games iframe
+	// $("#netent_mini").parent("div").height($("#netent_mini").parent("div").height() + 35);
+
+    // on page load
+    RightPromosOverlapCheck();
+
+    // on scroll
+    $(window).scroll(function(){
+        RightPromosOverlapCheck();
+    });
+
+    // on resize
+    $(window).resize(function(){
+        RightPromosOverlapCheck();
+    });
+});
+
+/**
+* Function which shows/hides the Betslip content, depending if it has odds listed
+*
+* - has to be called after page load, and *AFTER* an action re. to the betslip (ex: after adding a bet, deleting a bet)
+*/
+function toggleBetslipHiddenContent()
+{
+    var betslip_container = $("#mybettingslip");
+    var betslip_hidden_content = betslip_container.find(".betslip_init_hidden_content");
+
+    // if there ARE odds listed in the betslip
+    if (betslip_container.find(".betslip_item").length > 0 || $("#betslip_msg_green_text:visible").length > 0 || $("#betslip_msg_red_text:visible").length > 0)
+    {
+        // if betslip content is hidden, show it
+        if (betslip_container.hasClass("content_hidden") && !betslip_hidden_content.is(":visible"))
+        {
+            betslip_hidden_content.slideDown("fast", function(){
+                betslip_container.removeClass("content_hidden");
+
+                // call function which checks that right promos under betslip don't overlap on footer
+                RightPromosOverlapCheck();
+            });
+        }
+    }
+    // END: if there are odds listed in the betslip
+
+    // if there AREN'T any odds listed in the betslip
+    else
+    {
+        // if betslip content is visible, hide it
+        if (!betslip_container.hasClass("content_hidden") && betslip_hidden_content.is(":visible"))
+        {
+            betslip_hidden_content.slideUp("fast", function(){
+                betslip_container.addClass("content_hidden");
+
+                // call function which checks that right promos under betslip don't overlap on footer
+                RightPromosOverlapCheck();
+            });
+        }
+    }
+    // END: if there AREN'T any odds listed in the betslip
+}
+
+/**
+ * open a bet info popup
+ *
+ * @param popup - object - the popup containers (object) - .bets_info_popup
+ */
+function open_bet_info_popup(popup)
+{
+    if (popup === undefined || popup.length == 0){
+        return false;
+    }
+
+    var bets_info_container = popup.parents(".bets_info_content");
+    if (bets_info_container.length == 0 || bets_info_container.hasClass("popup_open") || popup.html() == ""){
+        return false;
+    } // stop if popup container doesn't exist or popup is already open or popup content is missing
+
+    // close button and its click functionality
+    if (popup.find(".popup_close").length == 0){
+        popup.append('<div class="popup_close"></div>');
+    }
+
+    // check if popup should open at the bottom
+    if (open_bet_info_popup_at_bottom(popup)) { popup.addClass("popup_bottom"); }
+    else { popup.removeClass("popup_bottom"); }
+
+    // open popup
+    popup.fadeIn("normal", function(){
+        bets_info_container.addClass("popup_open");
+
+        // clicking outside popup closes all popups
+        $('html').click(function() {
+            if ($(".bets_info_content.popup_open").length > 0) {
+                close_all_open_bet_info_popups();
+            }
+        });
+
+        // clicking on close button
+        popup.find(".popup_close").unbind('click');
+        popup.find(".popup_close").click(function(event) {
+            event.stopPropagation();
+            close_bet_info_popup(popup);
+            event.preventDefault();
+            return false;
+        });
+
+        // keep popup open when clicking inside
+        popup.unbind('click');
+        popup.click(function(event) {
+            event.stopPropagation();
+        });
+    });
+}
+
+/**
+ * close a bet info popup
+ *
+ * @param popup - object - the popup containers (object) - .bets_info_popup
+ */
+function close_bet_info_popup(popup)
+{
+    if (popup === undefined || popup.length == 0){
+        return false;
+    }
+
+    popup.fadeOut("fast", function(){
+        popup.parents(".bets_info_content").removeClass("popup_open");
+    });
+}
+
+/**
+ * close all open bet info popups
+ */
+function close_all_open_bet_info_popups()
+{
+    var bet_info_containers = $(".bets_info_content.popup_open");
+    bet_info_containers.each(function(){
+        var popup = $(this).find(".bets_info_popup");
+        close_bet_info_popup(popup);
+    });
+}
+
+/**
+ * check if popup should open at the bottom
+ *
+ * @param popup - object - the popup containers (object) - .bets_info_popup
+ * @return boolean - true if open at bottom
+ */
+function open_bet_info_popup_at_bottom(popup)
+{
+    var open_at_bottom = false;
+
+    // if in xtra bets and popup is from first odds row
+    var container_xtra = popup.parents(".sportbet_extra_list_table");
+    var xtra_tooltip = $("#container_xtra .tooltipMain");
+    if (container_xtra.length > 0 && container_xtra.siblings(".sportbet_extra_list_table:visible").length > 1 && container_xtra.prevAll(".sportbet_extra_list_table:visible").length == 0){
+        open_at_bottom = true;
+    }
+
+    // if in live dropdown bets and popup is from first odds row
+    var container_live_single = popup.parents(".live_quotelist");
+    var container_live_group = popup.parents(".live_game_ticker_odds_content");
+    if (container_live_single.length > 0 && container_live_single.siblings(".live_quotelist:visible").length > 1 && container_live_single.prevAll(".live_quotelist:visible").length == 0 && container_live_group.prevAll(".live_game_ticker_odds_content:visible").length == 0){
+        open_at_bottom = true;
+    }
+
+    return open_at_bottom;
+}
+
+/**
+ * the html content for each bets infobutton
+ *
+ * -- any html update should match bet_info_html_content function in GamesData component
+ *
+ * @param translation - string to populate inside popup
+ */
+function bet_info_html_content(translation)
+{
+    if (translation == "" || translation === undefined){
+        return "";
+    }
+    var html = '';
+    html += '<div class="bets_info_content">';
+    html += '  <div class="bets_info_button"></div>';
+    html += '  <div class="bets_info_popup">';
+    html += '    <p>' + translation + '</p>';
+    html += '  </div>';
+    html += '</div>';
+    return html;
+}
+
+/**
+ * initialise bet info functionality (click events)
+ * - @param container - optional - the object inside which to select elements
+ */
+function initialise_bet_info_functionality(container)
+{
+    if (container === undefined || container.length == 0){
+        container = $("#main");
+    }
+    if (container.length == 0){
+        return false;
+    }
+
+    // clicking on popup button
+    var bet_info_buttons = container.find(".bets_info_button");
+    bet_info_buttons.each(function(){
+        var popup = $(this).siblings(".bets_info_popup");
+        if (popup.length > 0) {
+            $(this).unbind('click');
+            $(this).click(function(event){
+                var popup_container = popup.parents(".bets_info_content");
+                if (popup_container.length > 0) {
+                    if (popup_container.hasClass("popup_open")) {
+                        close_bet_info_popup(popup);
+                    } else {
+                        close_all_open_bet_info_popups();
+                        open_bet_info_popup(popup);
+                    }
+                }
+                event.preventDefault();
+                return false;
+            });
+        }
+    });
+}
+
+/**
+ * Store open (selected) sportsbook league id to Sportsbook.openLeagues array
+ * @param leagueId
+ */
+function addOpenSportsbookLeagueId(leagueId) {
+    var index = Sportsbook.openLeagues.indexOf(parseInt(leagueId));
+    if (index === -1) {
+        Sportsbook.openLeagues.push(parseInt(leagueId));
+    }
+}
+
+/**
+ * Remove open (selected) sportsbook league id from Sportsbook.openLeagues array
+ * @param leagueId
+ */
+function removeOpenSportsbookLeagueId(leagueId) {
+    var index = Sportsbook.openLeagues.indexOf(parseInt(leagueId));
+    if (index > -1) {
+        Sportsbook.openLeagues.splice(index, 1);
+    }
+}
+
+/* ===== initialise betslip hidden content function ===== */
+$(document).ready(function()
+{
+    toggleBetslipHiddenContent();
+});
+$(window).load(function()
+{
+    $(window).on('beforeunload', function(event)
+    {
+        if(Bettingslip.placeBetActive == true){
+            return page_unload_message;
+        }
+    });
+});
+
+// initialise bets info popups functionality on page load
+$(document).ready(function()
+{
+    initialise_bet_info_functionality();
+});

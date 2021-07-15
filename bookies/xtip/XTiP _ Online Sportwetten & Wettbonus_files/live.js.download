@@ -1,0 +1,4086 @@
+/**
+ * (Replaces live.js) Handles the live games update-related functions/processes
+ * ----------------------------------------------------------------------------
+ *
+ * Unused functions from live.js which weren't duplicated in this file are:
+ * - handleFavorites, getGameIndex, getGameOpenedIndex, reload_live_page_if_page_is_empty, close_open_live_sport_category, get_open_selected_live_sports, add_leftmenu_active_classes_of_open_live_sports, remove_live_sport_leftmenu_item, check_if_live_container_has_games, add_live_icon_to_startscreen_active_live_sport_category_tab, game_pagination_get_current_details, game_pagination_go_to_page
+ */
+
+/*
+ * ======================================================================
+ * GENERAL/COMMON FUNCTIONS/VARIABLES
+ * ======================================================================
+ */
+
+var odds_update_active = false; // will be set to false once the updateFeed is initialised.
+
+// required for the odds update process (used for both left menu and live widgets)
+var arrBetsIDs = (arrBetsIDs !== undefined) ? arrBetsIDs : [];
+var arrBets = (arrBets !== undefined) ? arrBets : [];
+var arrGames = (arrGames !== undefined) ? arrGames : {};
+var sportsInBetslip = (sportsInBetslip !== undefined) ? sportsInBetslip : [];
+var feedTimeStamp = (feedTimeStamp !== undefined) ? feedTimeStamp : "";
+var feedCompleteTimeStamp = (feedCompleteTimeStamp !== undefined) ? feedCompleteTimeStamp : "";
+
+var updateFeed_timeout = ""; // will be used for the updateFeed odds update
+var mainbetids = [643, 149, 303, 275, 303, 463, 66, 2853, 2854, 4882, 6158];
+var lowest_odd_diff = {}; // object with all the bets's lowest sum of odds (used in update process) - emptied after each updateFeed success
+
+var sports_w_mult_periods = [2, 6, 10, 11, 12, 15, 23]; // sports with multiple periods - tennis, american football, baseball, ice-hockey, basketball, handball
+var cpvideo_mode = false;
+
+var lastLiveStreamVideoID = 0;//Last video id
+var openedVideoMatchID = null; //used if switched to different sport while watching video
+var lpInstance = null;//Video player instance
+var containerElMain = null;// Current video container
+var lastVideoBetRadarWidget = null; //Store bet radar widget for live video stream
+/*
+ * Initialise event handlers for live games when DOM was changed (load/reload)
+ * @param container - optional - search only inside this container
+ */
+function initialise_livegames_handlers_dom_changed(container) {
+    initialise_toggle_livedropdown_click_actions(container); // initialise click functions related to opening/closing the live dropdown
+    initialise_live_left_info_box_hover(container); // Initialise hover functions of Live Games' Left Info Box
+    initialise_bet_info_functionality(container); // bet info buttons click events
+}
+
+/* - replaces clearTipText() function in live.js */
+function clearTipText(Text) {
+    Text = Text.replace("(Live)", "");
+    Text = Text.replace("(live)", "");
+    Text = Text.replace("(Xtra)", "");
+    Text = Text.replace("(xtra)", "");
+    Text = Text.replace("(XZero)", "");
+    Text = Text.replace("(xzero)", "");
+
+    var rest_of_game_text = (rest_of_game_translation !== undefined && rest_of_game_translation != "") ? rest_of_game_translation : "Rest of Game"; // yalt text set in bettingslip.php
+    Text = Text.replace("(" + rest_of_game_text + ")", "");
+
+    return Text;
+}
+
+
+/*
+ * ======================================================================
+ * LIVE GAME ODD ROWS
+ * ======================================================================
+ */
+
+/**
+ * after a reload restore the view as it was before (open games, header)
+ *
+ * replaces the original restoreView() function in live.js
+ *
+ * @param - widget_id - optional - if set, only the games in the provided widget are restored
+ */
+function restoreView(widget_id) {
+    var game_after_opengame;
+
+    if (typeof arrWidgetData == "undefined") return false; // function is useless if there are no live games loaded
+
+    var widgets = arrWidgetData; // restore view only in all widgets
+    if (widget_id) // restore view only in one widget
+    {
+        if (arrWidgetData[widget_id]) {
+            widgets = {};
+            widgets[widget_id] = arrWidgetData[widget_id];
+        }
+    }
+
+    // for each widget
+    $.each(widgets, function (widget_id, widget_data) {
+        var widget = $("#" + widget_id);
+
+        var open_betradar_widget = parseInt(widget.attr("data-open_betradar_type")); // widget with open betradar for each game
+
+        // restore view of only visible and live games widgets
+        if (widget.is(":visible") && (widget.attr("data-game_category") == "live" || widget.attr("data-game_category") == "oddswidget")) {
+            // for each game inside the widget
+            $.each(widget_data["games"], function (index, game_id) {
+                var this_game_container = $("#mc-game_container_" + game_id);
+
+                // if game is found in arrGamesOpened array
+                if (arrGamesOpened[widget_id] !== undefined && arrGamesOpened[widget_id][game_id] !== undefined) {
+                    game_after_opengame = false; // is the element after an open (dropdown) one  
+
+                    // get previous game
+                    var previous_game_container = this_game_container.prevAll(".live_gamecontainer").first();
+                    if (previous_game_container.length > 0) {
+                        var previous_game_id = previous_game_container.attr("data-gameid");
+
+                        // search for an element with the ID of the previous and which is open
+                        if (arrGamesOpened[widget_id][previous_game_id] !== undefined && arrGamesOpened[widget_id][previous_game_id].opened == true) {
+                            game_after_opengame = true; // the previous element is open
+                        }
+                    }
+
+                    // widget with open-betradar games
+                    if (open_betradar_widget > 0) {
+                        // restore games with open dropdown odds (by default they're closed)
+                        if (arrGamesOpened[widget_id][game_id].dropdown_odds_opened == true) {
+                            toggle_open_betradar_dropdown_odds($("#mc-game_container_" + game_id), 'show', false);
+                        } else {
+                            this_game_container.find(".live_ticker_close_button").hide(); // hide close button if dropdown odds are hidden
+                        }
+
+                        if (arrGamesOpened[widget_id][game_id].betr_open) {
+                            checkIfBetradarAvailable(game_id, widget_id);
+                        }
+
+                        // if betradar ticker should be opened in half (up till timeline)
+                        if (arrGamesOpened[widget_id][game_id].open_btr_type == 2) {
+                            widget.find("div[id^='mc-newliveticker" + game_id + "']").addClass("liveticker_half_open");
+                        }
+                        else {
+                            widget.find("div[id^='mc-newliveticker" + game_id + "']").removeClass("liveticker_half_open");
+                        }
+
+                        if (arrGamesOpened[widget_id][game_id].ticker_opened && widget.find("div[id^='mc-newliveticker" + game_id + "']").hasClass('liveticker_extern_closed')) {
+                            toggleBetradarTicker('show', game_id, widget_id); // in ticker.js
+                        }
+                    }
+
+                    // other normal widgets
+                    else if (arrGamesOpened[widget_id][game_id].opened == true) //if game is open, dont display header
+                    {
+                        var game_dropdown = $("#mc-scoreboard_" + game_id);
+                        if (game_dropdown.css('display') == "none") // if the dropdown is not display already, display it
+                        {
+                            game_dropdown.toggle();
+                        }
+
+                        if (arrGamesOpened[widget_id][game_id].betr_open) {
+                            checkIfBetradarAvailable(game_id, widget_id);
+                        }
+
+                        if (arrGamesOpened[widget_id][game_id].ticker_opened && $("#mc-tennis_toggle_button_" + game_id).hasClass('close')) // restore the open messages dropdown menu
+                        {
+                            toggleCPTicker(game_id, widget_id); // in ticker.js
+                        }
+                        else if (arrGamesOpened[widget_id][game_id].ticker_opened && widget.find("div[id^='mc-newliveticker" + game_id + "']").hasClass('liveticker_extern_closed')) {
+                            toggleBetradarTicker('show', game_id, widget_id); // in ticker.js
+                        }
+
+                        $("#mc-sb_head_" + game_id).parent().css("display", "none"); // hide the normal display of the game
+                        $("#mc-header_next_game_" + game_id).css("display", "none");
+                    }
+                    else if ((previous_game_container.length > 0) && (game_after_opengame)) //if the game before this one is open, display header
+                    {
+                        $("#mc-header_next_game_" + game_id).css("display", "block");
+                    }
+                    else if ((previous_game_container.length == 0) && (arrGamesOpened[widget_id][game_id].opened != true)) //if first element and not open always display header
+                    {
+                        $("#mc-header_next_game_" + game_id).css("display", "block");
+                    }
+                    else {
+                        $("#mc-header_next_game_" + game_id).css("display", "none");
+                    }
+
+                    score_ticker_hor_scroll(game_id, "update"); // update hor scores scroll if available
+                    tickerScrollRight(game_id, 1, widget_id); //after display block, because otherwise the html elements have no offset (which is need to loacte the last element)
+                } // End: if game is found in arrGamesOpened array
+
+                // Add game to arrGamesOpened
+                else {
+                    if (arrGamesOpened[widget_id] === undefined) arrGamesOpened[widget_id] = {};
+                    arrGamesOpened[widget_id][game_id] = {id: game_id, opened: false, ticker_opened: false};
+                }
+
+            }); // End: for each live game
+        } // end: restore view of only visible and live games widgets
+    }); // end: for each widget      
+}
+
+/*
+ * ======================================================================
+ * LIVE DROPDOWN
+ * ======================================================================
+ */
+/*
+ * Load html5 video player for live stream bet radar videos
+ * Riste Pazarkoski
+ * 14.01.2016
+ */
+function loadVideoPlayer(src, gameID, videoWrapTemplate, statID, msg) {
+    if ($("#live-video-stream-container").length) {
+        openedVideoMatchID = statID;
+        var videoHolder = $("#live-video-stream-container");
+        videoHolder.empty().append(videoWrapTemplate);
+        var videoHolderID = 'cashpoint-video-holder' + gameID;
+
+        //Betradar requires to limit live stream video size to be maximum 25% of the screen in width
+        //Uncomment this if required
+        //var containerPercentWidth = ($("#" + videoHolderID).width() / $(window).width()) * 100;
+        //if(containerPercentWidth > 25){
+        //    var maximumVideoHolderWidth = ($(window).width() * 25) / 100;
+        //    $("#" + videoHolderID).css({width: maximumVideoHolderWidth, margin: '0 auto'});
+        //}
+        //Recreate the player with new soruce
+        var datetime = new Date().getTime();
+        var videoID = 'cashpoint-video-' + gameID + datetime;
+        lastLiveStreamVideoID = videoID;
+        var videoEl = document.createElement('video');
+        videoEl.setAttribute('id', videoID);
+        videoEl.style.width = '100%';
+        videoEl.style.height = '300px';
+        videoEl.setAttribute('preload', 'none');
+        //Source
+        var vidSource = document.createElement('source');
+        vidSource.setAttribute('type', 'application/dash+xml');
+        vidSource.setAttribute('src', src);
+        if(typeof msg !== 'undefined' && msg !== ''){
+            videoHolder.html('<div style="padding:40px 20px 40px 20px; color:#fff; text-align:center;">' + msg + '</div>');
+            $("body, html").stop().animate({
+                scrollTop : 0
+            }, 300);
+            videoHolder.show();
+            return;
+        }
+        videoEl.appendChild(vidSource);
+        videoHolder.find("div.cashpoint-video-holder").append(videoEl);
+        var currScrollPos = $(window).scrollTop();
+        $("body, html").stop().animate({
+            scrollTop : 0
+        }, 300);
+        videoHolder.show();
+        lpInstance = window.liveplayer(videoHolderID, {
+            videoHandlers: ['dash'],
+            autoplay: true,
+            loglevel: 0,
+            fillContainer: true,
+            ui:{
+                fullscreen: false
+            }
+        });
+        //initialize live betradar ticker
+        betradarTickerFoLiveVideoStream(statID, "ticker-live-wrap", gameID, 0);
+        //Close the video
+        var videoPopupClose = $("div.close-video-popup");
+        videoPopupClose.off("click");
+        videoPopupClose.prop("onclick", null);
+        videoPopupClose.click(function(e){
+            disposeVideo(currScrollPos);
+        });
+    }
+}
+/**
+ * Delete last video object
+ * Riste Pazarkoski
+ * 15.01.2016
+ */
+function disposeVideo(currScrollPos) {
+    if (typeof lastLiveStreamVideoID !== 'undefined' && lastLiveStreamVideoID != 0) {
+        if(lpInstance !== null){
+            lpInstance.remove();
+            lpInstance = null;
+            lastLiveStreamVideoID = 0;
+            openedVideoMatchID = null;
+            if (lastVideoBetRadarWidget !== null) {
+                SRLive.removeWidget(lastVideoBetRadarWidget);
+                lastVideoBetRadarWidget = null;
+            }
+        }
+    }
+    $("#live-video-stream-container").fadeOut(300).empty();
+    if(typeof currScrollPos !== 'undefined'){
+        $("body, html").stop().animate({
+            scrollTop : currScrollPos
+        }, 300);
+    }
+}
+
+/*
+ * Get video url by game id
+ */
+function getVideoUrlByGameID(gameID, callback){
+    $.ajax({
+        url: baseURL + '/BetRadar/GetMpegDashUrl',
+        data: {
+            mid : gameID
+        },
+        success: function(data){
+            if(typeof callback !== 'undefined'){
+                callback(data);
+            }
+        }
+    });
+}
+/**
+ * - Modified version of Betradar live ticker
+ * Only displayed when live vieo stream is active
+ *
+ * @param gameid
+ * @param widget_id
+ * @param open_betradar_type - int - (0 - closed, 1 - fully open on page load, 2 - half way open up till timeline)
+ */
+function betradarTickerFoLiveVideoStream(gameid, widget_id, statid, open_betradar_type) {
+
+    var ticker_container = $("#" + widget_id);
+    if (statid !== undefined && parseInt(statid) > 0) {
+        addBetradarTickerForLiveVideoStream(gameid, statid, widget_id, open_betradar_type); // in ticker.js
+    }
+}
+/* Initialise click functions related to opening/closing the live dropdown
+ * - @param container - optional - the object inside which to select elements
+ */
+function initialise_toggle_livedropdown_click_actions(container) {
+    if (container === undefined || container.length == 0) container = $("#main");
+    if (container.length == 0) return false;
+
+    // ------ opening live dropdown -------
+    var dropdown_openers = container.find(".live_teamname, .live_clickable, .xtra_counter:not(.showXtra):not(.gameOver)");
+
+    dropdown_openers.off('click');
+    dropdown_openers.prop("onclick", null);
+    dropdown_openers.on("click", function (event) {
+        event.preventDefault();
+        var live_gamecontainer = $(this).parents(".live_gamecontainer");
+        toggleGame(live_gamecontainer, 'show');
+
+        return false;
+    });
+
+    //--------- Live video Streaming ------------
+    var videoStreamTrigger = $("div.stream_video_wrapper a");
+    videoStreamTrigger.off('click');
+    videoStreamTrigger.prop("onclick", null);
+    videoStreamTrigger.click(function(e){
+        if(isLogged == false || typeof isLogged  === 'undefined'){
+            openPopupNotification("text_popup", "blocked_video");
+            return false;
+        }
+        var inStatId = $(this).attr('data-statid');
+        var inGameId = $(this).attr('data-gameid');
+        var containerEl = $("#mc-scoreboard_" + inGameId);
+        var containerClasses = containerEl.attr('class');
+        containerElMain = containerEl;
+        var videoWrapTemplate = '<div class="close-video-popup"><img src="/images/icon/icon_close_dark.png" alt="close" /></div>';
+        videoWrapTemplate += '<div id="ticker-live-wrap" class="'+ containerClasses +' betradar2_x betradar_ticker_styling"></div>';
+        videoWrapTemplate += '<div id="cashpoint-video-holder'+ inStatId +'" class="cashpoint-video-holder" style="width: 100%; height: 400px;"></div>';
+        videoWrapTemplate += '</div>';
+        cpvideo_mode = true;
+        $("body, html").stop().animate({
+            scrollTop : 0
+        }, 300);
+        $("#live-video-stream-container").html('<div style="padding:40px 20px 40px 20px; color:#fff; text-align:center;"><i class="widget-loader"></i></div>').show();
+        getVideoUrlByGameID(inStatId, function(videoUrl){
+            var msg = '';
+            try{
+                var decodedData = $.parseJSON(videoUrl);
+                if(typeof decodedData !== 'undefined' && typeof decodedData.message !== 'undefined' && decodedData.message !== ''){
+                    msg = decodedData.message;
+                }
+            }
+            catch(err){
+                /*console.log(err);*/
+            }
+            loadVideoPlayer(videoUrl, inStatId, videoWrapTemplate, inGameId, msg);
+        });
+
+
+        if($('.main_banner').length > 0){
+            $('.main_banner').remove();
+        }
+    });
+
+    // ------ closing live dropdown -------
+    var dropdown_closers = container.find(".liveticker_close_button, .live_ticker_close_button, .live_dropdown_flag_bottom, .ticker.live_sports .bar");
+
+    dropdown_closers.off('click');
+    dropdown_closers.prop("onclick", null);
+    dropdown_closers.click(function (event) {
+        event.preventDefault();
+        cpvideo_mode = false;
+        var live_gamecontainer = $(this).parents(".live_gamecontainer");
+        toggleGame(live_gamecontainer, 'hide');
+
+        return false;
+    });
+} // end: initialise_toggle_livedropdown_click_actions
+
+/* Update the xtra bets counter
+ * @param gamecontainer - object - the .live_gamecontainer element inside which to update counter
+ * @param game_id - the id of the live game whose counter needs to be updated.
+ */
+function update_live_games_xtra_counter(gamecontainer, game_id) {
+    if ((gamecontainer.length == 0 || gamecontainer == '') && game_id !== undefined) {
+        gamecontainer = $("#mc-game_container_" + game_id);
+    }
+    if (gamecontainer.length == 0) return false;
+
+    // for each live game
+    gamecontainer.each(function (idx) {
+        // check if there's a counter 
+        if ($(this).find(".xtra_counter").length > 0) {
+            // count number of more bets (hidden)
+            var number_of_bets = $(this).find(".live_quotelist").length;
+            var gameid = $(this).find(".scores").attr('data-gameid');
+
+            // update counter
+            $(this).find(".xtra_counter_digit").html(number_of_bets);
+
+            // if count is 0 or 1, change counter to disabled mode
+            if (number_of_bets < 1) {
+                // add disabled class
+                $(this).find(".xtra_counter").addClass("disabled");
+                // change icon to disabled
+                $(this).find(".xtra_counter_icon").html('<img src="' + baseURL + '/images/icon/review_icon.jpg" class="xtra_deactivated_icon icon_hover_opacity">');
+                // clear counter digits (to hide 0 or 1)
+                $(this).find(".xtra_counter_digit").html('');
+
+                var update_text = (bets_overlay_update_text !== undefined && bets_overlay_update_text != "") ? bets_overlay_update_text : "The odds are currently being updated.";
+                if ($(this).find(".bets_overlay.odd_update").length == 0) {
+                    $(this).find(".live_right_section").prepend('<div class="bets_overlay odd_update"><div class="overlay_wrapper"><span id="liveOddsAreCurrentlyBeingUpdated_' + idx + '"><img src="/images/icon/bets_small_loader.gif">' + update_text + '</span></div></div>');
+                }
+                $(this).find(".bets_overlay.odd_update").show();
+                $(this).find(".bets_overlay.live_clickable").hide();
+            }
+            // else: show
+            else {
+                if ($(this).find(".live_maincat").length <= 0) {
+                    if (arrGames[gameid] !== undefined && arrGames[gameid]["gamestate"] == 4) {
+                        var update_text = (bets_overlay_shootout_text !== undefined && bets_overlay_shootout_text != "") ? bets_overlay_shootout_text : "";
+                        if ($(this).find(".bets_overlay.lc_11").length == 0) {
+                            $(this).find(".live_right_section").prepend('<div class="bets_overlay live_clickable lc_11"><div class="overlay_wrapper"><span id="liveOddsAreCurrentlyBeingUpdated' + idx + '">' + update_text + '</span></div></div>');
+                        }
+                        $(this).find(".bets_overlay.odd_update").hide();
+                        $(this).find(".bets_overlay.live_clickable").hide();
+                        $(this).find(".bets_overlay.live_clickable.lc_11").show();
+                    } else {
+                        var update_text = (bets_overlay_more_bets_text !== undefined && bets_overlay_more_bets_text != "") ? bets_overlay_more_bets_text : "";
+                        if ($(this).find(".bets_overlay.lc_eo").length == 0) {
+                            $(this).find(".live_right_section").prepend('<div class="bets_overlay live_clickable lc_eo"><div class="overlay_wrapper"><spanid="oddsAreCurrentlyBeingUpdated' + gameid + '">' + update_text + '</span></div></div>');
+                        }
+                        $(this).find(".bets_overlay.odd_update").hide();
+                        $(this).find(".bets_overlay.live_clickable").hide();
+                        $(this).find(".bets_overlay.live_clickable.lc_eo").show();
+                    }
+                }
+                else {
+                    $(this).find(".bets_overlay.live_clickable").hide();
+                    $(this).find(".bets_overlay.odd_update").hide();
+                }
+
+                // remove disabled class
+                $(this).find(".xtra_counter").removeClass("disabled");
+                // change icon to enabled
+                $(this).find(".xtra_counter_icon").html('<img src="' + baseURL + '/images/icon/icon_xtra_dark.png" class="icon_hover_opacity">');
+            }
+        } // end: check if there's a counter
+
+    }); // end: for each .live_gamecontainer
+}
+
+/*
+ * ======================================================================
+ * LIVE GAMES' LEFT INFO BOX
+ * ======================================================================
+ */
+
+/* Initialise hover functions of Live Games' Left Info Box
+ * - @param container - optional - the object inside which to select elements
+ */
+function initialise_live_left_info_box_hover(container) {
+    if (container === undefined || container.length == 0) container = $("#main");
+    if (container.length == 0) return false;
+
+    // ========= on hover of each live left info box =========
+    var width_of_left_info_box_when_closed = 83; // if this is changed, edit also width of .live_left_info_box_container and .live_left_info_box in override.css
+
+    // ON HOVER
+    var left_info_box = container.find(".live_left_info_box");
+    left_info_box.off(); // resent event handlers first
+    left_info_box.hover(function () {
+            // clear timeout used to wait 800ms before opening box on hover
+            clearTimeout($(this).data('timeout'));
+
+            // if info box is visible (not hidden with countdown or loading)
+            if ($(this).find(".countdown_in_left_info_box").length == 0) {
+                var this_box = $(this);
+                // wait  800ms before opening box
+                var delayed_onhover_action = setTimeout(function () {
+                    var inner_content_width = this_box.find(".live_left_info_box_content").width();
+                    // ---------- open (animate) info box ----------
+                    this_box.animate({"width": (inner_content_width + 15) + "px"}, 400, function () {
+                        // add open class
+                        this_box.addClass("open");
+                        // on click of close arrow
+                        this_box.find(".left_info_box_arrow").click(function (event) {
+                            // close (animate) info box
+                            $(this).parents(".live_left_info_box").animate({"width": width_of_left_info_box_when_closed + "px"}, 300, function () {
+                                // add open class
+                                $(this).removeClass("open");
+                            });
+                            // stop ticker from opening
+                            event.stopPropagation();
+                            return false;
+                        });
+                        // end: on click of close arrow
+
+                        // on click of box when its open, open ticker
+                        this_box.click(function () {
+                            var live_gamecontainer = $(this).parents(".live_gamecontainer");
+                            toggleGame(live_gamecontainer, 'show');
+                            return false;
+                        });
+                        // end: on click of box when its open
+                    });
+                    // ---------- end: open info box ----------
+                }, 800);
+                $(this).data('timeout', delayed_onhover_action);
+                // end: wait 800ms before opening box
+            }
+            // end: if info box is visible (not hidden with countdown or loading)
+        },
+        // END: ON HOVER
+
+        // ON MOUSEOUT
+        function () {
+            // clear timeout used to wait 1 sec before opening box on hover
+            clearTimeout($(this).data('timeout'));
+            // close (animate) info box, if it is open
+            $(this).animate({"width": width_of_left_info_box_when_closed + "px"}, 200, function () {
+                // remove open class
+                $(this).removeClass("open");
+            });
+            // end: close info box
+        });
+    // END: ON MOUSEOUT
+    // ========= end: on hover of each live left info box ========= 
+
+    // check if live game left info box has hidden content (ex: HT scores, set results) to update the arrow
+    check_if_live_leftinfobox_has_hidden_content();
+}
+
+/*
+ * function to check if live game left info box has hidden content (ex: HT scores, set results)
+ * - on page load it is set to disabled (showing no arrow)
+ * - on updatefeed function, remove disabled class (show arrow) if there is hidden content
+ */
+function check_if_live_leftinfobox_has_hidden_content() {
+    // for each live game
+    $(".live_gamecontainer .live_left_info_box").each(function () {
+        // if left info box contains content in the hidden section, remove disabled class from arrow
+        if ($(this).find(".info_box_hidden_content .info_box_col").length > 0) {
+            $(this).find(".left_info_box_arrow").removeClass("disabled");
+        }
+        //  if left info box contains no hidden content, add disabled class to arrow
+        else {
+            $(this).find(".left_info_box_arrow").addClass("disabled");
+        }
+    });
+    // end: for each live game
+}
+
+/*
+ * ======================================================================
+ * UPDATING OF LIVE ODDS (previously: updateFeed())
+ * ======================================================================
+ */
+
+/*
+ * function which checks if there is only one or multiple active LIVE sport(s) inside the page,in the betslip, and in the left life menu
+ *
+ * @return - betslip - array
+ *         - widgets - array
+ *         - menu - array
+ *         - page (overall) - array
+ *                   - ['status'] - "single_sport / multiple_sports / empty"
+ *                                       - if "single_sport": there is only one active live sport
+ *                                       - if "multiple_sports": more than one
+ *                                       - if "empty": none
+ *                   - ['sport'] - the sport ID if 'status' is 'single_sport'
+ */
+function multiple_live_sports_status() {
+    var status_betslip = "multiple_sports";
+    var status_widgets = "multiple_sports";
+    var status_menu = "multiple_sports";
+    var status_page = "multiple_sports";
+    var sport_betslip = ""; // if only one live sport active
+    var sport_widgets = ""; // if only one live sport active
+    var sport_menu = ""; // if only one live sport active
+    var sport_page = ""; // if only one live sport active
+
+    // -------- Betslip --------
+
+    var betslip_sports = update_LiveSportsInBetslip()[0]; // array with live sport IDs in the betslip
+    var live_games_in_betslip = update_LiveSportsInBetslip()[1]; // true or false - if "true", there are type L or X games in Bettingslip array
+
+    if ((betslip_sports === undefined || betslip_sports.length == 0) && live_games_in_betslip == false) {
+        status_betslip = "empty";
+    }
+    else if (betslip_sports.length == 1 && live_games_in_betslip == true) {
+        status_betslip = "single_sport";
+        sport_betslip = parseInt(betslip_sports[0]);
+    }
+
+    // -------- Widgets --------
+
+    var filter_widgets = {
+        'game_category': 'live'
+    };
+    var widget_sports = get_open_widgets_single_parameter("sport_id", filter_widgets);
+
+    if (widget_sports === undefined || widget_sports.length == 0) {
+        status_widgets = "empty";
+    }
+    else if (widget_sports.length == 1) {
+        status_widgets = "single_sport";
+        sport_widgets = parseInt(widget_sports[0]);
+    }
+    // check for multiple instances of same sport (to treat as single sport)
+    else if (widget_sports.length > 1) {
+        var widget_sports_list = [];
+        widget_sports_list[0] = widget_sports[0]; // add first sport for comparison
+
+        // if any of the other sports (hence loop starts at i=1) is different than the first one, then there is no single sport (multiple sports)
+        var single_sport = true;
+        for (var i = 1, len = widget_sports.length; i < len; i++) {
+            if (widget_sports_list.indexOf(widget_sports[i]) == -1) {
+                single_sport = false;
+            }
+        }
+        if (single_sport == true) {
+            status_widgets = "single_sport";
+            sport_widgets = parseInt(widget_sports[0]);
+        }
+    }
+
+    // -------- Left Live Menu --------
+
+    var menu_state = leftmenu_live_current_state();
+    var menu_open = menu_state['menu_open'];
+    var menu_multiple_open_sports = menu_state['multiple_open_sports'];
+    var menu_open_sport_ids = menu_state['open_sport_ids']; // array
+    var menu_sports = menu_state['sports']; // {} object
+
+    if (!menu_open || Object.keys(menu_sports).length == 0) {
+        status_menu = "empty";
+    }
+    else if (menu_open && !menu_multiple_open_sports && menu_open_sport_ids.length > 0) {
+        status_menu = "single_sport";
+        sport_menu = parseInt(menu_open_sport_ids[0]);
+    }
+
+    // -------- Page (Overall) --------
+
+    if (status_betslip == "empty" && status_widgets == "empty" && status_menu == "empty") {
+        status_page = "empty";
+    }
+    else if (
+        // all elements with the same single sport
+    (status_betslip == "single_sport" && status_widgets == "single_sport" && status_menu == "single_sport" && sport_betslip == sport_widgets && sport_widgets == sport_menu)
+        // betslip empty, widgets & menu with same single sport
+    || (status_betslip == "empty" && live_games_in_betslip == false && status_widgets == "single_sport" && status_menu == "single_sport" && sport_widgets == sport_menu)
+        // betslip & menu empty, widgets with single sport
+    || (status_betslip == "empty" && live_games_in_betslip == false && status_widgets == "single_sport" && status_menu == "empty")
+    ) {
+        status_page = "single_sport";
+        sport_page = sport_widgets;
+    }
+
+    // Return values
+    var betslip = [];
+    betslip['status'] = status_betslip;
+    betslip['sport'] = sport_betslip;
+    var widgets = [];
+    widgets['status'] = status_widgets;
+    widgets['sport'] = sport_widgets;
+    var menu = [];
+    menu['status'] = status_menu;
+    menu['sport'] = sport_menu;
+    var page = [];
+    page['status'] = status_page;
+    page['sport'] = sport_page;
+    return {
+        'betslip': betslip,
+        'widgets': widgets,
+        'menu': menu,
+        'page': page
+    }
+}
+
+/* 
+ * reset widget data which was previously populated
+ *
+ * - remove games/bets entries in arrGames, arrBets gameMsgs, activeItems
+ * - empty games and bets list in arrWidgetData for this widget
+ * - if set to delete widget - remove the widget's entry in arrWidgetData
+ *
+ * @param widget_id
+ * @param widget_delete - delete widget data
+ */
+function reset_widget_games_data(widget_id, widget_delete) {
+    if (widget_id === undefined) return false;
+
+    var active_gameids = get_all_live_gameids(false, true); // all visible live games inside the page
+
+    // reset games
+    $.each(arrWidgetData[widget_id]["games"], function (index, game_id) {
+        if (active_gameids.indexOf(parseInt(game_id)) == -1) {
+            delete arrGames[game_id];
+            delete gameMsgs[game_id];
+            delete activeItems[game_id];
+        }
+    });
+
+    // reset bets data
+    $.each(arrWidgetData[widget_id]["bets"], function (index, bet_id) {
+        // remove bet IDs which were loaded from this widget
+        for (i = 0; i < arrBetsIDs.length; i++) {
+            if (bet_id == arrBetsIDs[i].id && active_gameids.indexOf(parseInt(arrBetsIDs[i].gameid)) == -1) {
+                arrBetsIDs.splice(i, 1);
+            }
+        }
+        // store old bets from this widget in an array, so that they can be compared after the update ones are "refilled" in the same array further down
+        arrBetsOld[widget_id] = {};
+        for (i = 0; i < arrBets.length; i++) {
+            if (bet_id == arrBets[i].id) {
+                arrBetsOld[widget_id][bet_id] = arrBets[i];
+
+                if (active_gameids.indexOf(parseInt(arrBets[i].gameid)) == -1) {
+                    arrBets.splice(i, 1);
+                }
+            }
+        }
+    });
+
+    // reset all this widget's games and bets before repopulating
+    arrWidgetData[widget_id]["games"] = [];
+    arrWidgetData[widget_id]["bets"] = [];
+
+    // store live games opened data in separate array and empty original array
+    arrGamesOpenedOld[widget_id] = arrGamesOpened[widget_id];
+    arrGamesOpened[widget_id] = {};
+
+    // if set to delete widget, remove it's widget data completely
+    if (widget_delete == true) {
+        delete arrWidgetData[widget_id];
+        delete arrGamesOpened[widget_id];
+    }
+}
+
+/* 
+ * refresh live games arrGamesOpened data
+ *
+ * - creates entry for a live game in the arrGamesOpened object.
+ * -- if data for it already exists, such data is kept as is.
+ *
+ * @param widget_id 
+ * @param game_id
+ */
+function refresh_live_opened_games_data(widget_id, game_id) {
+    if (arrGamesOpened[widget_id] === undefined) arrGamesOpened[widget_id] = {};
+
+    // default (initial) values
+    var opened = false;
+    var ticker_opened = false;
+    var betr_open = false;
+    var dropdown_odds_opened = false;
+    var open_btr_type = 0;
+
+    // check if data is already set for such game
+    if (arrGamesOpenedOld[widget_id] !== undefined && arrGamesOpenedOld[widget_id][game_id] !== undefined) {
+        opened = arrGamesOpenedOld[widget_id][game_id].opened;
+        ticker_opened = arrGamesOpenedOld[widget_id][game_id].ticker_opened;
+        betr_open = arrGamesOpenedOld[widget_id][game_id].betr_open;
+        dropdown_odds_opened = arrGamesOpenedOld[widget_id][game_id].dropdown_odds_opened;
+        open_btr_type = arrGamesOpenedOld[widget_id][game_id].open_btr_type;
+    }
+
+    // update arrGamesOpened entry
+    arrGamesOpened[widget_id][game_id] = {
+        id: game_id,
+        opened: opened,
+        open_btr_type: open_btr_type,
+        ticker_opened: ticker_opened,
+        betr_open: betr_open,
+        dropdown_odds_opened: dropdown_odds_opened
+    };
+}
+
+/* 
+ * add live game data to arrGames array and game's bets data to arrBets
+ *
+ * @param game_data - json_encoded processed game data
+ */
+function add_live_game_data(game_data) {
+
+    if (game_data.id !== undefined) {
+        // if game wasn't already loaded
+        if (arrGames[game_data.id] === undefined) {
+            arrGames[game_data.id] = {
+                id: game_data.id,
+                sport_id: game_data.sport_id,
+                sport_name: game_data.sport_name,
+                league: game_data.league,
+                team1: game_data.team1,
+                team2: game_data.team2,
+                team1id: game_data.team1id,
+                team2id: game_data.team2id,
+                team1fav: game_data.team1fav,
+                team2fav: game_data.team2fav,
+                time: game_data.time,
+                timestarted: game_data.timestarted,
+                result_now: game_data.result_now,
+                result_pn1: game_data.result_pn1,
+                result_periods: (game_data.period_results !== undefined) ? game_data.period_results : '',
+                server: game_data.server,
+                setpoints: game_data.setpoints,
+                halftime: game_data.halftime,
+                index_main: game_data.bet_index_set1,
+                index_ng: game_data.bet_index_set2,
+                index_ou: game_data.bet_index_set3,
+                index_main_ht: game_data.bet_index_set4,
+                index_ng_ht: game_data.bet_index_set5,
+                index_ou_ht: game_data.bet_index_set6,
+                index_penalty: game_data.bet_index_penalty,
+                textid_ng: game_data.textid_set2,
+                textid_ou: game_data.textid_set3,
+                textid_ng_ht: game_data.textid_set5,
+                textid_ou_ht: game_data.textid_set6,
+                textid_penalty: game_data.textid_penalty,
+                gamestate: game_data.gamestate,
+                card_team1_yellow: game_data.card_team1_yellow,
+                card_team1_red: game_data.card_team1_red,
+                card_team2_yellow: game_data.card_team2_yellow,
+                card_team2_red: game_data.card_team2_red,
+                statid: game_data.statid,
+                statlink: game_data.statlink,
+                gamestatus: game_data.gamestatus,
+            };
+
+            // add game's bets to arrBets and arrBetsIDs array
+            $.each(game_data.bets, function (index, bet) {
+                add_live_bet_data(game_data.id, bet);
+            });
+        } // end: if game wasn't already loaded
+
+        // if game was already loaded
+        else {
+            // set/update game text ids (for bet market columns)
+            arrGames[game_data.id].textid_ng      = game_data.textid_set2;
+            arrGames[game_data.id].textid_ou      = game_data.textid_set3;
+            arrGames[game_data.id].textid_ng_ht   = game_data.textid_set5;
+            arrGames[game_data.id].textid_ou_ht   = game_data.textid_set6;
+            arrGames[game_data.id].textid_penalty = game_data.textid_penalty;
+        }
+    }
+}
+
+/* 
+ * add live bet data to arrBets amd arrBetsIDs array
+ *
+ * @param game_data - json_encoded processed game data
+ */
+function add_live_bet_data(game_id, bet_data) {
+    if (bet_data.id !== undefined && game_id !== undefined) {
+        arrBetsIDs.push({
+            idBet: bet_data.id,
+            idLive: game_id + '_' + bet_data.textid,
+            idBS: 'ti' + bet_data.id,
+            gameid: game_id,
+        });
+
+        arrBets.push({
+            gameid: game_id,
+            id: bet_data.id,
+            text_id: bet_data.textid,
+            text: bet_data.text,
+            odd1: bet_data.odd1,
+            odd2: bet_data.odd2,
+            odd3: bet_data.odd3,
+            tiptext1: bet_data.tiptext1,
+            tiptext2: bet_data.tiptext2,
+            tiptext3: bet_data.tiptext3,
+            oc: bet_data.oc,
+            anker: bet_data.anker,
+            handicap: bet_data.tennis_game,
+            betsort: bet_data.betsort,
+            oddtype: (bet_data.oddtype.length > 0) ? bet_data.oddtype : "l",
+            team1: bet_data.team1,
+            team2: bet_data.team2,
+            combi_cat: bet_data.combicat,
+            infoText: bet_data.infoText,
+        });
+    }
+}
+
+/* 
+ * check for updated bets
+ *
+ * - compare bet data from previous load (in arrBetsOld) with new bet data
+ *
+ * @param widget_id 
+ */
+function check_for_updated_bets_in_widget(widget_id) {
+    if (widget_id === undefined) return false;
+
+    $.each(arrBetsOld[widget_id], function (old_bet_id, old_bet) {
+        for (var j = 0; j < arrBets.length; j++) {
+            var new_bet = arrBets[j];
+            if (old_bet.gameid == new_bet.gameid && old_bet.text_id == new_bet.text_id) {
+                if (old_bet.odd1 != new_bet.odd1 || old_bet.odd2 != new_bet.odd2 || old_bet.odd3 != new_bet.odd3) {
+                    betUpdateData(new_bet, old_bet.id, new_bet.id);
+                }
+            }
+        }
+    });
+}
+
+/*
+ * function which updates the live odds
+ *
+ * @param repeat - true or false - if true the function repeats after a number of seconds
+ *                               - if false, update happens only once 
+ *
+ * (replaces: updateFeed() in live.js)
+ */
+function updateFeed(repeat) {
+    var update_timeout = 3300;
+
+    var update_param = "";
+
+    if (repeat === undefined) {
+        repeat = true;
+    }
+
+    // ----- Timestamp for update call -----
+
+    var multiple_sports = multiple_live_sports_status(); // check for single/multiple live sports in betslip, widgets, and overall
+
+    // only one live sport open in the page
+    if (multiple_sports.page['status'] == "single_sport" && repeat) {
+        update_param = feedTimeStamp; // use timestamp from previous update (of same sport)
+    }
+    // only one live sport, but sport has been changed
+    else if (multiple_sports.page['status'] == "single_sport" && repeat == false) {
+        update_param = feedCompleteTimeStamp; // use timestamp from previous complete reload (since sport changed)
+    }
+    // more than one live sports, or no live sport at all
+    else {
+        update_param = feedCompleteTimeStamp; // use timestamp from previous complete reload
+    }
+
+    /* ==========================================
+     * START UPDATE
+     * ========================================== */
+
+    var update_parameters = {
+        'action': 'odds_update',
+        'game_category': 'live',
+        'sport_id': multiple_sports.page['sport'],
+        'timestamp': update_param
+    };
+
+    var custom_league_widgets = $("[id^='widget_live_custom_league']");
+    if(custom_league_widgets.length > 0)
+    {
+        var custom_leagues = new Array();
+        // at least one live custom league widget is present, gather the league IDs
+        for(var lwl = 0; lwl < custom_league_widgets.length; lwl ++)
+        {
+            var custom_leagueid = custom_league_widgets[lwl].id.split('widget_live_custom_league_')[1];
+            custom_leagues.push(custom_leagueid);
+        }
+
+        custom_leagues = "["+custom_leagues.toString()+"]";
+        custom_leagues = JSON.parse(custom_leagues);
+        custom_leagues = JSON.stringify(custom_leagues);
+        update_parameters.leagueids = custom_leagues;
+    }
+    else
+    {
+        update_parameters.gameids = get_all_live_gameids(true); // get current visible live game ids to update
+    }
+    // ----- AJAX call to GamesController -----
+    $.ajax({
+        type: "POST",
+        cache: false,
+        data: {
+            parameters: update_parameters
+        },
+        url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/index.php?r=games/oddsupdate',
+        dataType: "xml",
+
+        error: function (xhr, ajaxOptions, thrownError) {
+            if (repeat) {
+                clearTimeout(updateFeed_timeout); // stop any same processes already started
+                updateFeed_timeout = setTimeout(function () {
+                    updateFeed();
+                }, update_timeout);
+            }
+        },
+
+        success: function (xml) {
+            if (repeat) {
+                clearTimeout(updateFeed_timeout); // stop any same processes already started
+            }
+
+            // ----- Update Timestamp for next update call -----
+
+            var success_timestamp = "";
+            $(xml).find('timestamp').each(function (index, key) {
+                success_timestamp = $.trim($(this).text());
+
+                // when a single live sport is active
+                if (multiple_sports.page['status'] == "single_sport") {
+                    feedTimeStamp = success_timestamp;
+                }
+                // when more than one live sports are active
+                else {
+                    feedTimeStamp = success_timestamp;
+                    feedCompleteTimeStamp = feedTimeStamp;
+                }
+            });
+
+            lowest_odd_diff = {}; // refresh lowest bet' odds sum
+
+            /* ------------------------------------------
+             * FOR EACH UPDATED GAME (returned from the feed)
+             * ------------------------------------------ */
+            if (window.performance && window.performance.mark) window.performance.mark('mark_xml');
+
+            var betslipLiveGameIds = Bettingslip.getLiveGameIds();
+
+            var games = $(xml).find('game');
+            for (var index = 0; index < games.length; index++) {
+                var game = $(games[index]);
+                //var game=$(this);
+
+                var gameid = game.attr('id');
+                var gameactive = game.attr('active');
+                var sportid = game.attr('sport');
+
+                // ----- Game from xml is INACTIVE ----- 
+                if (Number(gameactive) == 0) {
+                    delete_live_game(gameid); // delete the game
+                }
+
+                // ----- Game from xml is ACTIVE ----- 
+                else {
+                    // check if game exists or is new
+                    var game_exists = false;
+                    if (arrGames[gameid] !== undefined) game_exists = true;
+
+                    // ----- if game is NEW -> create it -----
+                    if (game_exists == false) {
+                        if (sportid != "") // if the sportid isset normally all other data isset
+                        {
+                            add_new_live_game(game, betslipLiveGameIds);
+                        }
+                    }
+
+                    // ----- if game already EXISTS -> update the data -----
+                    else {
+                        update_live_game(game);
+                    }
+                } // ----- End: Game from xml is ACTIVE -----
+            } // end of the Loop which checks every game in the XML
+
+            var gamesnewl = arrGamesWithNewBets.length, betsl = arrBets.length;
+
+            for (var nn = 0; nn < gamesnewl; nn++) {
+                var betsOfGame = [];
+
+                for (var mm = 0; mm < betsl; mm++) {
+                    if (String(arrBets[mm].gameid) == String(arrGamesWithNewBets[nn])) {
+                        betsOfGame.push(arrBets[mm]); //get all the bets of this game and add them to the betsOfGame array
+                    }
+                }
+
+                betsOfGame.sort(function (a, b) //sort the array
+                {
+                    return a.betsort - b.betsort;
+                });
+
+                for (var kk = 0; kk < betsOfGame.length; kk++) {
+
+                    betCreate(betsOfGame[kk].gameid, arrGames[arrGamesWithNewBets[nn]].sport_id, betsOfGame[kk]);
+                }
+            }
+
+            for (var kk = 0; kk < arrBetsUpdated.length; kk++) {
+                betUpdateData(arrBetsUpdated[kk], arrBetsUpdated[kk].idold, arrBetsUpdated[kk].idnew);
+            }
+            if (arrBetsUpdated.length > 0) {
+                var betsupdated = true;
+            }
+            else {
+                var betsupdated = false;
+            }
+            arrGamesWithNewBets = []; //clear the two arrays
+            arrBetsUpdated = [];
+
+            // restoreView(); // restore live games widget's view (open dropdowns) [disabled as not necessary after 3 seconds]
+
+            Bets.remarkBets();
+
+            /* only check bets and recalculate values if bets in the bettingslip have changed */
+            if (betsupdated && Bettingslip.checkBettingslipCookie() == false) {
+                Bets.checkBets();
+                Bettingslip.calcValues();
+                Bettingslip.saveBettingslip();
+            }
+            if (window.performance && window.performance.mark)   window.performance.mark('mark_xmldone');
+
+            if (window.performance && window.performance.mark)   window.performance.measure('ajax success runtime', 'mark_xml', 'mark_xmldone');
+
+            if (repeat) {
+                updateFeed_timeout = setTimeout(function () {
+                    updateFeed();
+                }, update_timeout);
+            }
+        } // END of the success function from the update AJAX call
+    }); // END of the UPDATE AJAX call
+}
+// end: updateFeed()
+
+/*
+ * function which adds a new live game to the page
+ *
+ * @param game_xml - the xml string for the new game: <game>
+ * @param betslipLiveGameIds - array (optional)
+ */
+function add_new_live_game(game_xml, betslipLiveGameIds) {
+    if (game_xml === undefined) return false;
+
+    var gameid = game_xml.attr('id');
+    var sportid = game_xml.attr('sport');
+    var leagueid = game_xml.attr('league_id');
+
+    var inBetslip = false;
+    if (betslipLiveGameIds && betslipLiveGameIds.indexOf(parseInt(gameid)) > -1) {
+        inBetslip = true;
+    }
+
+    var xmlstring = new XMLSerializer().serializeToString(game_xml[0]);
+
+    // if the sport id's custom single widget is loaded, don't add the game - since such widgets only contain selected games
+    var custom_widget = $("#" + custom_games_widget_id(sportid));
+    if (custom_widget.length > 0 && custom_widget.is(":visible")) return false;
+
+    // add new game to the live widget showing the new game's sport
+    var widget = $("#main").find(".js-games-widget[data-game_category='live'][data-sport_id='" + sportid + "']");
+
+    // if live widget exists for the new game's sport
+    if ((widget.length > 0 && widget.attr("data-visibility") != 'forced_hidden') || inBetslip) {
+        // if there are more than one widgets, only add the new game to to first one (to avoid duplicates)
+        if (widget.length > 1) widget = widget.first();
+
+        var widgetExists = false;
+        if (widget.length > 0) widgetExists = true;
+
+        var widget_id = widget.attr("id");
+
+        // check if widget is part of oddswidget. If yes, and new game is NOT in this widget's league, then do not add game. Do not add game to oddswidget open betradar section.
+        var oddswidget = widget.attr("data-oddswidget");
+        var widget_league_id = widget.attr("data-league_id");
+        var open_betradar_type = parseInt(widget.attr("data-open_betradar_type"));
+        if ((oddswidget == "true" && widget_league_id != leagueid) || open_betradar_type > 0) {
+            return false;
+        }
+
+        var new_game_parameters = {
+            'action': 'oddsupdate_new_live_game',
+            'game_category': 'live',
+            'sport_id': sportid,
+            'widget_id': widget_id,
+        };
+
+        // get new game's data
+        $.ajax({
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + "/index.php?r=games/newlivegameonupdate",
+            type: "POST",
+            data: {
+                'parameters': new_game_parameters,
+                'xml_data': xmlstring,
+                'return_view': widgetExists ? 1 : 0
+            },
+
+            error: function (xhr, ajaxOptions, thrownError) {
+
+            },
+
+            success: function (newgame) {
+                var new_game = JSON.parse(newgame);
+                var new_game_data = JSON.parse(new_game.jsgame);
+
+                var new_game_id = new_game_data.id;
+                var new_game_sportid = new_game_data.sport_id;
+                var new_game_bets = new_game_data.bets;
+
+                if (widgetExists) {
+                // ----- get widget parameters to check if new game should be shown or not -----
+                var widget_parameters = get_current_widget_parameters(widget).array; // in games.js
+                var widget_page = parseInt(widget_parameters["page"]);
+                var widget_minimised_games_limit = parseInt(widget_parameters["minimised_games_limit"]);
+                var widget_maximised_games_limit = parseInt(widget_parameters["maximised_games_limit"]);
+                var widget_display_state = widget_parameters["display_state"];
+                var widget_current_open_games = widget.find(".live_gamecontainer");
+
+                var widget_number_of_pages = 1;
+                var widget_pagination = widget.find(".widget-pagination");
+                if (widget_pagination.length > 0 && widget_pagination.attr("data-number-of-pages") !== undefined) {
+                    widget_number_of_pages = widget_pagination.attr("data-number-of-pages");
+                    widget_number_of_pages = parseInt(widget_number_of_pages);
+                }
+
+                var widget_last_page_available_rows = false;
+                var new_game_display_state = "minimised"; // whether new game falls within the "show more games" or not
+                if (widget_page == widget_number_of_pages && widget_current_open_games.length < widget_maximised_games_limit) {
+
+                    widget_last_page_available_rows = true;
+
+                    var current_minimised_rows_count = 0;
+                    widget_current_open_games.each(function () {
+                        if ($(this).hasClass("state_minimised")) current_minimised_rows_count++;
+                    });
+
+                    if (current_minimised_rows_count >= widget_minimised_games_limit) new_game_display_state = "maximised";
+                }
+                // ----- end: get widget parameters -----
+
+                // show new game only if on last page and there are empty rows
+                if (widget_last_page_available_rows == true) {
+                    widget.find(".widget-games-group").append(new_game.view); // add html markup for new game
+                    var new_game_container = $("#mc-game_container_" + new_game_id);
+
+                    // add classes to new row depending on whether it falls within the "show more games" or not
+                    var new_row_display_state_class = (new_game_display_state == "maximised") ? "state_maximised" : "state_minimised";
+                    var class_to_delete = (new_row_display_state_class == "state_maximised") ? "state_minimised" : "state_maximised"; // the opposite
+                    new_game_container.addClass(new_row_display_state_class).removeClass(class_to_delete);
+
+                    var new_row_visibility_class = (widget_display_state == "minimised" && new_game_display_state == "maximised") ? "state_hidden" : "state_visible";
+                    var class_to_delete = (new_row_visibility_class == "state_hidden") ? "state_visible" : "state_hidden";
+                    new_game_container.addClass(new_row_visibility_class).removeClass(class_to_delete);
+
+                    // ensure new game's dropdown is hidden
+                    new_game_container.find(".scores").css("display", "none");
+
+                    // if widget is hidden, show it
+                    if (widget.attr("data-visibility") == "hidden") {
+                        show_games_widgets(widget, '', true, "normal");
+                    }
+
+                    addgame_gameids_cont(new_game_id, new_game_sportid, "livegroup"); // add game id to hidden container with live game ids
+                }
+
+                } // end: if widget exists
+
+                // add the new bets to arrays
+                var betslength = new_game_bets.length;
+                for (i = 0; i < betslength; i++) {
+                    var bet = new_game_bets[i]; // this bet
+
+                    if (widgetExists) {
+                    // first ensure that arrays were already defined
+                    if (arrWidgetData === undefined) arrWidgetData = {};
+                    if (arrWidgetData[widget_id] === undefined) arrWidgetData[widget_id] = {};
+                    if (arrWidgetData[widget_id]['bets'] === undefined) arrWidgetData[widget_id]['bets'] = [];
+
+                        // add data to arrays
+                    arrWidgetData[widget_id]['bets'].push(bet.betid);
+                    if (arrGamesOpened[widget_id] === undefined) arrGamesOpened[widget_id] = {};
+                    arrGamesOpened[widget_id][new_game_id] = {
+                        id: new_game_id,
+                        opened: false,
+                        ticker_opened: false,
+                        betr_open: false
+                    };
+                    } // end: if widget exists
+
+                    if (arrBetsIDs === undefined) arrBetsIDs = [];
+                    if (arrBets === undefined) arrBets = [];
+
+                    arrBetsIDs.push({idBet: bet.betid, idLive: bet.gameid + '_' + bet.textid, gameid: bet.gameid});
+                    arrBets.push(bet);
+                }
+
+                // for the ticker             
+                if (widgetExists) {
+                gameMsgs[new_game_id] = []; // create an array for the messages for this game                 
+                activeItems[new_game_id] = []; // for the ticker function
+                lockedItems[new_game_id] = false;
+                }
+
+                // add the game to the array
+                new_game_data.timestarted = Number(new_game_data.timestarted);
+                delete new_game_data.bets;
+                delete new_game_data.header;
+                delete new_game_data.messages;
+                arrGames[new_game_id] = new_game_data; // think about what to do with tennis results
+                if (widgetExists) restoreView(widget_id);
+
+            } // end: ajax success
+
+        }); // end: get game's data
+
+    } // End: if live widget exists for this new game's sport
+} // end: add_new_live_game()
+
+/*
+ * function which deletes a live game from the page
+ * - replaces gameDelete() in live.js
+ *
+ * @param gameid - the id of the game
+ */
+function delete_live_game(gameid) {
+    // if game exists
+    if (arrGames[gameid] !== undefined) {
+        var game = arrGames[gameid];
+        var repeatDelBet = true, delSportID = game.sport_id, myPrevGameID = -1, myNextGameID = -1;
+        var widgetIds = [];
+
+        // for each game row instance (same game in different widgets)
+        var game_containers = $("#mc-game_container_" + gameid);
+        game_containers.each(function () {
+            var game_container = $(this);
+
+            var widget = game_container.parents(".js-games-widget");
+            var widget_id = (widget.length > 0) ? widget.attr("id") : "";
+            if (widget_id !== "") widgetIds.push(widget_id);
+
+            // Perform the check for what to do with the previous and next game's header
+            var next_game_container = game_container.next(".live_gamecontainer");
+            var previous_game_container = game_container.prev(".live_gamecontainer");
+
+            // -------- Handle the header display -----------
+            if (next_game_container.length > 0) // handle the header display
+            {
+                var next_game_container_id = next_game_container.attr("data-id");
+                var next_game_id = next_game_container_id.substr(15);
+
+                // if next game exists in arrGameOpened array
+                if (arrGamesOpened[widget_id] !== undefined && arrGamesOpened[widget_id][next_game_id] !== undefined) // there is a next game
+                {
+                    // if the game is the first in the list (has no prev() elements)
+                    if (previous_game_container.length == 0) {
+                        // then display the header for the next game, but only if it's CLOSED
+                        if (arrGamesOpened[widget_id][next_game_id].opened == false) {
+                            $("#mc-header_next_game_" + next_game_id).css("display", "block");
+                            arrGamesOpened[widget_id][next_game_id].openedheader = true;
+                        }
+                    }
+                    // if the game IS NOT first (it has prev() elements)
+                    else {
+                        var previous_game_container_id = previous_game_container.attr("data-id");
+                        var previous_game_id = previous_game_container_id.substr(15);
+
+                        // then display the header for the next game, but only if the previous game is opened
+                        // and the next game is not opened
+                        if (arrGamesOpened[widget_id][previous_game_id] !== undefined && arrGamesOpened[widget_id][previous_game_id].opened == true && arrGamesOpened[widget_id][next_game_id].opened == false) {
+                            $("#mc-header_next_game_" + next_game_id).css("display", "block");
+                            arrGamesOpened[widget_id][next_game_id].openedheader = true;
+                        }
+                    }
+                } // End: if next game exists in arrGameOpened array
+            } // -------- End: Handle the header display -----------
+
+            // remove any game's entries in widget data object
+            delete_deselected_gameid_from_widgets_data(widget_id, gameid);
+
+            // remove html game row
+            effectRemove('', game_container, function () {
+                // -------- Hide Widget if no more games are available -----------
+                if (widget_id != "") {
+                    widget = $("#" + widget_id); // get the updated widget after removing game
+                    var widget_type = widget.attr("data-widget_type");
+
+                    // if widget doesn't have any more games, hide it
+                    var widget_games = widget.find(".live_gamecontainer");
+                    if (widget_games === undefined || widget_games.length == 0) {
+                        var delete_widget = (widget_type == 'single_custom') ? true : false; // delete custom single widget (with live menu selections)
+                        hide_games_widgets(widget, '', true, "fast", false, delete_widget, function () {
+                            check_if_no_widgets_visible('reload_widgets', function () {
+                                handle_extra_page_elements('show');
+                            });
+                        });
+                    }
+
+                    restoreView(widget_id);
+
+                } // -------- End: Hide Widget if no more games are available -----------
+            }); // end: remove html game row
+
+            destroyActiveBetradarWidgetsObjects(widget_id, gameid);
+
+        }); // end: for each game row instance
+
+            // -------- Remove all bets of this game -----------
+            while (repeatDelBet) {
+                var deletedBets = [];
+
+                // remove from arrBets
+                for (i = 0; i < arrBets.length; i++) {
+                    if (arrBets[i].gameid == gameid) {
+                        Bettingslip.updateOdd({
+                            odd_id: arrBets[i].id,
+                            status1: -1
+                        }); // Update the Bettingslip
+
+                        var bet_id = arrBets[i].id;
+                        deletedBets.push(bet_id);
+                        arrBets.splice(i, 1);
+                        break;
+                    }
+                }
+
+                // remove deleted bets also from arrBetsIDs and arrWidgetData
+                for (i = 0; i < deletedBets.length; i++) {
+                    // remove from arrBetsIDs
+                    for (j = 0; j < arrBetsIDs.length; j++) {
+                        if (deletedBets[i] == arrBetsIDs[j].idBet) {
+                            arrBetsIDs.splice(j, 1);
+                        }
+                    }
+                    // remove from arrWidgetData (check in each widget)
+                    if (arrWidgetData !== undefined && Object.keys(arrWidgetData).length) {
+                        $.each(arrWidgetData, function (widget_id, widget_data) {
+                            if (widget_data['bets'] !== undefined && widget_data['bets'].length > 0) {
+                                for (j = 0; j < widget_data['bets'].length; j++) {
+                                    if (deletedBets[i] == widget_data['bets'][j]) {
+                                        widget_data['bets'].splice(j, 1);
+                                    }
+                                }
+                            }
+                        });
+                    } // end: remove from arrWidgetData
+                }
+
+                // remove from arrGamesOpened
+            for (var i = 0; i < widgetIds.length; i++) {
+                var widget_id = widgetIds[i];
+                if (arrGamesOpened[widget_id] !== undefined && arrGamesOpened[widget_id][gameid] !== undefined) {
+                    delete arrGamesOpened[widget_id][gameid];
+                }
+            }
+
+                // remove game from arrGames
+                delete arrGames[gameid];
+
+                if (deletedBets.length > 0) {
+                    repeatDelBet = true;
+                } // if bets where deleted, start another round
+                else {
+                    repeatDelBet = false;
+                }
+            } // -------- End: Remove all bets of this game -----------
+
+        // -------- Remove game from left live menu -----------
+        leftmenu_live_delete_game(gameid, game.sport_id); // function in games.js
+
+        removegame_all_gameids_cont(gameid, game.sport_id); // remove game id from hidden live game ids container
+
+    } // End: if game exists
+}
+
+/*
+ * function which updates a live game in the page
+ *
+ * @param game_xml - the xml string for the updated game: <game>
+ */
+function update_live_game(game_xml) {
+    var gameid = game_xml.attr('id');
+    var gameactive = game_xml.attr('active');
+    var league = game_xml.attr('league');
+
+    var team1 = arrGames[gameid].team1; //get the names of the teams
+    var team2 = arrGames[gameid].team2;
+    var sportid = arrGames[gameid].sport_id; // get the sport id e.g. 1 for football
+
+    var currentscore = game_xml.find('result').attr('now');
+    var extra = game_xml.find('time').attr('extra');
+    var currenttime = game_xml.find('time').attr('match') + (extra > 0 ? "+" + extra : "") + "'";
+
+    var t1cy = game_xml.find('card').find('home').attr('yellow');
+    var t1cr = game_xml.find('card').find('home').attr('red');
+    var t2cy = game_xml.find('card').find('away').attr('yellow');
+    var t2cr = game_xml.find('card').find('away').attr('red');
+
+    var gamestate = game_xml.find('time').attr('gamestate');
+
+    var periodresults = []; // array for storing the results of the periods (like games per set in tennis)
+    var server = 0; // 0 = default, if its tennis it will be set to the right player 1 for home 2 for away
+    var setpoints = "0:0"; // default value
+    var gamestatus = "";
+
+    if (game_xml.find('time').attr('matchstatus') !== undefined && game_xml.find('time').attr('matchstatus') == "HALFTIME") {
+        var halftime = 1;
+    }
+    else {
+        var halftime = 0;
+    }
+
+    // update sports with multiple periods
+    if (sports_w_mult_periods.indexOf(sportid) >= 0) {
+        var pnlimit = 30;
+        var resultelement = game_xml.find('result')[0];
+        var resultarr = [];
+        for (i = 0; i < resultelement.attributes.length; i++) {
+            resultarr[resultelement.attributes[i].nodeName] = resultelement.attributes[i].value;
+        }
+        for (sc = 1; sc <= pnlimit; sc++) {
+            if (resultarr['pn' + sc] != undefined && resultarr['pn' + sc] != '') // check if the attribute exists (there is no pn6)
+            {
+                periodresults.push(String(resultarr['pn' + sc]));
+            }
+            else {
+                break;
+            }
+        }
+
+        if (sportid == 2 || sportid == 11) {
+            server = game_xml.find('result').attr('server');
+            setpoints = game_xml.find('result').attr('points');
+            if (game_xml.find('gamestatus').attr('id') == 9 || game_xml.find('gamestatus').attr('id') == 10) {
+                gamestatus = interruptedtrans;
+            }
+        }
+    }
+
+    gameUpdateData(gameid, currenttime, currentscore, t1cy, t1cr, t2cy, t2cr, periodresults, server, setpoints, gamestatus, halftime, gamestate); //Update Time, Standings and Cards
+
+    var items = game_xml.find('odd');
+
+    var bets = items.find('bet');
+
+    // ... and check the bets of this game: update, add or delete
+
+    var arrBetsCheck = [];
+    //game_xml.find('odd').find('bet').each(function(index, key) //save the bets from the UpdateFeed to an array
+    for (var i = 0; i < bets.length; i++) {
+        var bet = $(bets[i]);
+        arrBetsCheck.push({betid: bet.attr('id'), textid: bet.attr('text_id'), active: bet.attr('active')});
+    }
+
+    var activeOdd;
+
+    //game_xml.find('odd').each(function(){
+    for (var i = 0; i < items.length; i++) {
+        var game = $(items[i]);
+
+        activeOdd = false;
+
+        var bets = game.find('bet');
+        for (var j = 0; j < bets.length; j++) {
+            if ($(bets[j]).attr('active') > 0) {
+                activeOdd = true;
+                break;
+            }
+        }
+
+        var game_row = $("#mc-lga" + gameid);
+        var game_leftmenu = $("#lm-left-menu-game-" + gameid);
+        if (game_row.length > 0 || game_leftmenu.length > 0) { // if game container exists
+        if (activeOdd == false) {
+            var update_text = (bets_overlay_update_text !== undefined && bets_overlay_update_text != "") ? bets_overlay_update_text : "The odds are currently being updated.";
+            var update_text_short = (bets_overlay_update_text_short !== undefined && bets_overlay_update_text_short != "") ? bets_overlay_update_text_short : "Updating odds";
+
+            // odds updating overlay in game rows
+            if (game_row.find(".bets_overlay.odd_update").length == 0) {
+                game_row.find(".live_right_section").prepend('<div class="bets_overlay odd_update"><div class="overlay_wrapper"><span class="hide" id="gameRowsOddsAreCurrentlyBeingUpdated' + i + '"><img src="/images/icon/bets_small_loader.gif">' + update_text + '</span></div></div>');
+            }
+            $("#mc-lga" + gameid).find(".bets_overlay.odd_update").show();
+
+            // odds updating overlay in left menu
+            var leftnavi_game_odds_container = $("#lm-left-menu-game-" + gameid + " .game-odds-container");
+            if (leftnavi_game_odds_container.find(".game-odds-overlay.odds-updating").length == 0) {
+                leftnavi_game_odds_container.prepend('<div class="game-odds-overlay odds-updating"><div class="vertical-align"><span id="leftMenuUpdatingOdds' + i + '" class="odds-updating-icon"></span>' + update_text_short + '</div></div>');
+            }
+            $("#lm-left-menu-game-" + gameid + " .game-odds-container").find(".game-odds-overlay.odds-updating").show();
+        }
+        else {
+            $("#mc-lga" + gameid).find(".bets_overlay.odd_update").hide();
+            $("#lm-left-menu-game-" + gameid + " .game-odds-container").find(".game-odds-overlay.odds-updating").hide();
+        }
+        } // if game container exists
+    }
+
+    //game_xml.find('odd').find('bet').each(function(index, key)
+    for (var i = 0; i < bets.length; i++) {
+        var bet = $(bets[i]);
+        var betid = bet.attr('id');
+        var textid = bet.attr('text_id');
+        var text = bet.attr('text');
+        var odd1 = bet.attr('odd1');
+        var odd2 = bet.attr('oddx');
+        var odd3 = bet.attr('odd2');
+        var tiptext1 = bet.attr('tiptext1');
+        var tiptext2 = bet.attr('tiptextX');
+        var tiptext3 = bet.attr('tiptext2');
+        var oddtype = bet.attr('odd');
+        var betactive = bet.attr('active');
+        var betsort = bet.attr('sort');
+        var oc = bet.attr('oddscounter');
+        var anker = bet.attr('anker');
+        var handicap = bet.attr('handicap');
+        var combicat = bet.attr('combi_cat');
+        var infoText = (bet.attr('infoText') !== undefined) ? bet.attr('infoText') : "";
+
+        var betsl = arrBets.length;
+
+        // --- If Bet is NOT active
+        if (Number(betactive) <= 0) {
+            // if current bet should be deleted check if there is at least one bet with the same text_id and active=1
+            // if yes, don't delete the bet, because it will be updated
+
+            // When <bet active="0" ... > arrives in update Feed, then there is no text_id information included there,
+            // so it's neccessary to get the text_id of this bet from the existing arrBets array in the Application
+            var betschekl = arrBetsCheck.length, myCheckIndex = -1;
+            for (k = 0; k < betsl; k++) {
+                if (arrBets[k].id == betid) {
+                    textid = arrBets[k].text_id;
+                } // get textid, saved ind arrBets when the bet was still active
+            }
+
+            for (k = 0; k < betschekl; k++) {
+                if (textid != "" && arrBetsCheck[k]["textid"] == textid && Number(arrBetsCheck[k]["active"]) == 1) {
+                    myCheckIndex = k;
+                } // a bet with the same textid (kind of bet) is available, and its active
+            }
+            if (myCheckIndex == -1) // there is no new bet to replace the old one, so delete it
+            {
+                var bet_odds = {odd1: parseInt(odd1), odd2: parseInt(odd2), odd3: parseInt(odd3)};
+                betDelete(betid, sportid, bet_odds);
+            }
+        }
+
+        // --- If Bet is ACTIVE
+        else {
+            var myBetIndex = -1;
+            for (j = 0; j < betsl; j++) {
+                if (arrBets[j]["id"] == betid) {
+                    myBetIndex = j;
+                } // get the Index of the Bet in the arrBets array
+            }
+
+            if (myBetIndex == -1) // if current bet is new
+            {
+                myCheckIndex = -1;
+                for (k = 0; k < betsl; k++) // check if a bet with the same text_id already exists
+                {
+                    if (arrBets[k]["gameid"] == gameid && arrBets[k]["text_id"] == textid) {
+                        myCheckIndex = k;
+                    } // check id
+                }
+
+                if (myCheckIndex == -1)  // if no, create a new bet instance
+                {
+                    // get bet's game widget ID from the arrWidgetData
+                    var bet_widget_id = "";
+                    if (arrWidgetData !== undefined) {
+                        $.each(arrWidgetData, function (widget_id, widget_data) {
+                            if (arrWidgetData[widget_id]['games'] !== undefined) {
+                                $.each(arrWidgetData[widget_id]['games'], function (index, game_id) {
+                                    if (game_id == gameid) bet_widget_id = widget_id;
+                                });
+                            }
+                        });
+
+                        // add bet to the widget's bet's data in arrWidgetData
+                        if (bet_widget_id != "") {
+                            if (arrWidgetData[bet_widget_id]['bets'] === undefined) arrWidgetData[bet_widget_id]['bets'] = [];
+                            arrWidgetData[bet_widget_id]['bets'].push(betid);
+                        }
+                    }
+
+                    arrBetsIDs.push({idBet: betid, idLive: gameid + '_' + textid, gameid: gameid});
+                    arrBets.push({
+                        gameid: gameid,
+                        id: betid,
+                        text_id: textid,
+                        text: text,
+                        odd1: odd1,
+                        odd2: odd2,
+                        odd3: odd3,
+                        tiptext1: tiptext1,
+                        tiptext2: tiptext2,
+                        tiptext3: tiptext3,
+                        oc: oc,
+                        anker: anker,
+                        handicap: handicap,
+                        oddtype: oddtype,
+                        team1: team1,
+                        team2: team2,
+                        betsort: betsort,
+                        combicat: combicat,
+                        infoText: infoText
+                    });
+                }
+                else {
+                    // just store the bets in an array// don't update here, as the bets of this game will be updated later
+                    arrBetsUpdated.push({
+                        gameid: gameid,
+                        textid: textid,
+                        odd1: odd1,
+                        odd2: odd2,
+                        odd3: odd3,
+                        tiptext1: tiptext1,
+                        tiptext2: tiptext2,
+                        tiptext3: tiptext3,
+                        oddtype: oddtype,
+                        idold: arrBets[myCheckIndex].id,
+                        idnew: betid
+                    });
+                }
+            }
+
+            if ($.inArray(gameid, arrGamesWithNewBets) == -1) {
+                arrGamesWithNewBets.push(gameid); // save the gameid to know which games have got a new bet
+            }
+        }
+    } // END going through all the bets of this game
+
+    $(this).find('message').each(function (index, key) {
+        if (sportid == 1 || sportid == 2 || sportid == 11) {
+            gameMsgs[gameid].push({m_time: $(this).attr("m_time"), text: $.trim($(this).text())});
+            if (sportid != 1) // football uses a different mechanism
+            {
+                addMessage(gameid); // in ticker.js
+            }
+        }
+    });
+}
+
+/**
+ * replaces gameUpdateData() in live.js
+ *
+ * @param int gameid the ID of the game
+ * @param int currenttime the new time
+ * @param int currentscore the new score
+ * @param int t1cy the count for the yellow cards team1
+ * @param int t1cr the count for the red cards team1
+ * @param int t2cy the count for the yellow cards team2
+ * @param int t2cr the count for the red cards team2
+ * @param array periodresults needed for tennis and other sports with more than one period
+ * @param int server determindes which player has service (only tennis)
+ * @param string setpoints
+ * @param string gamestatus
+ * @param int halftime
+ */
+function gameUpdateData(gameid, currenttime, currentscore, t1cy, t1cr, t2cy, t2cr, periodresults, server, setpoints, gamestatus, halftime, gamestate) {
+    var resultnow;
+
+    var lm_game = $("#lm-left-menu-game-" + gameid); // game in left menu
+    var mc_game = $("#mc-game_container_" + gameid); // game in main content
+    var all_game = lm_game.add(mc_game); // both instances of the game (left menu + main content)
+    if (all_game.length == 0) return false;
+
+    if (arrGames[gameid] !== undefined) // if a game with the submitted gameid is available, update the data
+    {
+        var sport_id = arrGames[gameid]['sport_id'];
+
+        arrGames[gameid]["gamestate"] = gamestate;
+        if (Number(arrGames[gameid]["card_team1_yellow"]) !== Number(t1cy)) // the amount of cards has changed
+        {
+            displayCards("t1y", "yellow", t1cy, gameid, mc_game);
+            arrGames[gameid]["card_team1_yellow"] = t1cy; // save the new amount of cards into the games array
+        }
+        if (Number(arrGames[gameid]["card_team1_red"]) !== Number(t1cr)) {
+            displayCards("t1r", "red", t1cr, gameid, mc_game);
+            arrGames[gameid]["card_team1_red"] = t1cr;
+        }
+        if (Number(arrGames[gameid]["card_team2_yellow"]) !== Number(t2cy)) {
+            displayCards("t2y", "yellow", t2cy, gameid, mc_game);
+            arrGames[gameid]["card_team2_yellow"] = t2cy;
+        }
+        if (Number(arrGames[gameid]["card_team2_red"]) !== Number(t2cr)) {
+            displayCards("t2r", "red", t2cr, gameid, mc_game);
+            arrGames[gameid]["card_team2_red"] = t2cr;
+        } // Cards are updated
+
+        if (((arrGames[gameid]["time"]).toString()) !== (currenttime.toString())) //time has changed
+        {
+            if (currenttime.search(':') > -1 || currenttime == "0'") // game has not started yet
+            {
+                // do nothing because the countdown would be destroyed
+                //$("#time_" + arrGames[gameid]["id"]).html(currenttime); //liveticker
+                //$("#timesmall_" + arrGames[gameid]["id"]).children("span").html(currenttime);
+            }
+            else {
+                all_game.find(".js-time_" + gameid).html(currenttime); //liveticker
+                all_game.find(".js-timesmall_" + gameid).html("<span>" + currenttime + "</span>");
+            }
+            arrGames[gameid]["time"] = currenttime; //save new gametime in games array
+        }
+
+        if (halftime == 1) {
+            all_game.find(".js-timesmall_" + gameid).html("<span>" + short_ht_trans + "</span>");
+
+            // hide second row (halftime odds) at halftime
+            mc_game.find(".liveGamesSecondRowText").hide();
+            mc_game.find("#ht_odds_container_" + gameid).hide();
+        }
+        else if (gamestate == 4) {
+            all_game.find(".js-timesmall_" + gameid).html("<span>" + short_11m_trans + "</span>");// penalty shootout
+        }
+
+        resultnow = String(arrGames[gameid]["result_now"]);
+        if (resultnow !== String(currentscore)) // if current score changed
+        {
+            var new_score = String(currentscore);
+            arrGames[gameid]["result_now"] = new_score;
+
+            // update score in infobox and leftmenu
+            var score_small_container = all_game.find(".js-scoresmall_" + gameid);
+            score_small_container.html(new_score);
+            effectBlink('', score_small_container);
+
+            // update current score in dropdown ticker scores
+            var split_score = new_score.split(":");
+            var score_home = split_score[0] !== undefined ? split_score[0] : '';
+            var score_away = split_score[1] !== undefined ? split_score[1] : '';
+
+            if (sport_id == 1) { // football
+                var ticker_score = $("#mc-ticker-current-score-" + gameid);
+                ticker_score.html(new_score);
+                effectBlink('', ticker_score);
+            }
+            else { // other sports
+                var ticker_score_home = $("#mc-ticker-current-score-" + gameid + "-home");
+                var ticker_score_away = $("#mc-ticker-current-score-" + gameid + "-away");
+                ticker_score_home.html(score_home);
+                ticker_score_away.html(score_away);
+                effectBlink('', ticker_score_home);
+                effectBlink('', ticker_score_away);
+            }
+
+            // update halftime score (counting first 2 periods)
+            if (sport_id == 12 || sport_id == 6) // basketball / american football
+            {
+                if (periodresults.length < 3) {// update halftime score only during the first and second quarter
+                    var htScore = [0, 0];
+                    if (periodresults[0]) {
+                        var resultArray = String(periodresults[0]).split(':'); // split the result
+                        htScore[0] += 1 * resultArray[0];
+                        htScore[1] += 1 * resultArray[1];
+                    }
+                    if (periodresults[1]) {
+                        var resultArray = String(periodresults[1]).split(':'); // split the result
+                        htScore[0] += 1 * resultArray[0];
+                        htScore[1] += 1 * resultArray[1];
+                    }
+
+                    var home_ht_score_container = $("#mc-live_game_ticker_main_" + gameid + " .team_home_row .halftimeScore");
+                    var away_ht_score_container = $("#mc-live_game_ticker_main_" + gameid + " .team_away_row .halftimeScore");
+                    home_ht_score_container.html(htScore[0]);
+                    away_ht_score_container.html(htScore[1]);
+                    effectBlink('', home_ht_score_container);
+                    effectBlink('', away_ht_score_container);
+                }
+            }
+        } // end: if current score changed
+
+        // update sports with multiple period scores
+        if (sports_w_mult_periods.indexOf(sport_id) >= 0) {
+            if ($(arrGames[gameid]['result_periods']).not(periodresults).length != 0 && periodresults.length > 0) {
+                liveupdate_update_period_scores(gameid, periodresults, all_game);
+                arrGames[gameid]['result_periods'] = periodresults;
+            }
+            liveupdate_update_status(gameid, sport_id, server, setpoints, gamestatus);
+        }
+    }
+}
+
+/**
+ * - replaces betDelete() function in live.js
+ * Change the display if one of the bets is invalid and has no new bet (successor) at the moment
+ * hide the betting containers
+ */
+function betDelete(IDBet, IDSport, bet_odds) {
+    var myIndex = -1, i = 0, betsl = arrBets.length, betsidl = arrBetsIDs.length, myIndexIDs = -1, gameid, textid;
+
+    for (i; i < betsl; i++) {
+        if (arrBets[i]["id"] == IDBet) {
+            myIndex = i;
+            gameid = arrBets[i]["gameid"];
+            textid = arrBets[i]["text_id"];
+        } //check again if there is a bet with this id
+    }
+
+    if (myIndex !== -1) {
+        var lm_game = $("#lm-left-menu-game-" + gameid); // game in left menu
+        var mc_game = $("#mc-game_container_" + gameid); // game in main content
+        var all_game = lm_game.add(mc_game); // both instances of the game (left menu + main content)
+
+        if (all_game.length > 0) { // if game container exists
+
+        var lm_odd_sti_1 = $("#lm-sti" + gameid + "_" + textid + "_1");
+        var mc_odd_sti_1 = $("#mc-sti" + gameid + "_" + textid + "_1");
+
+        var lm_odd_sti_2 = $("#lm-sti" + gameid + "_" + textid + "_2");
+        var mc_odd_sti_2 = $("#mc-sti" + gameid + "_" + textid + "_2");
+
+        var lm_odd_sti_3 = $("#lm-sti" + gameid + "_" + textid + "_3");
+        var mc_odd_sti_3 = $("#mc-sti" + gameid + "_" + textid + "_3");
+
+        var $lm_odds = $(
+            "#lm-sti" + gameid + "_" + textid + "_1,"+
+            "#lm-sti" + gameid + "_" + textid + "_2,"+
+            "#lm-sti" + gameid + "_" + textid + "_3"
+        );
+
+        var $mc_odds = $(
+            "#mc-sti" + gameid + "_" + textid + "_1"+
+            "#mc-sti" + gameid + "_" + textid + "_2"+
+            "#mc-sti" + gameid + "_" + textid + "_3"
+        );
+
+        getOddButtonsInstanceByPrefix($lm_odds, 'lm', 0);
+        getOddButtonsInstanceByPrefix($mc_odds, 'mc', 0);
+
+        var odd_sti_1 = lm_odd_sti_1.add(mc_odd_sti_1);
+        var odd_sti_2 = lm_odd_sti_2.add(mc_odd_sti_2);
+        var odd_sti_3 = lm_odd_sti_3.add(mc_odd_sti_3);
+
+        odd_sti_1.removeClass('sportbet_rate_over sportbet_rate_locked');
+        odd_sti_2.removeClass('sportbet_rate_over sportbet_rate_locked');
+        odd_sti_3.removeClass('sportbet_rate_over sportbet_rate_locked');
+
+        if (isBetMain(textid)) {
+            arrGames[gameid]["index_main"] = -1; // if the bet is the main bet, set the index_main in the arrGames arrays to -1
+        }
+        else if (isBetMain_ht(textid, IDSport)) {
+            arrGames[gameid]["index_main_ht"] = -1; // if the bet is the main bet, set the index_main in the arrGames arrays to -1
+        }
+        else if (isBetNextGoal(textid, IDSport)) {
+            lm_odd_sti_1.attr('id', "lm-sti_ng_" + gameid + "_1"); // unset the text_id
+            mc_odd_sti_1.attr('id', "mc-sti_ng_" + gameid + "_1");
+
+            lm_odd_sti_2.attr('id', "lm-sti_ng_" + gameid + "_2"); // because if the text_id changes
+            mc_odd_sti_2.attr('id', "mc-sti_ng_" + gameid + "_2");
+
+            lm_odd_sti_3.attr('id', "lm-sti_ng_" + gameid + "_3"); // the elements can be identified
+            mc_odd_sti_3.attr('id', "mc-sti_ng_" + gameid + "_3");
+
+            if (IDSport == 2 || IDSport == 11) {
+                checkNextTennisGame(myIndex);
+            }
+            else {
+                arrGames[gameid]["index_ng"] = -1;
+                arrGames[gameid]["textid_ng"] = -1;
+            }
+        }
+        else if (isBetNextGoal_ht(textid, IDSport)) {
+            mc_odd_sti_1.attr('id', "mc-sti_ng_" + gameid + "_1_ht"); // unset the text_id
+            mc_odd_sti_2.attr('id', "mc-sti_ng_" + gameid + "_2_ht"); // because if the text_id changes
+            mc_odd_sti_3.attr('id', "mc-sti_ng_" + gameid + "_3_ht"); // the elements can be identified
+
+            arrGames[gameid]["index_ng_ht"] = -1;
+            arrGames[gameid]["textid_ng_ht"] = -1;
+        }
+        else if (isBetThirdColumn(textid, IDSport)) {
+            all_game.find(".js-fact3" + gameid).html("&nbsp;"); // delete the anker/border in the live view (because without bet, no anker is needed)
+            arrGames[gameid]["index_ou"] = -1;
+            arrGames[gameid]["textid_ou"] = -1;
+
+            lm_odd_sti_1.attr('id', "lm-sti_ou_" + gameid + "_1");
+            mc_odd_sti_1.attr('id', "mc-sti_ou_" + gameid + "_1");
+
+            lm_odd_sti_2.attr('id', "lm-sti_ou_" + gameid + "_2");
+            mc_odd_sti_2.attr('id', "mc-sti_ou_" + gameid + "_2");
+        }
+        else if (isBetThirdColumn_ht(textid, IDSport)) {
+            mc_game.find(".js-fact3" + gameid + "_ht").html("&nbsp;"); // delete the anker/border in the live view (because without bet, no anker is needed)
+            arrGames[gameid]["index_ou_ht"] = -1;
+            arrGames[gameid]["textid_ou_ht"] = -1;
+
+            mc_odd_sti_1.attr('id', "mc-sti_ou_" + gameid + "_1_ht");
+            mc_odd_sti_2.attr('id', "mc-sti_ou_" + gameid + "_2_ht");
+        }
+
+        // delete bet from the liveticker menu
+        effectRemove('', $("#mc-bet_" + gameid + "_" + textid), function () {
+            check_live_game_ticker_odds(gameid, mc_game);
+            update_live_games_xtra_counter('', gameid); // update xtra games counter
+        });
+
+        mc_game.find(".js-xzero_roll_over_bet_" + gameid + "_" + textid).remove(); // deletes the xzero div from the liveticker menu
+
+        } // end: if game container exists
+
+        if (arrGames[gameid]["sport_id"] == 1) {
+            checkGameXzero(gameid, mc_game);
+        }
+
+        arrBets.splice(myIndex, 1); // deletes this bet from the arrBets array
+
+        for (i = 0; i < betsidl; i++) {
+            if (arrBetsIDs[i]["idBet"] == IDBet) {
+                myIndexIDs = i;
+            }
+        }
+
+        if (myIndexIDs > -1) {
+            arrBetsIDs.splice(myIndexIDs, 1);
+        }
+        Bettingslip.updateOdd({
+            odd_id: IDBet,
+            status1: -1
+        }); // Update the Bettingslip
+    }
+}
+
+/**
+ * - replaces betUpdateData() function in live.js
+ * @param {object} bet the bet object, includes all odds tiptext, ankers etc.
+ * @param {int} oldBetID the old ID of the bet
+ * @param {int} newBetID suprise, suprise, the new ID of the bet
+ */
+function betUpdateData(bet, oldBetID, newBetID)
+{
+    var tiptext1 = clearTipText(bet.tiptext1);
+    var tiptextX = clearTipText(bet.tiptext2);
+    var tiptext2 = clearTipText(bet.tiptext3);
+
+    var myIndex = -1, myIndexIDs = -1, i = 0, betsl = arrBets.length, betsidl = arrBetsIDs.length, tip = 0;
+    for (i; i < betsl; i++) {
+        if (arrBets[i].gameid == bet.gameid && arrBets[i].text_id == bet.textid) {
+            myIndex = i;
+        } //get the Index of the bet
+    }
+
+    for (i = 0; i < betsidl; i++) {
+        if (arrBetsIDs[i].idBet == oldBetID) {
+            myIndexIDs = i;
+        }
+    }
+    if (myIndexIDs > -1) // if there is an oldBet replace the id with the ID of the new one
+    {
+        arrBetsIDs[myIndexIDs].idBet = newBetID;
+    }
+
+    if (myIndex !== -1) // there is a bet with the given ID
+    {
+        var statuschange = markChangedBets(bet.gameid, bet.textid, 1, bet.odd1, myIndex, 1); // get the betstatus (up or down)
+        var statuschange2 = markChangedBets(bet.gameid, bet.textid, 3, bet.odd2, myIndex, 2);
+        var statuschange3 = markChangedBets(bet.gameid, bet.textid, 2, bet.odd3, myIndex, 3);
+        Bettingslip.updateOdd({
+            odd_id: newBetID,
+            tip1: 1,
+            odd1: bet.odd1,
+            tip2: 3,
+            odd2: bet.odd2,
+            tip3: 2,
+            odd3: bet.odd3,
+            status1: statuschange,
+            status2: statuschange2,
+            status3: statuschange3,
+            gameid: bet.gameid,
+            text_id: bet.textid
+        }); // update the bettingslip
+
+        // update the bettingslip (newBetID at first update the old one was replaced)
+        arrBets[myIndex]["odd1"] = bet.odd1;
+        arrBets[myIndex]["tiptext1"] = tiptext1;
+        arrBets[myIndex]["odd2"] = bet.odd2;
+        arrBets[myIndex]["tiptext2"] = tiptextX;
+        arrBets[myIndex]["odd3"] = bet.odd3;
+        arrBets[myIndex]["tiptext3"] = tiptext2;
+        arrBets[myIndex]["id"] = newBetID;
+    }
+}
+
+/**
+ * Check and update live ticker odds
+ * @param gameid
+ * @param bet
+ * @param container
+ */
+function checkTickerOdds(gameid, bet, container) {
+    if ($("#mc-tti" + gameid + "_" + bet.text_id + "_1").length > 0) // old quotes in the liveticker section available, just overwrite them
+    {
+        overwriteTickerOdd(gameid, bet, container);
+    }
+    else {
+        insertIntoTickerDropdown(gameid, bet, container);
+    }
+}
+
+/**
+ * - replaces betCreate() function in live.js
+ * @param {int} gameid
+ * @param {int} sportid the id of the current sport
+ * @param {object} bet
+ */
+function betCreate(gameid, sportid, bet) {
+    var lm_game = $("#lm-left-menu-game-" + gameid); // game in left menu
+    var mc_game = $("#mc-game_container_" + gameid); // game in main content
+    var all_game = lm_game.add(mc_game); // both instances of the game (left menu + main content)
+    if (all_game.length === 0) return false;
+
+    // ================= FIRST COL BETS  ==================
+    if (isBetMain(bet.text_id)) // main bet (who will win)
+    {
+        // Left menu old quotes check
+        if ($("#lm-sti" + gameid + "_" + bet.text_id + "_1").length > 0) // old quotes available, just overwrite them
+        {
+            overwriteOdd(gameid, bet, lm_game, "lm");
+        }
+        else // old quotes not available
+        {
+            createOdd(gameid, bet, "main", lm_game, "lm");
+        }
+
+        // Main Content old quotes check
+        if ($("#mc-sti" + gameid + "_" + bet.text_id + "_1").length > 0) // old quotes available, just overwrite them
+        {
+            overwriteOdd(gameid, bet, mc_game, "mc");
+        }
+        else // old quotes not available
+        {
+            createOdd(gameid, bet, "main", mc_game, "mc");
+        }
+
+        checkTickerOdds(gameid, bet, mc_game);
+    }
+
+    // ================= FIRST COL BETS (HALFTIME)  ==================
+    else if (isBetMain_ht(bet.text_id, sportid)) // main bet (who will win)
+    {
+        // Main Content old quotes check
+        if ($("#mc-sti" + gameid + "_" + bet.text_id + "_1").length > 0) // old quotes available, just overwrite them
+        {
+            overwriteOdd(gameid, bet, mc_game, "mc");
+        }
+        else // old quotes not available
+        {
+            createOdd(gameid, bet, "main", mc_game, "mc", true);
+        }
+
+        checkTickerOdds(gameid, bet, mc_game);
+    }
+
+    // ================= SECOND COL BETS ==================
+    else if (isBetNextGoal(bet.text_id, sportid)) {
+        if ($("#mc-sti" + gameid + "_" + bet.text_id + "_1").length > 0) // old quotes available, just overwrite them
+        {
+            overwriteOdd(gameid, bet, mc_game, "mc");
+            arrGames[gameid]["textid_ng"] = bet.text_id;
+
+            if (sportid === 2) { // tennis
+                mc_game.find(".js-fact_hc2" + gameid).html(getTennisGame(bet.text_id)); // add number
+            }
+            else if (sportid === 11) { // baseball
+                mc_game.find(".js-fact2" + gameid).html(bet.anker);
+            }
+            else if (sportid === 12 || sportid === 6 || sportid === 15) { // basketball, american football, handball
+                if (bet.handicap != '0,0') mc_game.find(".js-fact_hc2" + gameid).html(bet.handicap); // add handicap
+            }
+        }
+        else // old quotes not available, rewrtie the id of the containers and then add the odds
+        {
+            if (arrGames[gameid]["textid_ng"] === -1) { // if col not already set
+                // emptyBetMarketColumn('', gameid, arrGames[gameid]["textid_ng"], sportid);
+                createOdd(gameid, bet, "ng", mc_game, "mc");
+                arrGames[gameid]["textid_ng"] = bet.text_id;
+
+                if (sportid === 2) // tennis
+                {
+                    mc_game.find(".js-fact_hc2" + gameid).html(getTennisGame(bet.text_id)); // add number of game
+                }
+                else if (sportid === 11) { // baseball
+                    mc_game.find(".js-fact2" + gameid).html(bet.anker);
+                }
+                else if (sportid === 12 || sportid === 15 || sportid === 6) // handball, baskebtall, american footbal
+                {
+                    if (bet.handicap != '0,0') {
+                        mc_game.find(".js-fact_hc2" + gameid).html(bet.handicap); // add handicap
+                    }
+                }
+            }
+        }
+
+        checkTickerOdds(gameid, bet, mc_game);
+    }
+
+    // ================= SECOND COL BETS (HALFTIME) ==================
+    else if (isBetNextGoal_ht(bet.text_id, sportid)) {
+        if ($("#mc-sti" + gameid + "_" + bet.text_id + "_1").length > 0) // old quotes available, just overwrite them
+        {
+            overwriteOdd(gameid, bet, mc_game, "mc");
+            arrGames[gameid]["textid_ng_ht"] = bet.text_id;
+        }
+        else // old quotes not available, rewrtie the id of the containers and then add the odds
+        {
+            if (arrGames[gameid]["textid_ng_ht"] === -1) { // if col not already set
+                // emptyBetMarketColumn('', gameid, arrGames[gameid]["textid_ng_ht"], sportid);
+                createOdd(gameid, bet, "ng", mc_game, "mc", true);
+                arrGames[gameid]["textid_ng_ht"] = bet.text_id;
+            }
+        }
+
+        checkTickerOdds(gameid, bet, mc_game);
+    }
+
+    // ================= THIRD COL BETS  ==================
+    else if (isBetThirdColumn(bet.text_id, sportid)) {
+
+        if ($("#mc-sti" + gameid + "_" + bet.text_id + "_1").length > 0) // old quotes available, just overwrite them
+        {
+            overwriteOdd(gameid, bet, mc_game, "mc");
+            arrGames[gameid]["textid_ou"] = bet.text_id;
+
+            if (sportid != 2) {
+                mc_game.find(".js-fact3" + gameid).html(bet.anker); // add anker
+            }
+        }
+        else // old quotes not available, rewrtie the id of the containers and then add the odds
+        {
+            if (arrGames[gameid]["textid_ou"] === -1) { // if col not already set
+                // emptyBetMarketColumn('', gameid, arrGames[gameid]["textid_ou"], sportid);
+
+                createOdd(gameid, bet, "ou", mc_game, "mc");
+                arrGames[gameid]["textid_ou"] = bet.text_id;
+
+                if (sportid != 2) {
+                    mc_game.find(".js-fact3" + gameid).html(bet.anker); // add anker
+                }
+            }
+        }
+
+        checkTickerOdds(gameid, bet, mc_game);
+    }
+
+    // ================= THIRD COL BETS (HALFTIME)  ==================
+    else if (isBetThirdColumn_ht(bet.text_id, sportid)) {
+
+        if ($("#mc-sti" + gameid + "_" + bet.text_id + "_1").length > 0) // old quotes available, just overwrite them
+        {
+            overwriteOdd(gameid, bet, mc_game, "mc");
+            arrGames[gameid]["textid_ou_ht"] = bet.text_id;
+            mc_game.find(".js-fact3" + gameid + "_ht").html(bet.anker); // add anker
+        }
+        else // old quotes not available, rewrtie the id of the containers and then add the odds
+        {
+            if (arrGames[gameid]["textid_ou_ht"] === -1) { // if col not already set
+                // emptyBetMarketColumn('', gameid, arrGames[gameid]["textid_ou_ht"], sportid);
+                createOdd(gameid, bet, "ou", mc_game, "mc", true);
+                arrGames[gameid]["textid_ou_ht"] = bet.text_id;
+                mc_game.find(".js-fact3" + gameid + "_ht").html(bet.anker); // add anker
+            }
+        }
+
+        checkTickerOdds(gameid, bet, mc_game);
+    }
+
+    else // none of the main categorys, only int the dropdown
+    {
+        checkTickerOdds(gameid, bet, mc_game);
+    }
+
+    if (sportid == 1) {
+        checkGameXzero(gameid, mc_game);
+    }
+}
+
+/**
+ * - this replaces dislpayCards() function in live.js
+ * display the cards/update the amount
+ * @param card is the string for the id to locate the card
+ * @param string colour yellow or red needed for the css class
+ * @param int amount the amount of cards
+ * @param int gameid the id of the game in the arrGames array
+ * @param obj containers - optional the containers of the game
+ */
+function displayCards(card, colour, amount, gameid, containers) {
+    var game_id = arrGames[gameid]["id"];
+
+    var card_container = containers.find(".js-card" + game_id + card);
+    var card_small_container = containers.find(".js-cardsmall" + game_id + card);
+
+    if (containers === undefined || containers == "") {
+        card_container = $(".js-card" + game_id + card);
+        card_small_container = $(".js-cardsmall" + game_id + card);
+    }
+
+    effectBlink('', card_container);
+    effectBlink('', card_small_container);
+
+    if (Number(amount) > 0) {
+        card_container.html(amount).addClass(colour + "CardBigBG");
+        card_small_container.html(amount).addClass(colour + "CardBG");
+    }
+    else {
+        card_container.html('').removeClass(colour + "CardBigBG");
+        card_small_container.html('').removeClass(colour + "CardBG");
+    }
+}
+
+/**
+ * - replaces effectBlink() function in live.js
+ * makes an element (normally a card) 'blink'
+ * @param string - html_selector
+ * @param object - html_object - the html object (if provided, selector is not needed)
+ */
+function effectBlink(html_selector, html_object) {
+    if (html_object !== undefined && html_object.length > 0) {
+        var html_element = html_object;
+    }
+    else {
+        var html_element = $(html_selector);
+    }
+
+    html_element.fadeOut(120).fadeIn(120).fadeOut(140).fadeIn(140).fadeOut(150).fadeIn(150).fadeOut(200).fadeIn(250).fadeOut(300).fadeIn(350);
+}
+
+/**
+ * - replaces effectRemove() function in live.js
+ * Removes a whole game or a single bet (should be removed with betDelete) with a graphic effect (slide up, than delete)
+ * @param string - html_selector
+ * @param object - html_object - the html object (if provided, selector is not needed)
+ * @param callback_function - function which is called after element is removed
+ */
+function effectRemove(html_selector, html_object, callback_function) {
+    if (html_object !== undefined && html_object.length > 0) {
+        var html_element = html_object;
+    }
+    else {
+        var html_element = $(html_selector);
+    }
+
+    html_element.slideUp(400, function () {
+        html_element.remove();
+
+        // callback function
+        if (callback_function !== undefined && callback_function != "") callback_function();
+    });
+}
+
+/**
+ * Live Update Process - update last 2 period scores (in infobox and dropdown scores ticker)
+ * - (show period if it wasn't available)
+ * @param {int} gameid
+ * @param {array} period_results
+ * @param {object} container - in which to find elements
+ */
+function liveupdate_update_period_scores(gameid, period_results, containers) {
+
+    var period_count = period_results.length;
+    if (period_count == 0) return false;
+
+    // get the last 2 periods
+    for (var i = period_count - 2; i < period_count; i++) {
+        if (period_results[i] !== undefined && period_results[i] != "") {
+
+            var pn = i + 1;
+            var split_result = period_results[i].split(":");
+            var result_home = split_result[0] !== undefined ? split_result[0] : '';
+            var result_away = split_result[1] !== undefined ? split_result[1] : '';
+
+            // infobox scores
+            $('#mc-pn-infobox-' + gameid + '-' + pn + '-col').removeClass("hidden");
+            $('#mc-pn-infobox-' + gameid + '-' + pn + '-home').html(result_home).removeClass("hidden");
+            $('#mc-pn-infobox-' + gameid + '-' + pn + '-away').html(result_away).removeClass("hidden");
+
+            // dropdown ticker scores
+            $('#mc-pn-ticker-' + gameid + '-' + pn + '-header').removeClass("hidden");
+            $('#mc-pn-ticker-' + gameid + '-' + pn + '-home').html(result_home).removeClass("hidden");
+            $('#mc-pn-ticker-' + gameid + '-' + pn + '-away').html(result_away).removeClass("hidden");
+
+            // last period
+            if (pn == period_count) {
+                effectBlink('', $('#mc-pn-ticker-' + gameid + '-' + pn + '-home'));
+                effectBlink('', $('#mc-pn-ticker-' + gameid + '-' + pn + '-away'));
+
+                // update last (current) period scores in infobox and leftmenu
+                var last_period_score = containers.find(".js-scoregamesmall_" + gameid);
+                if (last_period_score.length > 0) {
+                    last_period_score.html("<span>" + period_results[i] + "</span>");
+                    effectBlink('', last_period_score);
+                }
+
+            } // end: last period
+
+        }
+    } // end: get the last 2 periods
+}
+
+/**
+ * Live Update Process - update setpoints, server, gamestatus
+ */
+function liveupdate_update_status(gameid, sport_id, server, setpoints, gamestatus) {
+
+    if ((sport_id == 2 || sport_id == 11) && arrGames[gameid]['server'] != server && server != 0) // the team with service have changed
+    {
+        // baseball server acts inverse to tennis
+        var service_team_0 = sport_id == 2 ? 0 : 1;
+        var service_team_1 = sport_id == 2 ? 1 : 0;
+
+        var service_container_0 = $("#mc-service_" + gameid + "_" + service_team_0);
+        var service_container_1 = $("#mc-service_" + gameid + "_" + service_team_1);
+        var team_row_0 = $("#mc-teamrow_" + gameid + "_" + service_team_0);
+        var team_row_1 = $("#mc-teamrow_" + gameid + "_" + service_team_1);
+
+        team_row_0.add(team_row_1).removeClass("server_indicator_live");
+
+        if (arrGames[gameid]['server'] == 1 && server == 2) {
+            service_container_0.removeClass("ticker_service_1").addClass("ticker_service_0");
+            service_container_1.addClass("ticker_service_1").removeClass("ticker_service_0");
+            effectBlink('', service_container_1);
+
+            team_row_1.addClass("server_indicator_live"); // indicator next to team name (game closed)
+        }
+        else {
+            service_container_1.removeClass("ticker_service_1").addClass("ticker_service_0");
+            service_container_0.addClass("ticker_service_1").removeClass("ticker_service_0");
+            effectBlink('', service_container_0);
+
+            team_row_0.addClass("server_indicator_live"); // indicator next to team name (game closed)
+        }
+        arrGames[gameid]['server'] = server;
+    }
+
+    if (arrGames[gameid]['gamestatus'] != "" && arrGames[gameid]['gamestatus'] != gamestatus && gamestatus != "") {
+        // update left info box game status
+        var gamestatus_message_leftinfobox_cont = $("#mc-gamestatus_" + gameid + "_message_leftinfobox");
+        gamestatus_message_leftinfobox_cont.html(gamestatus);
+        effectBlink('', gamestatus_message_leftinfobox_cont);
+        // update ticker game status
+        var gamestatus_message_cont = $("#mc-gamestatus_" + gameid + "_message");
+        gamestatus_message_cont.html(gamestatus);
+        effectBlink('', gamestatus_message_cont);
+        // update array
+        arrGames[gameid]['gamestatus'] = gamestatus;
+    }
+
+    if (arrGames[gameid]['setpoints'] != "" && arrGames[gameid]['setpoints'] != setpoints && setpoints != "") {
+        points = setpoints.split(':'); // split the game
+
+        var points_ticker_cont_0 = $("#mc-ticker-current-points-" + gameid + "-home");
+        var points_ticker_cont_1 = $("#mc-ticker-current-points-" + gameid + "-away");
+        points_ticker_cont_0.html(points[0]);
+        points_ticker_cont_1.html(points[1]);
+        effectBlink('', points_ticker_cont_0);
+        effectBlink('', points_ticker_cont_1);
+
+        var points_infobox_cont_0 = $("#mc-infobox-current-points-" + gameid + "-home");
+        var points_infobox_cont_1 = $("#mc-infobox-current-points-" + gameid + "-away");
+        points_infobox_cont_0.html(points[0]);
+        points_infobox_cont_1.html(points[1]);
+        effectBlink('', points_infobox_cont_0);
+        effectBlink('', points_infobox_cont_1);
+
+        arrGames[gameid]['setpoints'] = setpoints;
+    }
+}
+
+/**
+ * Check if bet is in first live column
+ * @param betTextID int
+ * @returns {boolean}
+ */
+function isBetMain(betTextID) {
+    if (jQuery.inArray(Number(betTextID), mainbetids) > -1) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/**
+ * Check if bet is in first live column of halftime
+ * @param betTextID int
+ * @param sportId int
+ * @returns {boolean}
+ */
+function isBetMain_ht(betTextID, sportId) {
+    return (Number(betTextID) === 644 && sportId === 1);
+}
+
+/**
+ * Check if bet is in second live column
+ * @param betTextID int
+ * @param betSportID int
+ * @returns {boolean}
+ */
+function isBetNextGoal(betTextID, betSportID) {
+    if (Number(betSportID) === 1) // football
+    {
+        if (Number(betTextID) === 660 || Number(betTextID) >= 59 && Number(betTextID) <= 65) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    else if (Number(betSportID) === 2) // tennis
+    {
+        if (betTextID > 74 && betTextID < 134) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    else if (Number(betSportID) === 10) // icehockey
+    {
+        if (betTextID > 2 && betTextID < 18) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    else if (Number(betSportID) === 11) // baseball
+    {
+        // set the bet with the most balanced odds (sum of all odds being the lowest)
+        var return_val = false;
+        if (betTextID >= 4435 && betTextID <= 4482) {
+            /*if(odd1 !== undefined && odd3 !== undefined)
+             {
+             var val_odd1 = (odd1 !== undefined) ? parseInt(odd1) : 0;
+             //var val_odd2 = (odd2 !== undefined) ? parseInt(odd2) : 0;
+             var val_odd3 = (odd3 !== undefined) ? parseInt(odd3) : 0;
+             var bet_odd_diff = val_odd1 - val_odd3;
+             if (bet_odd_diff < 0) {
+             bet_odd_diff = bet_odd_diff * -1;
+             }
+             if (lowest_odd_diff[betid] === undefined || bet_odd_diff < lowest_odd_diff[betid]) {
+             lowest_odd_diff[betid] = bet_odd_diff;
+             return_val = true;
+             }
+             else {
+             return_val = false;
+             }
+             }
+             else
+             {
+             return_val = true;
+             }*/
+            reutnr_val = true;
+        }
+        else {
+            return_val = false;
+        }
+        return return_val;
+    }
+    else if (betTextID > 1793 && betTextID < 1872) // basketball
+    {
+        return true;
+    }
+    else if (betTextID == 3945) // american football
+    {
+        return true;
+    }
+    else if (betTextID > 2549 && betTextID < 2672) // handball
+    {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/**
+ * Check if bet is in second live column of halftime
+ * @param betTextID int
+ * @param betSportID int
+ * @returns {boolean}
+ */
+function isBetNextGoal_ht(betTextID, betSportID) {
+    var isBetNextGoal_ht = false;
+    if (Number(betSportID) === 1) // football
+    {
+        if (Number(betTextID) >= 3640 && Number(betTextID) <= 3648) {
+            isBetNextGoal_ht = true;
+        }
+    }
+    return isBetNextGoal_ht;
+}
+
+/**
+ * - replaces checkNextTennisGame() function in live.js
+ * @author Sebastian Holzer
+ * this function checks if an bet for the following game is available (e.g. bet for game 5 is deleted, is there a bet for game 6?`)
+ * @param {int} betindex position of the bet in the arrBets array
+ */
+function checkNextTennisGame(betindex) {
+    if (arrBets.length > betindex + 1 && Number(arrBets[betindex].text_id) + 1 == arrBets[betindex + 1].text_id && arrBets[betindex + 1].gameid == arrBets[betindex].gameid) { // there is a bet for the next game available
+        betCreate(arrBets[betindex].gameid, 2, arrBets[betindex + 1]);
+    }
+    else {
+        arrGames[arrBets[betindex]["gameid"]]["index_ng"] = -1;
+        arrGames[arrBets[betindex]["gameid"]]["textid_ng"] = -1;
+        $(".js-fact_hc2" + arrBets[betindex]["gameid"]).html('&nbsp;'); // delete the number for the game
+    }
+}
+
+/**
+ * - replaces isBetThirdColumn() function in live.js
+ * by using the bettextid this function determines if the bet belongs in the third column
+ * @param {int} betTextID
+ * @param {int} betSportID
+ */
+function isBetThirdColumn(betTextID, betSportID) {
+    if (Number(betSportID) === 1) {
+        if ((Number(betTextID) >= 31 && Number(betTextID) <= 37) || Number(betTextID) == 537
+            || Number(betTextID) == 538 || (Number(betTextID) >= 1737 && Number(betTextID) <= 1743)) {
+            return true;
+        } else {
+            return false;
+        }
+    } else if (Number(betSportID) === 2) {
+        if ((betTextID > 68 && betTextID < 74) || (betTextID > 517 && betTextID < 521)) {
+            return true;
+        } else {
+            return false;
+        }
+    } else if (Number(betSportID) === 11) {
+        if (betTextID >= 4137 && betTextID <= 4187) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    else if (Number(betSportID) === 10) {
+        if (Number(betTextID) === 539 || (betTextID > 153 && betTextID < 159)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    else if (betTextID >= 3714 && betTextID <= 3790) // american football
+    {
+        return true;
+    }
+    else if (betTextID > 1871 && betTextID < 2092) // basketball
+    {
+        return true;
+    }
+    else if (betTextID > 2671 && betTextID < 2723) // handball
+    {
+        return true;
+    }
+    else if (betTextID > 3373 && betTextID < 3634) // volleyball
+    {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/**
+ * Check if bet is in third column of halftime
+ * @param betTextID int
+ * @param betSportID int
+ * @returns {boolean}
+ */
+function isBetThirdColumn_ht(betTextID, betSportID) {
+    var isBetThirdColumn_ht = false;
+    if (Number(betSportID) === 1) {
+        if (Number(betTextID) === 38 || Number(betTextID) === 39 || Number(betTextID) === 1744) {
+            isBetThirdColumn_ht = true;
+        }
+    }
+    return isBetThirdColumn_ht;
+}
+
+/**
+ * - replaces check_if_live_game_ticker_odds_sections_contain_odds() function in live.js
+ * function to check if live game ticker odds sections (Game odds / Rest of game odds) contain odds
+ * - if either of them doesn't (on js update), hide that section.
+ * - if none of them contains odds, hide both sections and the top&bottom horiyontal bars/flags
+ *
+ * @param gameid - the gameid is needed to identify which live game's ticker to check
+ * @param container - the container in which to search
+ */
+function check_live_game_ticker_odds(gameid, container) {
+    // if gameid is given
+    if (gameid !== undefined && gameid != "") {
+        if (container == undefined) {
+            var game_container = $("#mc-ddodds_" + gameid);
+        }
+        else {
+            var game_container = $("#mc-ddodds_" + gameid);
+        }
+
+        // for each odds section (Game odds & Rest of Game odds) which is visible
+        game_container.find(".live_game_ticker_section:visible").each(function () {
+            // if it doesn't contain any odds, hide it
+            if ($(this).find(".live_quotelist:visible").length == 0) $(this).hide();
+        });
+        // end: for each odds section
+
+        // hide top/bottom horizontal flags/bars if there are no odds in any odds category
+        if (game_container.find(".live_quotelist:visible").length == 0) {
+            game_container.find(".live_ticker_flag_top").hide();
+            game_container.find(".live_ticker_flag_bottom").hide();
+        }
+        // end: hide top/bottom horizontal flags/bars
+    }
+    // end: if gameid is given
+}
+
+/**
+ * - replaces checkGameXzero() function in live.js
+ * @author Sebastian Holzer
+ * checks if one of the bets for this game is an xzero bet, if so mark the game as xzero
+ * @param {int} gameid
+ */
+function checkGameXzero(gameid, container) {
+    var betsl = arrBets.length, i = 0, hasxzero = false;
+
+    while (hasxzero === false && i < betsl) {
+        if (arrBets[i].gameid == gameid && arrBets[i].oddtype == "X") // one bet of this game has the type xzero
+        {
+            hasxzero = true;
+        }
+        i++;
+    }
+
+    var game_container = $("#mc-lga" + gameid);
+    if (hasxzero && game_container.hasClass('row-xzero') === false) {
+        game_container.addClass('row-xzero');
+        // $("#xzero_roll_over"+gameid).html('<img src="'+baseURL+'/images/icon/icon_xzero_vertical.png" width="16" height="38" alt="xzero" />'); // add image 
+    }
+    else if (hasxzero === false && game_container.hasClass('row-xzero')) {
+        game_container.removeClass('row-xzero');
+        // $("#xzero_roll_over"+gameid).html(""); // delete image
+    }
+}
+
+/**
+ * - replaces overwriteOdd() function in live.js
+ * overwrites existing odds with new ones
+ * @param {int} gameid the id of the game
+ * @param {object} bet the object which contains odds, texts and so on
+ * @param object container - the game container under which to update odd
+ * @param string prefix - "lm" - game in left menu, "mc" - game in main content
+ */
+function overwriteOdd(gameid, bet, container, prefix) {
+    var odd_sti_1 = $("#" + prefix + "-sti" + gameid + "_" + bet.text_id + "_1");
+    var odd_sti_2 = $("#" + prefix + "-sti" + gameid + "_" + bet.text_id + "_2");
+    var odd_sti_3 = $("#" + prefix + "-sti" + gameid + "_" + bet.text_id + "_3");
+
+    getOddButtonsInstanceByPrefix(odd_sti_1, prefix, bet.odd1);
+    getOddButtonsInstanceByPrefix(odd_sti_2, prefix, bet.odd3);
+    getOddButtonsInstanceByPrefix(odd_sti_3, prefix, bet.odd2);
+
+    var odd1IsValid = parseInt(bet.odd1, 10) > 100;
+    var odd2IsValid = parseInt(bet.odd2, 10) > 100;
+    var odd3IsValid = parseInt(bet.odd3, 10) > 100;
+
+    odd_sti_1.off("click").prop("onclick", null);
+    odd_sti_2.off("click").prop("onclick", null);
+    odd_sti_3.off("click").prop("onclick", null);
+
+    // add the onclick events
+    if ((typeof (bet.odd2) == "undefined") || bet.odd2 <= 100) // max two way bet
+    {
+        if ((typeof (bet.odd3) == "undefined") || bet.odd3 <= 100) // one way bet
+        {
+            if (odd1IsValid)
+            {
+                odd_sti_1.on("click", function () {
+                    addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+                });
+            }
+        }
+        else {
+            if (odd1IsValid)
+            {
+                odd_sti_1.on("click", function () {
+                    addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+                });
+            }
+            if (odd3IsValid)
+            {
+                odd_sti_2.on("click", function () {
+                    addBetWrapper(gameid, bet.text_id, 3, 2, bet.tiptext3, 2);
+                });
+            }
+            odd_sti_3.css('display', 'none');
+        }
+    }
+    else { //three way bet
+        if (odd1IsValid)
+        {
+            odd_sti_1.on("click", function () {
+                addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+            });
+        }
+        if (odd3IsValid)
+        {
+            odd_sti_2.on("click", function () {
+                addBetWrapper(gameid, bet.text_id, 3, 3, bet.tiptext3, 2);
+            });
+        }
+        if (odd2IsValid)
+        {
+            odd_sti_3.on("click", function () {
+                addBetWrapper(gameid, bet.text_id, 2, 2, bet.tiptext2, 3);
+            });
+        }
+    }
+}
+
+/* 
+ * - replaces createOdd() function in live.js
+ * @param object container - the game container under which to update odd
+ * @param string prefix - "lm" - game in left menu, "mc" - game in main content
+ */
+function createOdd(gameid, bet, betcolumn, container, prefix, ht) {
+    ht = ht ? '_ht' : '';
+    var odd_sti_1 = $("#" + prefix + "-sti_" + betcolumn + "_" + gameid + "_1" + ht);
+    var odd_sti_2 = $("#" + prefix + "-sti_" + betcolumn + "_" + gameid + "_2" + ht);
+    var odd_sti_3 = $("#" + prefix + "-sti_" + betcolumn + "_" + gameid + "_3" + ht);
+
+    getOddButtonsInstanceByPrefix(odd_sti_1, prefix, bet.odd1);
+    getOddButtonsInstanceByPrefix(odd_sti_2, prefix, bet.odd3);
+    getOddButtonsInstanceByPrefix(odd_sti_3, prefix, bet.odd2);
+
+    // add the onclick events
+    if ((typeof (bet.odd2) == "undefined") || bet.odd2 <= 100) // max two way bet
+    {
+        if ((typeof (bet.odd3) == "undefined") || bet.odd3 <= 100) // one way bet
+        {
+            if (odd_sti_1[0]) {
+                odd_sti_1.addClass('live_rate').unbind('click').attr("onclick","").on("click", function () {
+                    addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+                });
+            }
+        }
+        else {
+            if (odd_sti_1[0]) {
+                odd_sti_1.addClass('live_rate').unbind('click').attr("onclick","").on("click", function () {
+                    addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+                });
+            }
+
+            if (odd_sti_2[0]) {
+                odd_sti_2.addClass('live_rate').unbind('click').attr("onclick","").on("click", function () {
+                    addBetWrapper(gameid, bet.text_id, 3, 2, bet.tiptext3, 2);
+                });
+            }
+        }
+    }
+    else//three way bet
+    {
+        odd_sti_1.addClass('live_rate').unbind('click').attr("onclick","").on("click", function () {
+            addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+        });
+
+        odd_sti_2.addClass('live_rate').unbind('click').attr("onclick","").on("click", function () {
+            addBetWrapper(gameid, bet.text_id, 3, 3, bet.tiptext3, 2);
+        });
+
+        odd_sti_3.addClass('live_rate').unbind('click').attr("onclick","").on("click", function () {
+            addBetWrapper(gameid, bet.text_id, 2, 2, bet.tiptext2, 3);
+        });
+    }
+
+    odd_sti_1.attr('id', prefix + "-sti" + gameid + "_" + bet.text_id + "_1");
+    odd_sti_2.attr('id', prefix + "-sti" + gameid + "_" + bet.text_id + "_2");
+    odd_sti_3.attr('id', prefix + "-sti" + gameid + "_" + bet.text_id + "_3");
+}
+
+/**
+ * Creates instance of OddButtons using id prefix to set its type
+ * @param {jQuery} $oddButtons
+ * @param {String} prefix
+ * @param {Number} odd
+ * @returns {OddButtons}
+ */
+function getOddButtonsInstanceByPrefix($oddButtons, prefix, odd)
+{
+    var oddButton = new OddButtons($oddButtons);
+    oddButton.setOddFormat(ODD_FORMAT);
+
+    switch (prefix) {
+        case 'lm':
+            oddButton.setTypeToLeftMenu();
+            break;
+        case 'mc':
+            oddButton.setTypeToMain();
+            break;
+        default:
+            throw 'Unknown prefix '+ prefix;
+            break;
+    }
+
+    oddButton.setOddValue(odd);
+
+    return oddButton;
+}
+
+/**
+ * Remove a particular bet market (ex: Over/Under) from a particular column.
+ * - This does not delete the odd, but it only removed the HTML and any stored indexes
+ *
+ */
+function emptyBetMarketColumn(arrBetsIndex, gameid, textid, sportid)
+{
+    // get the bet's index in arrBets array if it is not provided
+    if (arrBetsIndex === '' || arrBetsIndex === undefined) {
+        arrBetsIndex = -1;
+        for (var i = 0; i < arrBets.length; i++) {
+            if (arrBets[i]["gameid"] == gameid && arrBets[i]["text_id"] == textid) {
+                arrBetsIndex = i;
+            }
+        }
+        if (arrBetsIndex === -1) return false;
+    }
+
+    var lm_game = $("#lm-left-menu-game-" + gameid); // game in left menu
+    var mc_game = $("#mc-game_container_" + gameid); // game in main content
+    var all_game = lm_game.add(mc_game); // both instances of the game (left menu + main content)
+    if (all_game.length == 0) return false;
+
+    var lm_odd_sti_1 = $("#lm-sti" + gameid + "_" + textid + "_1");
+    var mc_odd_sti_1 = $("#mc-sti" + gameid + "_" + textid + "_1");
+
+    var lm_odd_sti_2 = $("#lm-sti" + gameid + "_" + textid + "_2");
+    var mc_odd_sti_2 = $("#mc-sti" + gameid + "_" + textid + "_2");
+
+    var lm_odd_sti_3 = $("#lm-sti" + gameid + "_" + textid + "_3");
+    var mc_odd_sti_3 = $("#mc-sti" + gameid + "_" + textid + "_3");
+
+    var $lm_odds = $(
+        "#lm-sti" + gameid + "_" + textid + "_1, "+
+        "#lm-sti" + gameid + "_" + textid + "_2, "+
+        "#lm-sti" + gameid + "_" + textid + "_3"
+    );
+
+    var $mc_odds = $(
+        "#mc-sti" + gameid + "_" + textid + "_1, "+
+        "#mc-sti" + gameid + "_" + textid + "_2, "+
+        "#mc-sti" + gameid + "_" + textid + "_3"     
+    );
+
+    getOddButtonsInstanceByPrefix($lm_odds, 'lm', 0);
+    getOddButtonsInstanceByPrefix($mc_odds, 'mc', 0);
+
+    if (isBetMain(textid)) {
+        arrGames[gameid]["index_main"] = -1; // if the bet is the main bet, set the index_main in the arrGames arrays to -1
+    }
+    else if (isBetMain_ht(textid, sportid)) {
+        arrGames[gameid]["index_main_ht"] = -1; // if the bet is the main bet, set the index_main in the arrGames arrays to -1
+    }
+    else if (isBetNextGoal(textid, sportid)) {
+        all_game.find(".js-fact2" + gameid + ", .js-fact_hc2" + gameid).html("&nbsp;"); // delete the anker/border
+
+        lm_odd_sti_1.attr('id', "lm-sti_ng_" + gameid + "_1"); // unset the text_id
+        mc_odd_sti_1.attr('id', "mc-sti_ng_" + gameid + "_1");
+
+        lm_odd_sti_2.attr('id', "lm-sti_ng_" + gameid + "_2"); // because if the text_id changes
+        mc_odd_sti_2.attr('id', "mc-sti_ng_" + gameid + "_2");
+
+        lm_odd_sti_3.attr('id', "lm-sti_ng_" + gameid + "_3"); // the elements can be identified
+        mc_odd_sti_3.attr('id', "mc-sti_ng_" + gameid + "_3");
+
+        if (sportid == 2 || sportid == 11) {
+            checkNextTennisGame(arrBetsIndex);
+        }
+        else {
+            arrGames[gameid]["index_ng"] = -1;
+            arrGames[gameid]["textid_ng"] = -1;
+        }
+    }
+    else if (isBetNextGoal_ht(textid, sportid)) {
+        all_game.find(".js-fact2" + gameid + "_ht, .js-fact_hc2" + gameid + "_ht").html("&nbsp;"); // delete the anker/border
+
+        mc_odd_sti_1.attr('id', "mc-sti_ng_" + gameid + "_1_ht"); // unset the text_id
+        mc_odd_sti_2.attr('id', "mc-sti_ng_" + gameid + "_2_ht"); // because if the text_id changes
+        mc_odd_sti_3.attr('id', "mc-sti_ng_" + gameid + "_3_ht"); // the elements can be identified
+
+        arrGames[gameid]["index_ng_ht"] = -1;
+        arrGames[gameid]["textid_ng_ht"] = -1;
+    }
+    else if (isBetThirdColumn(textid, sportid)) {
+        all_game.find(".js-fact3" + gameid + ", .js-fact_hc3" + gameid).html("&nbsp;"); // delete the anker/border in the live view (because without bet, no anker is needed)
+        arrGames[gameid]["index_ou"] = -1;
+        arrGames[gameid]["textid_ou"] = -1;
+
+        lm_odd_sti_1.attr('id', "lm-sti_ou_" + gameid + "_1");
+        mc_odd_sti_1.attr('id', "mc-sti_ou_" + gameid + "_1");
+
+        lm_odd_sti_2.attr('id', "lm-sti_ou_" + gameid + "_2");
+        mc_odd_sti_2.attr('id', "mc-sti_ou_" + gameid + "_2");
+    }
+    else if (isBetThirdColumn_ht(textid, sportid)) {
+        mc_game.find(".js-fact3" + gameid + "_ht, .js-fact_hc3" + gameid + "_ht").html("&nbsp;"); // delete the anker/border in the live view (because without bet, no anker is needed)
+        arrGames[gameid]["index_ou_ht"] = -1;
+        arrGames[gameid]["textid_ou_ht"] = -1;
+
+        mc_odd_sti_1.attr('id', "mc-sti_ou_" + gameid + "_1_ht");
+        mc_odd_sti_2.attr('id', "mc-sti_ou_" + gameid + "_2_ht");
+    }
+}
+
+/**
+ * - replaces the overwriteTickerOdd() function in live.js
+ * replace the odds in the liveticker/dropdown menu with new ones
+ */
+function overwriteTickerOdd(gameid, bet) {
+    var odd_cti_1 = $("#mc-cti" + gameid + "_" + bet.text_id + "_1");
+    var odd_cti_2 = $("#mc-cti" + gameid + "_" + bet.text_id + "_2");
+    var odd_cti_3 = $("#mc-cti" + gameid + "_" + bet.text_id + "_3");
+
+    var detailsOddButton1 = new OddButtons(odd_cti_1);
+    detailsOddButton1.setOddFormat(ODD_FORMAT);
+    detailsOddButton1.setTypeToMainDetails();
+    detailsOddButton1.setOddTitle(bet.tiptext1);
+    detailsOddButton1.setOddValue(bet.odd1);
+
+    var detailsOddButton2 = new OddButtons(odd_cti_2);
+    detailsOddButton2.setOddFormat(ODD_FORMAT);
+    detailsOddButton2.setTypeToMainDetails();
+    detailsOddButton2.setOddTitle(bet.tiptext3);
+    detailsOddButton2.setOddValue(bet.odd3);
+
+    var detailsOddButton3 = new OddButtons(odd_cti_3);
+    detailsOddButton3.setOddFormat(ODD_FORMAT);
+    detailsOddButton3.setTypeToMainDetails();
+    detailsOddButton3.setOddTitle(bet.tiptext2);
+    detailsOddButton3.setOddValue(bet.odd2);
+
+    if ((typeof (bet.odd2) == "undefined") || bet.odd2 <= 100) // max two way bet
+    {
+        if ((typeof (bet.odd3) == "undefined") || bet.odd3 <= 100) // one way bet
+        {
+            odd_cti_1.off("click").prop("onclick", null).on("click", function () {
+                addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+            });
+        } else {
+            odd_cti_1.off("click").prop("onclick", null).on("click", function () {
+                addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+            });
+            odd_cti_2.off("click").prop("onclick", null).on("click", function () {
+                addBetWrapper(gameid, bet.text_id, 3, 2, bet.tiptext3, 2);
+            });
+        }
+    }
+    else
+    {
+        odd_cti_1.off("click").prop("onclick", null).on("click", function () {
+            addBetWrapper(gameid, bet.text_id, 1, 1, bet.tiptext1, 1);
+        });
+        odd_cti_2.off("click").prop("onclick", null).on("click", function () {
+            addBetWrapper(gameid, bet.text_id, 3, 3, bet.tiptext3, 2);
+        });
+        odd_cti_3.off("click").prop("onclick", null).on("click", function () {
+            addBetWrapper(gameid, bet.text_id, 2, 2, bet.tiptext2, 3);
+        });
+    }
+}
+
+/* 
+ * - replaces insertIntoTickerDropdown() function in live.js
+ */
+function insertIntoTickerDropdown(gameid, bet, container) {
+    var maincat = '';
+    var sportid = arrGames[gameid].sport_id;
+    if (isBetMain(bet.text_id) || isBetNextGoal(bet.text_id, sportid) || isBetThirdColumn(bet.text_id, sportid)
+        || isBetMain_ht(bet.text_id, sportid) || isBetNextGoal_ht(bet.text_id, sportid) || isBetThirdColumn_ht(bet.text_id, sportid)) {
+        maincat = 'live_maincat';
+    }
+    var bets = "<div class='live_quotelist_rate2'>";
+    if (bet.oc > 1) {
+        bets += "<div id='mc-cti" + gameid + "_" + bet.text_id + "_1' class='live_quotelist_rate_c' onclick='addBetWrapper(" + gameid + "," + bet.text_id + ", 1, 1,\"" + bet.tiptext1 + "\", 1)'";
+        if (bet.odd1 <= 100)
+        {
+            bets += " style='visibility:hidden;'";
+        }
+        bets += ">" +
+            "<div id='mc-tti" + gameid + "_" + bet.text_id + "_1' class='live_quotelist_rate_c_l'>" + bet.tiptext1 + "</div>" +
+            "<div id='mc-ti" + gameid + "_" + bet.text_id + "_1' class='live_quotelist_rate_c_r'>" + oddoutput(ODD_FORMAT, bet.odd1) + "</div>" +
+            "</div>" +
+            "</div>";
+
+        bets += "<div class='live_quotelist_rate2'>";
+        bets += "<div id='mc-cti" + gameid + "_" + bet.text_id + "_3' class='live_quotelist_rate_c' onclick='addBetWrapper(" + gameid + "," + bet.text_id + ", 2, 2,\"" + bet.tiptext2 + "\", 3)'";
+        if (bet.odd2 <= 100)
+        {
+            bets += " style='visibility:hidden;'";
+        }
+        bets += ">" +
+            "<div id='mc-tti" + gameid + "_" + bet.text_id + "_3' class='live_quotelist_rate_c_l'>" + bet.tiptext2 + "</div>" +
+            "<div id='mc-ti" + gameid + "_" + bet.text_id + "_3' class='live_quotelist_rate_c_r'>" + oddoutput(ODD_FORMAT, bet.odd2) + "</div>" +
+            "</div>" +
+            "</div>";
+
+        bets += "<div class='live_quotelist_rate2'>";
+        bets += "<div id='mc-cti" + gameid + "_" + bet.text_id + "_2' class='live_quotelist_rate_c' onclick='addBetWrapper(" + gameid + "," + bet.text_id + ", 3, " + bet.oc + ",\"" + bet.tiptext3 + "\", 2)'";
+        if (bet.odd3 <= 100)
+        {
+            bets += " style='visibility:hidden;'";
+        }
+        bets += ">" +
+            "<div id='mc-tti" + gameid + "_" + bet.text_id + "_2' class='live_quotelist_rate_c_l'>" + bet.tiptext3 + "</div>" +
+            "<div id='mc-ti" + gameid + "_" + bet.text_id + "_2' class='live_quotelist_rate_c_r'>" + oddoutput(ODD_FORMAT, bet.odd3) + "</div>" +
+            "</div>" +
+            "</div>";
+    }
+    else // one way bet
+    {
+        bets += "</div>" +
+            "<div class='live_quotelist_rate2'>" +
+            "<div id='mc-cti" + gameid + "_" + bet.text_id + "_1' class='live_quotelist_rate_c' onclick='addBetWrapper(" + gameid + "," + bet.text_id + ", 1, 1,\"" + bet.tiptext1 + "\", 1)'";
+        if (bet.odd1 <= 100)
+        {
+            bets += " style='visibility:hidden;'";
+        }
+        bets += ">" +
+            "<div id='mc-tti" + gameid + "_" + bet.text_id + "_1' class='live_quotelist_rate_c_l'>" + bet.tiptext1 + "</div>" +
+            "<div id='mc-ti" + gameid + "_" + bet.text_id + "_1' class='live_quotelist_rate_c_r'>" + oddoutput(ODD_FORMAT, bet.odd1) + "</div>" +
+            "</div>" +
+            "</div>" +
+            "<div class='live_quotelist_rate2'>&nbsp;</div>";
+    }
+
+    // Rest of Game Odds (xzero)
+    if (bet.oddtype === "X") {
+        var game_container = $("#mc-ddodds_" + gameid);
+        // show / ensure that Rest of Game Odds section
+        $("#mc-live_game_ticker_odds_" + gameid + " .live_game_ticker_section_restofgameodds").show();
+        // append new row
+        $("#mc-live_game_ticker_odds_" + gameid + " .live_game_ticker_section_restofgameodds .live_game_ticker_odds_content").append(
+            "<div id='mc-bet_" + gameid + "_" + bet.text_id + "' class='live_quotelist " + maincat + "'>" +
+            "<div id='mc-bettext_" + gameid + "_" + bet.text_id + "' class='live_quotelist_l'>" +
+            "<a class='combi_" + bet.combicat + "'></a>" + bet.text
+            + bet_info_html_content(bet.infoText) + "</div>" +
+            "<div class='live_quotelist_r'>" + bets + "</div>" +
+            "</div>");
+        // show / ensure that top&bottom horizontal bars/flags are showing
+        game_container.find(".live_ticker_flag_top").show();
+        game_container.find(".live_ticker_flag_bottom").show();
+    }
+
+    // Game Odds (non-xzero)
+    else {
+        var game_container = $("#mc-ddodds_" + gameid);
+        // show Game Odds section
+        $("#mc-live_game_ticker_odds_" + gameid + " .live_game_ticker_section_gameodds").show();
+        // append new row
+        $("#mc-live_game_ticker_odds_" + gameid + " .live_game_ticker_section_gameodds .live_game_ticker_odds_content").append(
+            "<div id='mc-bet_" + gameid + "_" + bet.text_id + "' class='live_quotelist " + maincat + "'>" +
+            "<div id='mc-bettext_" + gameid + "_" + bet.text_id + "' class='live_quotelist_l'>" +
+            "<a class='combi_" + bet.combicat + "'></a>" + bet.text
+            + bet_info_html_content(bet.infoText) + "</div>" +
+            "<div class='live_quotelist_r'>" + bets + "</div>" +
+            "</div>");
+        // show / ensure that top&bottom horizontal bars/flags are showing
+        game_container.find(".live_ticker_flag_top").show();
+        game_container.find(".live_ticker_flag_bottom").show();
+    }
+
+    // update xtra games counter
+    if (game_container.length > 0) {
+        update_live_games_xtra_counter(container, gameid);
+    }
+
+    initialise_bet_info_functionality(game_container); // bets info popup
+}
+
+/**
+ * - replaces getTennisGame() function in live.js
+ * @author Sebastian Holzer
+ * valid parameters for the first set are 74 (1. Game)  to 85 (12. Game), for the other sets add 12 times set number (so 86 2. Set 1. Game)
+ * copy of the funtion in the LiveController
+ * @param textidtennis
+ * @return integer range: 0-12
+ */
+function getTennisGame(textidtennis) {
+    var gamenr = 0, modedid = 0;
+    textidtennis = Number(textidtennis);
+    if (textidtennis >= 74 && textidtennis <= 133) // valid ids for the games
+    {
+        modedid = (textidtennis + 11) % 12;
+        if (modedid === 0) {
+            gamenr = 12;
+        }
+        else {
+            gamenr = modedid;
+        }
+    }
+
+    return gamenr;
+}
+
+/**
+ * - replaces addBetWrapper() in live.js
+ * function which calls the addBet function in bets.js
+ */
+function addBetWrapper(gameID, betTextID, betOdd, betTip, betTipText, betTipID) {
+    var myIndex = -1, i = 0, betsl = arrBets.length;
+    for (i = 0; i < betsl; i++) {
+        if (arrBets[i]["text_id"] == betTextID && arrBets[i]["gameid"] == gameID) // check if bet is still active/saved in the bets array
+        {
+            myIndex = i;
+        }
+    }
+
+    if (myIndex !== -1) {
+        Bettingslip.addBet({
+            type: String(arrBets[myIndex]["oddtype"]).toUpperCase(),
+            team1: arrBets[myIndex]["team1"],
+            team2: arrBets[myIndex]["team2"],
+            tiptext: betTipText,
+            odd: arrBets[myIndex]["odd" + betOdd],
+            bettext: arrBets[myIndex]["text"],
+            game: arrBets[myIndex]["gameid"],
+            odd_id: arrBets[myIndex]["id"],
+            tip: betTipID,
+            combi_cat: arrBets[myIndex]["combi_cat"],
+            sub_group: 0
+        }, "#sti" + gameID + "_" + betTextID + "_" + betTip);
+        if ($.inArray(arrGames[gameID]["sport_id"], sportsInBetslip) === -1) {
+            sportsInBetslip.push(arrGames[gameID]["sport_id"]);
+        }
+    }
+}
+
+/**
+ * mark the bets where the odds have changed, either green or red
+ * @param {integer} game_id ID of the game
+ * @param {integer} textid to indentify the kind of bet
+ * @param {integer} nr whether it is odd1, odd2 or odd3
+ * @param {integer} odd the new odd
+ * @param {integer} myIndex index of the bet in the arrBets array
+ * @param {integer} betnr a number needed to locate the old odd in the arrBets array
+ */
+function markChangedBets(game_id, textid, nr, odd, myIndex, betnr) {
+    var oddStatus = 0; // needed for the bettingslip to displays if the odd got higher or lower
+    var value = Number(arrBets[myIndex]["odd" + betnr]); // get the old odd
+
+    var mc_odd_sti = $("#mc-sti" + game_id + "_" + textid + "_" + nr);
+    var lm_odd_sti = $("#lm-sti" + game_id + "_" + textid + "_" + nr);
+
+    var mainOddButton = new OddButtons(mc_odd_sti);
+    mainOddButton.setOddFormat(ODD_FORMAT);
+    mainOddButton.setTypeToMain();
+    mainOddButton.setOddValue(odd);
+
+    var odd_sti = mc_odd_sti.add(lm_odd_sti);
+    odd_sti.removeClass("live_odd_minus").removeClass("live_odd_plus");
+
+    if (site_label != 'xtip') {
+        markChangedBetsDropdown(game_id, textid, nr, odd, value);
+    }
+    else {
+        markChangedBetsDropdownBorder(game_id, textid, nr, odd, value);
+    }
+
+    // passed odd is not always a number, but we need a number to do comparison
+    odd = parseInt(odd, 10);
+    if (odd > 100) // there is a realistic odd
+    {
+        if (odd > value) {
+            oddStatus = 1;
+            odd_sti.addClass("live_odd_plus"); // normal view
+        }
+        else if (odd < value) {
+            oddStatus = 2;
+            odd_sti.addClass("live_odd_minus");
+        }
+
+        var changed = new Date();
+        odd_sti.attr('data-changed', changed.getTime());
+        setTimeout(function () {
+            var now = new Date();
+            var ch = parseInt(mc_odd_sti.attr('data-changed'));
+            if (isNaN(ch) && lm_odd_sti.attr('data-changed') !== undefined) {
+                ch = parseInt(lm_odd_sti.attr('data-changed'));
+            }
+            if (now.getTime() - ch >= 7000) {
+                removeOddChangeIndicator('', odd_sti);
+            }
+        }, 10000);
+    }
+
+    return oddStatus;
+}
+
+/**
+ * - replaces markChangedBetsDropdownBorder() function in live.js
+ */
+function markChangedBetsDropdownBorder(game_id, textid, nr, odd, value) {
+    var odd_cti = $("#mc-cti" + game_id + "_" + textid + "_" + nr);
+
+    odd_cti.attr('style', '');
+    if (odd > 100) // there is a realistic odd
+    {
+        if (odd > value) {
+            oddStatus = 1;
+            odd_cti.attr('style', 'border-color: #009900 !important'); // liveticker
+        }
+        else if (odd < value) {
+            oddStatus = 2;
+            odd_cti.attr('style', 'border-color: #c00 !important');
+        }
+
+        var changed = new Date();
+        odd_cti.attr('data-changed', changed.getTime());
+        setTimeout(function () {
+            var now = new Date();
+            var ch = parseInt(odd_cti.attr('data-changed'));
+            if (now.getTime() - ch >= 7000) {
+                removeOddChangeBorderIndicator("#mc-cti" + game_id + "_" + textid + "_" + nr, odd_cti);
+            }
+        }, 10000);
+    }
+}
+
+/**
+ * - replaces markChangedBetsDropdown() function in live.js
+ */
+function markChangedBetsDropdown(game_id, textid, nr, odd, value) {
+    var odd_ti = $("#mc-ti" + game_id + "_" + textid + "_" + nr);
+
+    odd_ti.removeClass("live_odd_minus").removeClass("live_odd_plus");
+    if (odd > 100) // there is a realistic odd
+    {
+        if (odd > value) {
+            oddStatus = 1;
+            odd_ti.addClass("live_odd_plus"); // liveticker
+        }
+        else if (odd < value) {
+            oddStatus = 2;
+            odd_ti.addClass("live_odd_minus");
+        }
+
+        var changed = new Date();
+        odd_ti.attr('data-changed', changed.getTime());
+        setTimeout(function () {
+            var now = new Date();
+            var ch = parseInt(odd_ti.attr('data-changed'));
+            if (now.getTime() - ch >= 7000) {
+                removeOddChangeIndicator("#mc-ti" + game_id + "_" + textid + "_" + nr, odd_ti);
+            }
+        }, 10000);
+    }
+}
+
+/**
+ * - replaces removeOddChangeIndicator() function in live.js
+ * removes the green or red indicator for an oddchange
+ * @param string - html_selector
+ * @param object - html_object - the html object (if provided, selector is not needed)
+ */
+function removeOddChangeIndicator(html_selector, html_object) // display the bets without a colour
+{
+    if (html_object !== undefined && html_object.length > 0) {
+        var html_element = html_object;
+    }
+    else {
+        var html_element = $(html_selector);
+    }
+
+    html_element.removeClass("live_odd_minus").removeClass("live_odd_plus");
+}
+
+/**
+ * - replaces removeOddChangeBorderIndicator() function in live.js
+ * removes the green or red border indicator for an oddchange
+ * @param string - html_selector
+ * @param object - html_object - the html object (if provided, selector is not needed)
+ */
+function removeOddChangeBorderIndicator(html_selector, html_object) // display the bets without a colour
+{
+    if (html_object !== undefined && html_object.length > 0) {
+        var html_element = html_object;
+    }
+    else {
+        var html_element = $(html_selector);
+    }
+
+    html_element.attr("style", "");
+    html_element.attr("style", "");
+}
+
+/**
+ * marks a bet as selected or unselected
+ */
+function toggleBetSelection(refString, refStatus) {
+    var refString2;
+    refString2 = refString.replace("sti", "cti"); // for the livetickermenu
+
+    var refString_object = $(refString);
+    var refString_object_live = $(refString2);
+
+    if (refStatus) // if refStatus is true, add the class
+    {
+        if (refString_object.hasClass("live_rate")) {
+            refString_object.addClass("sportbet_rate_over");
+        } // only if there is a value in refstring (indicated by the class) mark it
+        refString_object_live.addClass("sportbet_rate_over");
+    }
+    else //otherwise remove it
+    {
+        refString_object_live.removeClass("sportbet_rate_over");
+        refString_object.removeClass("sportbet_rate_over");
+    }
+}
+
+function getBetIndex(IDBet) {
+    var i = 0,
+        betsl = arrBets.length;
+    for (i; i < betsl; i++) {
+        if (arrBets[i]["id"] == IDBet) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * - replaces checkIfBetradarAvailable() function in live.js
+ * checks if Betradar Data is available and the max number is not yet reached
+ *
+ * @param gameid
+ * @param widget_id
+ * @param open_betradar_type - int - (0 - closed, 1 - fully open on page load, 2 - half way open up till timeline)
+ */
+function checkIfBetradarAvailable(gameid, widget_id, open_betradar_type) {
+    var statid = 0, myIndex = 0;
+
+    var widget = $("#" + widget_id);
+    if (widget.length == 0) return false;
+
+    var ticker_container = widget.find("div[id^='mc-newliveticker" + gameid + "']");
+
+    if (betradartickercounter < 5 && (ticker_container.hasClass("liveticker_extern_dummy")) && typeof SRLive !== "undefined") // limit not reached, ticker available
+    {
+        statid = ticker_container.attr("data-statid");
+        if (statid !== undefined && parseInt(statid) > 0) {
+            addBetradarTicker(gameid, statid, widget_id, open_betradar_type); // in ticker.js
+            betradartickercounter = betradartickercounter + 1;
+
+            if (arrGamesOpened[widget_id] == undefined) arrGamesOpened[widget_id] = {};
+            arrGamesOpened[widget_id][gameid].betr_open = true;
+        }
+        // else: if not betradar available, hide top flag/flap
+        else {
+            $("#mc-game_container_" + gameid + " .live_dropdown_flag_top").remove();
+        }
+    }
+}
+
+/**
+ * - replaces deleteBetradarTicker() function in live.js
+ * @author Sebastian Holzer
+ * removes the betradar live ticker for this game and lower the betradartickercounter
+ * @param {int} gameid
+ * @param {string} widget_id
+ */
+function deleteBetradarTicker(gameid, widget_id) {
+    var widget = $("#" + widget_id);
+    if (widget.length == 0) return false;
+
+    destroyBetradarWidgetObject(widget_id, gameid);
+
+    widget.find("div[id^='mc-newliveticker" + gameid + "']").addClass('liveticker_extern_dummy').html("");
+    $("#mc-game_container_" + gameid).find(".live_game_ticker_main").css("display", "block");
+    betradartickercounter--;
+}
+
+/**
+ * Display/Hide the dropdown of each live game
+ * - replaces toggleGame() function in live.js
+ *
+ * @param live_gamecontainer - the parent container of the live game
+ * @param action - optional - 'show' or 'hide', if not specified, function checks if dropdown is open/closed
+ *                    }
+ */
+function toggleGame(live_gamecontainer, action) // display the dropdown menu and the liveticker
+{
+    if (live_gamecontainer === undefined || live_gamecontainer.length == 0) return false;
+    var widget = live_gamecontainer.parents(".js-games-widget");
+    if (widget.length == 0) return false;
+    var widget_id = widget.attr("id");
+
+    // if game is in open-betradar widget, function only shows/hides the dropdown odds
+    var open_betradar_widget = parseInt(widget.attr("data-open_betradar_type"));
+    if (open_betradar_widget > 0) {
+        toggle_open_betradar_dropdown_odds(live_gamecontainer, action, true);
+        return false;
+    }
+
+    if (!bToggleIsBlocked) // handle one dropdown at a time
+    {
+        var dropdown = live_gamecontainer.find(".scores");
+        if (dropdown.length == 0) return false;
+        var game_id = live_gamecontainer.attr("data-gameid");
+        var odds_row = live_gamecontainer.find(".scoreboard");
+
+        // open or close dropdown
+        if (action == undefined || action == '') {
+            if (dropdown.is(":visible")) {
+                var action = 'hide';
+            } else {
+                var action = 'show';
+            }
+        }
+
+        if (action == "show") // open the game/liveticker
+        {
+            bToggleIsBlocked = true;
+            dropdown.slideToggle("blind", function () { // display the container with the scores class
+                bToggleIsBlocked = false;
+
+                score_ticker_hor_scroll(game_id, "init"); // init hor scores scroll if available
+            });
+
+            odds_row.slideToggle(400);
+
+            var next_game_id = live_gamecontainer.next().attr("data-gameid"); //next gamecontainer/game
+            if (next_game_id != undefined) {
+                if (arrGamesOpened[widget_id][next_game_id].opened == false) // if next game is not open
+                {
+                    $("#mc-header_next_game_" + next_game_id).css("display", "block"); // display the header of the next game
+                }
+            }
+
+            $("#mc-header_next_game_" + game_id).css("display", "none"); // hide header for this game
+
+            live_dropdown_functionality('show', game_id, widget_id, 0);
+        }
+
+        else //close the game
+        {
+            dropdown.slideToggle("blind"); // hide the liveticker
+
+            score_ticker_hor_scroll(game_id, "destroy"); // destroy hor scores scroll if available
+
+            bToggleIsBlocked = true;
+
+            odds_row.slideToggle("blind", function () {
+                bToggleIsBlocked = false;
+            });
+
+            var next_game_id = live_gamecontainer.next().attr("data-gameid"); // next gamecontainer
+
+            if (next_game_id != undefined) {
+                $("#mc-header_next_game_" + next_game_id).css("display", "none"); // don't display the header of the next game
+            }
+
+            var prev_game_id = live_gamecontainer.prev().attr("data-gameid");  // get ID of the previous gamecontainer
+            if (prev_game_id != undefined) {
+                if (arrGamesOpened[widget_id][prev_game_id].opened == true) {
+                    $("#mc-header_next_game_" + game_id).css("display", "block"); // if the previous game is opened, display the header
+                }
+                else {
+                    $("#mc-header_next_game_" + game_id).css("display", "none");
+                }
+            }
+            else {
+                $("#mc-header_next_game_" + game_id).css("display", "block");
+            }
+
+            // update functionality after hiding dropdown
+            live_dropdown_functionality('hide', game_id, widget_id, 0);
+
+        } // END close game
+    } else {
+        return false;
+    }
+}
+
+/* 
+ * Handle the live games dropdown after open/close
+ * - initialise functionality
+ *
+ * @param action - 'show' or 'hide' [the dropdown]
+ * @param game_id
+ * @param widget_id
+ * @param open_betradar_type - int - (0 - closed, 1 - fully open on page load, 2 - half way open up till timeline)
+ */
+function live_dropdown_functionality(action, game_id, widget_id, open_betradar_type) {
+    if (action == "show") {
+        if (open_betradar_type === undefined) open_betradar_type = 0;
+
+        arrGamesOpened[widget_id][game_id].opened = true;
+        arrGamesOpened[widget_id][game_id].open_btr_type = open_betradar_type;
+
+        checkIfBetradarAvailable(game_id, widget_id, open_betradar_type); // if we got the ticker from betradar and the limit is not yet reached, we display the betradar ticker
+
+        // Scroll News Ticker to the last message, as the scrolling doesn't work, when game is closed
+        // so the ticker is probably not at the last position
+        tickerScrollRight(game_id, 1, widget_id);
+    }
+    else if (action == "hide") {
+        arrGamesOpened[widget_id][game_id].opened = false;
+        arrGamesOpened[widget_id][game_id].open_btr_type = 0;
+
+        var widget = $("#" + widget_id);
+        var betradar_container = widget.find("div[id^='mc-newliveticker" + game_id + "']");
+        if (betradar_container.length > 0 && !betradar_container.hasClass("liveticker_extern_dummy")) {
+            setTimeout(function () {
+                deleteBetradarTicker(game_id, widget_id);
+            }, 400); // in live.js, the 400 ms because of slide Toggle
+        }
+    }
+}
+
+/*
+ * Open-Betradar Widget - Show/Hide dropdown odds
+ *
+ * @param live_gamecontainer - the parent container of the live game
+ * @param action - 'show' or 'hide', if not specified, function checks if dropdown is open/closed
+ * @param animate - boolean - if true, slidedown/up
+ */
+function toggle_open_betradar_dropdown_odds(live_gamecontainer, action, animate) {
+    var widget = live_gamecontainer.parents(".js-games-widget");
+    var widget_id = widget.attr("id");
+    var game_id = live_gamecontainer.attr("data-gameid");
+    var dropdown_odds = live_gamecontainer.find(".live_scores_bets");
+    var header = live_gamecontainer.find(".live_header");
+    var odds_row = live_gamecontainer.find(".scoreboard");
+
+    // open or close dropdown odds
+    if (action == undefined || action == '') {
+        if (dropdown_odds.is(":visible")) {
+            var action = 'hide';
+        } else {
+            var action = 'show';
+        }
+    }
+
+    var duration = (animate == true) ? 400 : 0; // animation 
+
+    if (action == "show" && !dropdown_odds.is(":visible")) {
+        arrGamesOpened[widget_id][game_id].dropdown_odds_opened = true;
+        dropdown_odds.slideDown(duration);
+        live_gamecontainer.find(".live_ticker_close_button").show();
+        header.slideUp(duration);
+        odds_row.slideUp(duration);
+    }
+    else if (action == "hide" && dropdown_odds.is(":visible")) {
+        arrGamesOpened[widget_id][game_id].dropdown_odds_opened = false;
+        dropdown_odds.slideUp(duration);
+        live_gamecontainer.find(".live_ticker_close_button").hide();
+        header.slideDown(duration);
+        odds_row.slideDown(duration);
+    }
+}
+
+/**
+ * Initialise or Destroy horizontal scroll for live dropdown score ticker
+ * @param gameid
+ * @param action - "init", "update", "destroy"
+ */
+function score_ticker_hor_scroll(gameid, action) {
+    var hor_scroll_cont = $("#ticker-hor-scroll-" + gameid);
+    if (hor_scroll_cont.length > 0) {
+
+        // initialise
+        if (action == "init" && hor_scroll_cont.is(":visible")) {
+            hor_scroll_cont.perfectScrollbar().scrollLeft(hor_scroll_cont.width()).perfectScrollbar('update');
+        }
+
+        // update
+        else if (action == "update" && hor_scroll_cont.is(":visible")) {
+            hor_scroll_cont.scrollLeft(hor_scroll_cont.width()).perfectScrollbar('update');
+        }
+
+        // destroy
+        else if (action == "destroy") {
+            hor_scroll_cont.perfectScrollbar('destroy');
+        }
+
+    }
+}
+
+/*
+ * ======================================================================
+ * OTHER FUNCTIONS
+ * ======================================================================
+ */
+
+/**
+ * checks if only on sport needs to be updated
+ * @returns boolean true if only one sport, false if not
+ */
+function checkSportsInBetslip() {
+    var current_live_sports_in_betslip = update_LiveSportsInBetslip()[0];
+
+    var i = 0, differentsports = current_live_sports_in_betslip.length;
+    if (differentsports > 1) {
+        return false;
+    }
+    for (i = 0; i < differentsports; i++) {
+        if (current_live_sports_in_betslip[i] != currentSportID) // check if bet is still active/saved in the bets array
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Live Sports in Betslip Update
+ *
+ * - since array is updated only on adding a new bet (addBetWrapper)
+ * - this function is called in updateFeed function (on Complete Reload) and checks what's in the betslip every update
+ * - ONLY the Live odds are considered in this array (as the updateFeed updates the live odds)
+ *
+ * @return - [0] array with all the live sport ids which are in the betslip which are matched in the arrGames array
+ * @return - [1] true or false - if "true", there are type L or X games in Bettingslip array (this can be "true" and yet, no games are matched in the other return value - if games are not found in arrGames)
+ */
+function update_LiveSportsInBetslip() {
+    // if sportsInBetslip array is undefined, declare it
+    if (sportsInBetslip === undefined) var sportsInBetslip = [];
+
+    sportsInBetslip = []; // reset (empty) array
+
+    var live_games_in_betslip = false; // will be returned as "true" with this function, if type L or X games are found in the betslip
+
+    // if Bettingslip array exists
+    if (Bettingslip.bettingslips.length > 0) {
+        // generate an array with all the game IDs in the betslip (so that the sport IDs can be obtained)
+        var live_game_ids_in_betslip = [];
+        var i, j;
+        for (i in Bettingslip.bettingslips) // for each betslip
+        {
+            for (j in Bettingslip.bettingslips[i].bets) // for each bet in betslip
+            {
+                var entry = Bettingslip.bettingslips[i].bets[j];
+
+                // get only the live games (oddtype L or X AND ref is not empty)
+                if ((entry.type == "L" || entry.type == "X") && (entry.ref !== undefined && entry.ref != "")) {
+                    var full_ref_id_of_livegame_in_betslip = entry.ref.split("_"); // since live games ref ID is in the format: XXXXXX_XXX - only the first part being the game id
+                    var game_id_of_live_game_in_betslip = full_ref_id_of_livegame_in_betslip[0];
+                    live_game_ids_in_betslip.push(String(game_id_of_live_game_in_betslip)); // add game id to array
+
+                    live_games_in_betslip = true; // will be returns with this function
+                }
+            }
+        }
+
+        // if live games array exists, group all the live games IDs (oddtype L or X) in one array
+        var all_live_games_ids = [];
+        if (Object.keys(arrGames).length > 0) {
+            $.each(arrGames, function (game_id, game) {
+                all_live_games_ids.push(String(game_id)); // add game id to array
+            });
+        }
+        // end: if live games array exists
+
+        // match the games IDs in betslip array WITH the live game ids array, and populate the sportsInBetslip array
+        if (live_game_ids_in_betslip.length > 0 && all_live_games_ids.length > 0) {
+            for (i = 0; i < live_game_ids_in_betslip.length; i++) {
+                // if game ID in betslip is found in the live games array (therefore, game is live), add to array
+                if (arrGames[live_game_ids_in_betslip[i]] !== undefined) {
+                    var matched_game_sport_id = arrGames[live_game_ids_in_betslip[i]].sport_id;
+
+                    // if sport id is not already in array
+                    if ($.inArray(matched_game_sport_id, sportsInBetslip) === -1) {
+                        sportsInBetslip.push(String(matched_game_sport_id)); // add sport id to array
+                    }
+                }
+            }
+        }
+    }
+    // end: if Bettingslip array exists
+    // return updated sportsInBetslip array
+    return [sportsInBetslip, live_games_in_betslip];
+}
+
+/*
+ * ======================================================================
+ * GAME IDs for odds update functions
+ * ======================================================================
+ */
+
+/* Ensure live games hidden container (with gameids) exists
+ *  - this hidden container contains all game ids which are sent to php to filter odds update xml
+ *  @param string label - "leftmenu"|"livegroup"|"livegroup_custom"
+ */
+function create_gameids_cont(label) {
+    var container = $("#displayed_" + label);
+    if (container.length == 0) {
+        var div = document.createElement("div");
+        div.classList.add("hidden");
+        div.setAttribute("id", "displayed_" + label);
+        div.setAttribute("data-gameids", "");
+        $("#main")[0].appendChild(div);
+    }
+}
+
+/* Create sub-container for each sport
+ *  @param string label - "leftmenu"|"livegroup"|"livegroup_custom"
+ *  @param int sportid
+ */
+function create_gameids_subcont(label, sportid) {
+    create_gameids_cont(label);
+    var container = $("#displayed_" + label);
+    var subcontainer = container.find(".sport" + sportid);
+    if (subcontainer.length == 0) {
+        var div = document.createElement("div");
+        div.classList.add("item", "sport" + sportid);
+        div.setAttribute("data-sportid", sportid);
+        div.setAttribute("data-gameids", "");
+        container[0].appendChild(div);
+    }
+}
+
+/* Empty a live games hidden container's gameids attribute
+ *  @param string label - "leftmenu"|"livegroup"|"livegroup_custom"
+ */
+function empty_gameids_cont(label) {
+    var container = $("#displayed_" + label);
+    if (container.length > 0) {
+        container.attr("data-gameids", "");
+    }
+}
+
+function empty_gameids_subcont(label, sportid) {
+    var container = $("#displayed_" + label);
+    if (container.length > 0) {
+        var subcontainer = container.find(".sport" + sportid);
+        if (subcontainer.length > 0) {
+            subcontainer.attr("data-gameids", "");
+        }
+    }
+}
+
+/* Add game id of game selected from left menu to custom widgets live games hidden container
+ * @param int|array gameid
+ * @param int sportid
+ * @param string label - "leftmenu"|"livegroup"|"livegroup_custom"
+ * @param bool empty_first - if true empty array first
+ */
+function addgame_gameids_cont(gameid, sportid, label, empty_first) {
+    if (gameid === undefined || sportid === undefined || isNaN(sportid)) return false;
+    create_gameids_cont(label);
+    var container = $("#displayed_" + label);
+    if (label != "livegroup") { // left menu and custom widgets have sub divs for each sport
+        create_gameids_subcont(label, sportid);
+        container = container.find(".sport" + sportid);
+    }
+
+    // check for multiple gameids
+    var new_gameids = [];
+    if (typeof gameid !== 'object') {
+        new_gameids.push(gameid);
+    } else {
+        new_gameids = gameid;
+    }
+
+    var gameids_arr = gameids_string_to_array(container.attr("data-gameids"));
+    if (empty_first) gameids_arr = [];
+
+    for (var i = 0, l = new_gameids.length; i < l; i++) {
+        if (new_gameids[i] != "" && !isNaN(new_gameids[i]) && gameids_arr.indexOf(new_gameids[i]) == -1) {
+            gameids_arr.push(parseInt(new_gameids[i])); // add to array
+        }
+    }
+
+    var updated_gameids = "[" + gameids_arr.toString() + "]";
+    container.attr("data-gameids", updated_gameids); // update data-gameids attr
+}
+
+/* Remove game id of game de-selected from left menu from custom widgets live games container
+ * @param int|array gameid
+ * @param int|"" sportid
+ * @param string label - "leftmenu"|"livegroup"|"livegroup_custom"
+ */
+function removegame_gameids_cont(gameid, sportid, label) {
+    if (gameid === undefined) return false;
+    var container = $("#displayed_" + label);
+    if (container.length == 0) return false;
+    if (label != "livegroup") // left menu and custom widgets have sub divs for each sport
+    {
+        if (sportid == "" || sportid === undefined) { // if no sport provided, check all sports
+            var subdivs = container.find(".item");
+            for (var i = 0, l = subdivs.length; i < l; i++) {
+                removegame_gameids_cont(gameid, $(subdivs[i]).attr("data-sportid"), label);
+            }
+            return;
+        }
+
+        container = container.find(".sport" + sportid); // if sport provided, check that sport
+    }
+
+    // check for multiple gameids
+    var del_gameids = [];
+    if (typeof gameid !== 'object') {
+        del_gameids.push(gameid);
+    } else {
+        del_gameids = gameid;
+    }
+
+    var gameids_arr = gameids_string_to_array(container.attr("data-gameids"));
+
+    for (var i = 0, l = del_gameids.length; i < l; i++) {
+        for (var j = 0, k = gameids_arr.length; j < k; j++) {
+            if (del_gameids[i] == gameids_arr[j]) {
+                gameids_arr.splice(j, 1); // remove from array
+                break;
+            }
+        }
+    }
+
+    var updated_gameids = "[" + gameids_arr.toString() + "]";
+    container.attr("data-gameids", updated_gameids); // update data-gameids attr
+}
+
+function removegame_all_gameids_cont(gameid, sportid) {
+    removegame_gameids_cont(gameid, sportid, "leftmenu");
+    removegame_gameids_cont(gameid, sportid, "livegroup");
+    removegame_gameids_cont(gameid, sportid, "livegroup_custom");
+}
+
+/* Completely refresh custom widgets live games container with all the open game ids of all custom widgets
+ *  - only happens on complete reload and for custom widgets
+ */
+function refresh_gameids_custom_widgets() {
+    create_gameids_cont("livegroup_custom");
+    var container = $("#displayed_livegroup_custom");
+    if (container.hasClass("reload_in_process")) return false;
+    container.addClass("reload_in_process"); // prevent multiple updates at once
+
+    var custom_widgets = $("#main").find(".js-games-widget[data-widget_type='single_custom']");
+    for (var i = 0, l = custom_widgets.length; i < l; i++) {
+        var sportid = $(custom_widgets[i]).attr("data-sport_id");
+        create_gameids_subcont("livegroup_custom", sportid);
+        var gameids = [];
+        var games = $(custom_widgets[i]).find(".live_gamecontainer");
+        for (var j = 0, k = games.length; j < k; j++) {
+            gameids.push($(games[j]).attr("data-gameid"));
+        }
+        addgame_gameids_cont(gameids, sportid, "livegroup_custom", true);
+    }
+
+    container.removeClass("reload_in_process");
+}
+
+/*
+ * Get all the current live game ids in one single array
+ * - read from the following hidden containers: #displayed_leftmenu, #displayed_livegroup, #displayed_livegroup_custom. Add also the live game ids in betslip
+ * @param bool json_stringify - true: output as json string, false: as array
+ * @param bool include_hidden - true: include also the games which are hidden but loaded in the page (ex: show more games)
+ */
+function get_all_live_gameids(json_stringify, include_hidden) {
+    var all_gameids = [];
+
+    // leftmenu
+    var cont_lm = $("#displayed_leftmenu");
+    if (cont_lm.length > 0) {
+        var sports_lm = cont_lm.find(".item");
+        for (var i = 0, l = sports_lm.length; i < l; i++) {
+            var lm_gameids = $(sports_lm[i]).attr("data-gameids");
+            if (lm_gameids !== undefined && lm_gameids != "") {
+                all_gameids = all_gameids.concat(gameids_string_to_array(lm_gameids));
+            }
+        }
+    }
+
+    // main content (custom widget)
+    var cont_mc_c = $("#displayed_livegroup_custom");
+    if (cont_mc_c.length > 0) {
+        var sports_mc_c = cont_mc_c.find(".item");
+        for (var i = 0, l = sports_mc_c.length; i < l; i++) {
+            var mc_c_gameids = $(sports_mc_c[i]).attr("data-gameids");
+            if (mc_c_gameids !== undefined && mc_c_gameids != "") {
+                all_gameids = all_gameids.concat(gameids_string_to_array(mc_c_gameids));
+            }
+        }
+    }
+
+    // main content (live tabbed widget)
+    var cont_mc = $('#displayed_livegroup');
+    if (cont_mc.length > 0) {
+        var mc_gameids = cont_mc.attr("data-gameids");
+        if (mc_gameids !== undefined && mc_gameids != "") {
+            mc_gameids = gameids_string_to_array(mc_gameids);
+            if (include_hidden != true && $('#widget_live_tabbed').length > 0 && $('#widget_live_tabbed').attr('data-display_state') == "minimised") {
+                var limit = parseInt($('#widget_live_tabbed').attr('data-minimised_games_limit'));
+                mc_gameids = mc_gameids.splice(0, limit);
+            }
+            all_gameids = all_gameids.concat(mc_gameids);
+        }
+    }
+
+    if(typeof Bettingslip !== "undefined")
+    {
+        all_gameids = all_gameids.concat(Bettingslip.getLiveGameIds());
+    }
+    if (json_stringify) {
+        all_gameids = "[" + all_gameids.toString() + "]";
+        all_gameids = JSON.parse(all_gameids);
+        all_gameids = JSON.stringify(all_gameids);
+    }
+    return all_gameids;
+}
+
+/* "[12, 134]" to [12, 134] */
+function gameids_string_to_array(string) {
+    var array = [];
+    if (string !== undefined && string != "") {
+        string = string.replace(/[\])}[{(]/g, ''); // remove brackets
+        array = string.split(",").map(Number); // convert to array of integers
+        if (array[0] == "") array.splice(0, 1);
+    }
+    return array;
+}
+
+/**
+ * Check if the difference between a bet market column's odds is the lowest from all available.
+ * This is to display always the most balanced odds (sum of all odds being the lowest)
+ * -- same logic as betsCheckIfLowestDiff() in GamesData component
+ *
+ * @param column
+ * @param gameid
+ * @param odd1
+ * @param odd3
+ * @param sportid
+ * @returns {boolean}
+ */
+function checkForMoreBalancedOdd(column, gameid, odd1, odd3, sportid) {
+    var bet_odd_diff = odd1 - odd3;
+    if (bet_odd_diff < 0) {
+        bet_odd_diff = bet_odd_diff * -1;
+    }
+
+    if (lowest_odd_diff[gameid + "_" + column] === undefined || bet_odd_diff < lowest_odd_diff[gameid + "_" + column]) {
+        lowest_odd_diff[gameid + "_" + column] = bet_odd_diff;
+        return_val = true;
+    }
+    else {
+        return_val = false;
+    }
+
+    return return_val;
+}
+
+/**
+ * Loading of the Betradar Widgets Script
+ *
+ * @param callback (optional)
+ */
+function loadBetradarWidgetsJS(callback) {
+    
+    var betradarScriptUrl = 'https://cs.betradar.com/ls/widgets/?/'+betradarAlias+'/'+ languageISO +'/Europe:Berlin/widgetloader/widgets/'+betradarWhitelabel;
+
+    var script = document.createElement('script'),
+        loaded;
+    script.setAttribute('type', 'text/javascript');
+    script.setAttribute('async', 'async');
+    script.setAttribute('defer', 'defer');
+    script.setAttribute('data-autoInit', 'true');
+    script.setAttribute('src', betradarScriptUrl);
+    if (callback) {
+        script.onreadystatechange = script.onload = function() {
+            if (!loaded) {
+                callback();
+            }
+            loaded = true;
+        };
+    }
+    document.getElementsByTagName('head')[0].appendChild(script);
+}
+
+/*
+ * ======================================================================
+ * ON DOCUMENT READY, initialise functions
+ * ======================================================================
+ */
+$(document).ready(function () {
+
+
+});

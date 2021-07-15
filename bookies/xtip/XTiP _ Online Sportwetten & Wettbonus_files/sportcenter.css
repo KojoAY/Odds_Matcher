@@ -1,0 +1,761 @@
+@font-face {
+  font-family: "Frutcn";
+  src: url("../fonts/frutcn.eot");
+  src: url("../fonts/frutcn.eot?#iefix") format("embedded-opentype"), url("../fonts/frutcn.woff") format("woff"), url("../fonts/frutcn.ttf") format("truetype"), url("../fonts/frutcn.svg#frutcn") format("svg");
+  font-style: normal;
+  font-weight: normal;
+}
+
+@font-face {
+  font-family: 'impact';
+  src: url("../../../fonts/impact-webfont.eot");
+  src: url("../../../fonts/impact-webfont.eot?#iefix") format("embedded-opentype"), url("../../../fonts/impact-webfont.woff") format("woff"), url("../../../fonts/impact-webfont.ttf") format("truetype"), url("../../../fonts/impact-webfont.svg#impactregular") format("svg");
+  font-weight: normal;
+  font-style: normal;
+}
+
+.live_game_ticker_main.srw-container-custom .container450 {
+  position: relative;
+  width: 450px;
+  height:104px;
+  margin: 0 auto;
+  margin-bottom: -5px;
+  padding: 0;
+}
+
+.live_game_ticker_main.srw-container-custom .container450 .middle.column {
+  width: 450px;
+  background: #ccc;
+  position: absolute;
+  left: 0;
+}
+
+/* line 46, assetic_compass_40acfbdd1828bbcb78d31a0bf87e30f4.scss */
+.live_game_ticker_main.srw-container-custom {
+  /* #Basic Styles */
+  color: #444444;
+  font: 14px/21px "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Fix for webkit rendering */
+  -webkit-text-size-adjust: 100%;
+  margin: 0;
+  padding: 0;
+  padding-bottom: 10px;
+  border: 0;
+  font-size: 100%;
+  vertical-align: baseline;
+
+  background: url("../images/scoreboard/sb_soccer.png") no-repeat white;
+
+  @font-face {
+    font-family: 'impact';
+    src: url("../../../fonts/impact-webfont.eot");
+    src: url("../../../fonts/impact-webfont.eot?#iefix") format("embedded-opentype"), url("../../../fonts/impact-webfont.woff") format("woff"), url("../../../fonts/impact-webfont.ttf") format("truetype"), url("../../../fonts/impact-webfont.svg#impactregular") format("svg");
+    font-weight: normal;
+    font-style: normal;
+}
+
+
+}
+/* line 103, assetic_compass_40acfbdd1828bbcb78d31a0bf87e30f4.scss */
+.live_game_ticker_main.srw-container-custom h2,
+.live_game_ticker_main.srw-container-custom th,
+.live_game_ticker_main.srw-container-custom div,
+.live_game_ticker_main.srw-container-custom span {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+/* line 149, assetic_compass_40acfbdd1828bbcb78d31a0bf87e30f4.scss */
+.live_game_ticker_main.srw-container-custom .srlive-hidden {
+  display: none !important;
+}
+/* line 160, assetic_compass_40acfbdd1828bbcb78d31a0bf87e30f4.scss */
+.live_game_ticker_main.srw-container-custom .column.middle {
+  width: 450px;
+}
+
+/* line 6, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .srlive_container,
+.live_game_ticker_main.srw-container-custom #srlive_container {
+  position: relative;
+  /*border-left: 1px solid #999999;*/
+}
+/* line 14, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard {
+  background: #1a191f;
+  font-weight: bold;
+  color: #444444;
+  line-height: 25px;
+  height: 60px;
+  position: relative;
+  display: block;
+  z-index: 6;
+  padding: 0 10px;
+}
+/* line 32, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-home_team,
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team {
+  width: 40%;
+  float: left;
+  text-align: left;
+  position: relative;
+  z-index: 20;
+}
+/* line 39, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-home_team img,
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team img {
+  margin-top: -5px;
+  float: left;
+  margin-right: 3px;
+  display: block;
+  width: 50px;
+}
+/* line 46, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-home_team span,
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team span {
+  font-size: 16px;
+  display: block;
+  padding-right: 3px;
+  line-height: 16px;
+  text-align: left;
+  height: 34px;
+  overflow: hidden;
+  margin-left: 50px;
+}
+/* line 57, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team {
+  float: right;
+  text-align: right;
+}
+/* line 61, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team img {
+  float: right;
+  margin-left: 3px;
+  margin-right: 0;
+}
+/* line 66, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team span {
+  padding-right: 0;
+  padding-left: 3px;
+  text-align: right;
+  margin-right: 50px;
+  margin-left: 0;
+}
+/* line 74, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main {
+  text-align: center;
+  width: 100%;
+  position: absolute;
+  height: 100%;
+  left: 50%;
+  margin-left: -50%;
+  padding-top: 0px;
+}
+/* line 83, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-score {
+  width: 20%;
+  background: #7E7E7E;
+  margin: 0 auto;
+  color: #fff;
+  line-height: 27px;
+  border-bottom: 1px solid #C5C5C5;
+}
+/* line 90, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-score div {
+  font-size: 25px;
+  float: left;
+  width: 50%;
+}
+/* line 94, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-score div:first-child {
+  border-right: 1px solid #C5C5C5;
+  margin-right: -1px;
+}
+/* line 100, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-status {
+  text-align: center;
+  width: 20%;
+  font-weight: normal;
+  color: #313131;
+  display: block;
+  line-height: 16px;
+  margin: 0 auto;
+  padding-bottom: 2px;
+  background-color: #C9C9C9;
+  opacity: 0.8;
+  filter: alpha(opacity=80);
+}
+/* line 113, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-status.live {
+  bottom: 0;
+  background: none;
+  left: 0;
+  right: 0;
+  width: auto;
+  line-height: 14px;
+  color: black;
+  padding: 0;
+  position: absolute;
+  border: none;
+  text-transform: uppercase;
+}
+/* line 126, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/livematchtracker.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-status.live span {
+  font-size: 10px;
+}
+/* line 17, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .container450 {
+  width: 678px;
+  height: 104px;
+  overflow: hidden;
+}
+/* line 22, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .container450 .middle.column {
+  width: 100%;
+  background-color: #1a191f;
+}
+
+/* line 364, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .match-heat-map .sc-heat-map-nav ul li {
+  border-color: #999;
+}
+/* line 373, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-event-ticker ul li .sc-ticker-title {
+  text-transform: none;
+}
+/* line 379, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-match-info .sc-notification table {
+  font-size: 11px;
+}
+/* line 409, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .container450 .middle.column {
+  width: 100%;
+  background: transparent;
+}
+/* line 413, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard {
+  font-weight: bold;
+  color: #fff;
+  font-size: 16px;
+  line-height: 25px;
+  height: 70px;
+  position: relative;
+  display: block;
+  z-index: 6;
+  margin: 10px;
+  padding: 5px;
+  border: 2px solid #444;
+  -webkit-border-radius: 10px;
+  -moz-border-radius: 10px;
+  border-radius: 10px;
+  background-color: rgba(0, 0, 0, 0.4);
+  box-shadow: 0px 3px 10px 0px #000;
+}
+/* line 432, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard > div,
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard > div > span {
+  /*padding-top: 10px; */
+}
+/* line 436, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-tournament {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  padding-top: 0;
+  font-size: 10px;
+}
+/* line 444, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-home_team,
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team {
+  padding-top: 15px;
+}
+/* line 447, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-home_team img,
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team img {
+  margin-top: 8px;
+}
+/* line 450, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-home_team span,
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team span {
+  line-height: 45px;
+}
+/* line 455, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main-away_team img {
+  float: right;
+  right: 12px;
+}
+/* line 460, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main {
+  font-size: 32px;
+  height: 54px;
+  padding-top: 10px;
+}
+/* line 465, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-score {
+  padding-top: 20px;
+  width: 20%;
+  margin: 0 auto;
+  position: relative;
+  bottom: 10px;
+  background: none;
+}
+/* line 473, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-score > span {
+  font-size: 24px;
+}
+/* line 477, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-status {
+  font-size: 11px;
+  font-weight: bold;
+  background: none;
+  color: #fff;
+}
+/* line 483, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-main-status.live {
+  top: 0;
+  line-height: 17px;
+  padding-top: 5px;
+  color: #fff;
+}
+/* line 490, srlive-compile/workspace-892dc901063298cf8b355fe1993756e1/srlive/development/cashpoint/sportcenter/application/clients/cashpoint/sportcenter/assets/sass/sportcenter-styling.scss */
+.live_game_ticker_main.srw-container-custom .sc-matchscoreboard .sc-main .sc-bottom span {
+  position: relative;
+  bottom: 3px;
+}
+.live_game_ticker_main.srw-container-custom .live_game_ticker {
+    border: 0;
+}
+.live_game_ticker_main.srw-container-custom .live_game_ticker a {
+    position: absolute;
+    display: block;
+    border: 1px solid #6a6a6a;
+    background-color: #383838;
+    text-align: center;
+    top: 5px;
+    right: 5px;
+    width: 14px;
+    height: 12px;
+    padding-top: 2px;
+    line-height: 12px;
+}
+.live_game_ticker_main.srw-container-custom .live_game_ticker .yellowCardBigBG.cardnew {
+    background-image: url(../images/icon/icon_card_yellow.png); 
+}
+.live_game_ticker_main.srw-container-custom .live_game_ticker .redCardBigBG.cardnew {
+    background-image: url(../images/icon/icon_card_red.png); 
+}
+.live_game_ticker_main.srw-container-custom .live_game_ticker .cardnew {
+    height: 14px;
+    line-height: 12px;
+}
+
+/* ---------------------------
+ * BETRADAR 2.0 Widget Styling
+ * Src: http://cs.betradar.com/ls/widgetcenter/?/cashpoint/de/page/
+ * ---------------------------
+ */
+
+/* Source Styling (prefixed) */
+
+.betradar2_x .sr-widget .sr-widget-title{
+  color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-header{
+  background-color: rgba(58, 58, 58, 0.5);
+}
+.betradar2_x .sr-widget .sr-subheader-1{
+  background-color: rgba(58, 58, 58, 0.5);
+}
+.betradar2_x .sr-widget .sr-subheader-1.sr-pills-carousel, .betradar2_x .sr-widget .sr-subheader-1.sr-toggle{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-header-1{
+  background-color: #3a3a3a;
+  color: #ffffff;
+}
+.betradar2_x .sr-widget .sr-header-2{
+  background-color: #3a3a3a;
+  color: #ffffff;
+}
+.betradar2_x .sr-widget .sr-header-3{
+  background-color: rgba(58, 58, 58, 0.5);
+  color: #ffffff;
+}
+.betradar2_x .sr-widget .sr-header-4{
+  background-color: rgba(58, 58, 58, 0.3);
+  color: #ffffff;
+}
+.betradar2_x .sr-widget .sr-header-6{
+  color: #f5d400;
+}
+.betradar2_x .sr-widget .sr-section-1{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-section-2{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-live-badge .sr-icon-live{
+  color: #f5d400;
+}
+.betradar2_x .sr-widget .sr-tabs .sr-tabs-header:after{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-tabs .sr-tab{
+  color: #ffffff;
+  background-color: rgba(58, 58, 58, 0.6);
+}
+.betradar2_x .sr-widget .sr-tabs .sr-tab.sr-active{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-tabs .sr-tab:hover{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-pills .sr-pill.sr-active{
+  color: #ffffff;
+  background-color: #3a3a3a;
+  border-left: 1px solid transparent;
+}
+.betradar2_x .sr-widget .sr-pills .sr-pill.sr-active:hover{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-pills.sr-pills-carousel .sr-pill.sr-day:hover, .betradar2_x .sr-widget .sr-pills.sr-pills-carousel .sr-pill.sr-round:hover, .betradar2_x .sr-widget .sr-pills.sr-pills-carousel .sr-pill.sr-active.sr-day:hover, .betradar2_x .sr-widget .sr-pills.sr-pills-carousel .sr-pill.sr-active.sr-round:hover{
+  color: #f5d400;
+}
+.betradar2_x .sr-widget .sr-pills.sr-pills-carousel .sr-pill.sr-day.sr-active, .betradar2_x .sr-widget .sr-pills.sr-pills-carousel .sr-pill.sr-round.sr-active{
+  color: #f5d400;
+}
+.betradar2_x .sr-widget .sr-selected{
+  background: -webkit-linear-gradient(left, rgba(58, 58, 58, 0.5), transparent);
+  background: -moz-linear-gradient(left, rgba(58, 58, 58, 0.5), transparent);
+  background: -o-linear-gradient(left, rgba(58, 58, 58, 0.5), transparent);
+  background: linear-gradient(to right, rgba(58, 58, 58, 0.5), transparent);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.betradar2_x .sr-widget[dir="rtl"] .sr-selected{
+  background: -webkit-linear-gradient(right, rgba(58, 58, 58, 0.5), transparent);
+  background: -moz-linear-gradient(right, rgba(58, 58, 58, 0.5), transparent);
+  background: -o-linear-gradient(right, rgba(58, 58, 58, 0.5), transparent);
+  background: linear-gradient(to left, rgba(58, 58, 58, 0.5), transparent);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.betradar2_x .sr-widget .sr-highlight{
+  background: -webkit-linear-gradient(left, rgba(58, 58, 58, 0.3), transparent);
+  background: -moz-linear-gradient(left, rgba(58, 58, 58, 0.3), transparent);
+  background: -o-linear-gradient(left, rgba(58, 58, 58, 0.3), transparent);
+  background: linear-gradient(to right, rgba(58, 58, 58, 0.3), transparent);
+}
+.betradar2_x .sr-widget[dir="rtl"] .sr-highlight{
+  background: -webkit-linear-gradient(right, rgba(58, 58, 58, 0.3), transparent);
+  background: -moz-linear-gradient(right, rgba(58, 58, 58, 0.3), transparent);
+  background: -o-linear-gradient(right, rgba(58, 58, 58, 0.3), transparent);
+  background: linear-gradient(to left, rgba(58, 58, 58, 0.3), transparent);
+}
+.betradar2_x .sr-widget .sr-highlight-solid{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-highlight-solid-trans{
+  background-color: rgba(58, 58, 58, 0.3);
+}
+.betradar2_x .sr-widget .sr-team-header-home{
+  background-color: rgba(58, 58, 58, 0.5);
+  color: #ffffff;
+}
+.betradar2_x .sr-widget .sr-team-header-away{
+  background-color: rgba(58, 58, 58, 0.5);
+  color: #ffffff;
+}
+.betradar2_x .sr-widget .sr-color-home{
+  background-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-color-away{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-border-color-home{
+  border-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-border-color-away{
+  border-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-matclineups-pitch .sr-player-home{
+  background-color: #ababab;
+  color: #000000;
+}
+.betradar2_x .sr-widget .sr-matclineups-pitch .sr-player-away{
+  background-color: rgba(81, 81, 81, 0.87);
+  color: #000000;
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-tabs-header.sr-home:after{
+  background-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-tabs-header.sr-away:after{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-away:after{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-tab .sr-lineups-header-home{
+  background-color: rgba(188, 188, 188, 0.75);
+  color: #000000;
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-tab .sr-lineups-header-away{
+  background-color: rgba(81, 81, 81, 0.75);
+  color: #000000;
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-tab.sr-active{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-tab.sr-active:first-child{
+  background-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-tab.sr-active .sr-lineups-header-home{
+  background-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-tab.sr-active .sr-lineups-header-away{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-matchlineups-home .sr-matchlineups-shirtnumber{
+  background-color: #ababab;
+  color: #000000;
+}
+.betradar2_x .sr-widget .sr-matclineups-teams .sr-matchlineups-away .sr-matchlineups-shirtnumber{
+  background-color: rgba(81, 81, 81, 0.87);
+  color: #000000;
+}
+.betradar2_x .sr-widget.sr-large .sr-matclineups-teams .sr-tab .sr-lineups-header-home{
+  background-color: rgba(58, 58, 58, 0.5);
+  color: #ffffff;
+}
+.betradar2_x .sr-widget.sr-large .sr-matclineups-teams .sr-tab .sr-lineups-header-away{
+  background-color: rgba(58, 58, 58, 0.5);
+  color: #ffffff;
+}
+.betradar2_x .sr-widget .sr-cuproster-match-date{
+  background-color: rgba(58, 58, 58, 0.3);
+}
+.betradar2_x .sr-widget .sr-odd-outcome{
+  color: #ffffff;
+  background-color: rgba(58, 58, 58, 0.5);
+}
+.betradar2_x .sr-widget .sr-odd-outcome:hover{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-form-home .sr-form-inner{
+  background-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-form-away .sr-form-inner{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-last-next-home:before{
+  background-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-last-next-away:before{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-dropdown-overlay:before{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-item-last{
+  border-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-group-name.sr-active{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-group-name:hover{
+  background-color: rgba(58, 58, 58, 0.6);
+}
+.betradar2_x .sr-widget .sr-comment-share .sr-icon:hover{
+  color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-comment-item .sr-score-change{
+  color: #f5d400;
+}
+.betradar2_x .sr-widget .sr-datepicker-calendar-table .sr-day.sr-active{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-datepicker-calendar-table .sr-day.sr-today{
+  border: 1px solid #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-toggle-datepicker-calendar:hover .sr-icon.sr-icon-calendar, .betradar2_x .sr-widget .sr-toggle-datepicker-calendar.sr-active .sr-icon.sr-icon-calendar{
+  color: #f5d400;
+}
+.betradar2_x .sr-widget .sr-toggle-live:hover .sr-icon.sr-icon-live, .betradar2_x .sr-widget .sr-toggle-live.sr-active .sr-icon.sr-icon-live{
+  color: #f5d400;
+}
+.betradar2_x .sr-widget .sr-toggle-odds.sr-active:hover .sr-switcher-toggle, .betradar2_x .sr-widget .sr-toggle-odds.sr-active .sr-switcher-toggle{
+  background: #f5d400;
+}
+.betradar2_x .sr-widget .sr-toggle-odds.sr-active .sr-toggle-odds-text{
+  color: #f5d400;
+}
+.betradar2_x .sr-widget .sr-live-colorBox{
+  background: #f5d400;
+  color: #000000;
+}
+.betradar2_x .sr-widget .sr-embedded .sr-matchheader-soccer .sr-live-wrapper{
+  background: #f5d400;
+  color: #000000;
+}
+.betradar2_x .sr-widget.sr-widgets-playerinfo.sr-medium .sr-tabs .sr-tab, .betradar2_x .sr-widget.sr-widgets-playerinfo.sr-large .sr-tabs .sr-tab{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-lmts-heatmap-tab:hover .sr-nav-icon:before, .betradar2_x .sr-widget .sr-lmts-heatmap-tab:hover .sr-nav-title{
+  color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-lmts-heatmap-tab-selected .sr-nav-icon:before, .betradar2_x .sr-widget .sr-lmts-heatmap-tab-selected .sr-nav-title{
+  color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-lmts-pitch-branding{
+  background: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-lmts.sr-lmts-pitch-crowd .sr-scoreboard-head{
+  background-color: #3a3a3a;
+}
+.betradar2_x .sr-widget .sr-lmts .sr-events .sr-generic-ticker[data-team="home"] .sr-ticker-side{
+  background-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-lmts .sr-events .sr-generic-ticker[data-team="away"] .sr-ticker-side{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget .sr-lmts [data-team="home"] .sr-lmts-icon-man{
+  color: #ababab;
+  text-shadow: -1px 0 #fff, 0 1px #fff, 1px 0 #fff, 0 -1px #fff;
+}
+.betradar2_x .sr-widget .sr-lmts [data-team="away"] .sr-lmts-icon-man{
+  color: rgba(81, 81, 81, 0.87);
+  text-shadow: -1px 0 #fff, 0 1px #fff, 1px 0 #fff, 0 -1px #fff;
+}
+.betradar2_x .sr-widget .sr-lmts [data-team="home"] .sr-position-circle-inner{
+  border-color: #ababab;
+  box-shadow: 0 0 3px 1px #ababab, 0 0 3px 1px #ababab inset;
+}
+.betradar2_x .sr-widget .sr-lmts [data-team="away"] .sr-position-circle-inner{
+  border-color: rgba(81, 81, 81, 0.87);
+  box-shadow: 0 0 3px 1px rgba(81, 81, 81, 0.87), 0 0 3px 1px rgba(81, 81, 81, 0.87) inset;
+}
+.betradar2_x .sr-widget .sr-lmts .sr-ball-behind[data-team="home"]{
+  box-shadow: 20px 0 5px 0 rgba(188, 188, 188, 0.5);
+}
+.betradar2_x .sr-widget .sr-lmts .sr-ball-behind[data-team="away"]{
+  box-shadow: 20px 0 5px 0 rgba(81, 81, 81, 0.8);
+}
+.betradar2_x .sr-widget .sr-lmts .sr-lmts-positioned-event-spot[data-team="home"] .sr-circle, .betradar2_x .sr-widget .sr-lmts .sr-lmts-positioned-event-spot[data-team="home"] .sr-spot, .betradar2_x .sr-widget .sr-lmts .sr-lmts-positioned-event-spot[data-team="home"] .sr-time{
+  background-color: #ababab;
+}
+.betradar2_x .sr-widget .sr-lmts .sr-lmts-positioned-event-spot[data-team="away"] .sr-circle, .betradar2_x .sr-widget .sr-lmts .sr-lmts-positioned-event-spot[data-team="away"] .sr-spot, .betradar2_x .sr-widget .sr-lmts .sr-lmts-positioned-event-spot[data-team="away"] .sr-time{
+  background-color: rgba(81, 81, 81, 0.87);
+}
+.betradar2_x .sr-widget.sr-widgets-matchcommentary .sr-event-content .sc-event-full, .betradar2_x .sr-widget.sr-widgets-matchcommentary .sr-comment-tennis.sr-tennis-set-won{
+  background-color: rgba(58, 58, 58, 0.2);
+}
+
+/* --- Overriding Custom Styles --- */
+
+.betradar2_x .srw-container.widget-loading {
+  background-image:url(../images/icon/games_container_loader_bars.gif);
+  background-repeat:no-repeat;
+  background-position:center center;
+  background-size:38px auto;
+}
+
+.betradar2_x .sr-lmts-scoreboard-holder > .sr-content {
+  padding-bottom:10px;
+}
+
+.betradar2_x .sr-lmts-scoreboard-holder .sr-content .sr-lmts-scoreboard-wraper {
+  background-repeat:no-repeat;
+  background-size:cover;
+  background-position:center center;
+}
+
+/* sports backgrounds */
+.scores_1.betradar2_x .sr-lmts-scoreboard-holder .sr-content .sr-lmts-scoreboard-wraper {
+  background-image: url("../images/scoreboard/sb_soccer.png"); }
+
+.scores_2.betradar2_x .sr-lmts-scoreboard-holder .sr-content .sr-lmts-scoreboard-wraper {
+  background-image: url("../images/scoreboard/sb_tennis_dark_border.jpg"); }
+
+.scores_6.betradar2_x .sr-lmts-scoreboard-holder .sr-content .sr-lmts-scoreboard-wraper {
+  background-image: url("../images/scoreboard/sb_american_football.jpg"); }
+
+.scores_10.betradar2_x .sr-lmts-scoreboard-holder .sr-content .sr-lmts-scoreboard-wraper {
+  background-image: url("../images/scoreboard/sb_icehockey.jpg"); }
+
+.scores_11.betradar2_x .sr-lmts-scoreboard-holder .sr-content .sr-lmts-scoreboard-wraper{
+  background-image: url("../images/scoreboard/sb_baseball.jpg"); }
+
+.scores_12.betradar2_x .sr-lmts-scoreboard-holder .sr-content .sr-lmts-scoreboard-wraper{
+  background-image: url("../images/scoreboard/sb_basketball.jpg"); }
+
+.scores_23.betradar2_x .sr-lmts-scoreboard-holder .sr-content .sr-lmts-scoreboard-wraper{
+  background-image: url("../images/scoreboard/volleybal_gray.jpg"); }
+/* end: sports backgrounds */
+
+.betradar2_x .sr-widget .sr-lmts.sr-lmts-pitch-crowd .sr-scoreboard-head {
+  background:rgba(0,0,0,0.8);
+}
+.betradar2_x .sr-lmts-scoreboard-wraper .sr-scoreboard-head .sr-scoreboard-surface-wrapper {
+  margin-right:40px;
+}
+.betradar2_x .live_ticker_close_button {
+  top:3px !important;
+}
+.betradar2_x .live_ticker_close_button img {
+  -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=40)";
+  filter: alpha(opacity=40);
+  opacity: 0.4;
+}
+.betradar2_x .live_ticker_close_button:hover img {
+  -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=100)";
+  filter: alpha(opacity=100);
+  opacity: 1;
+}
+
+.betradar2_x .sr-widget .sr-lmts.sr-lmts-pitch-crowd .sr-scoreboard {
+  background:rgba(31,34,35,0.9);
+}
+
+.betradar2_x .sr-widgets-lmts .sr-lmts-momentum-holder {
+  margin-bottom:5px;
+}
+
+.betradar2_x .liveticker_extern_closed,
+.betradar2_x .liveticker_extern_open {
+  background-color:#141619;
+  padding-bottom:29px;
+}
+
+.betradar2_x .liveticker_extern_closed, .betradar2_x .liveticker_half_open:not(.liveticker_extern_open) {
+  height: 90px;
+}
+.scores_1.betradar2_x .liveticker_half_open:not(.liveticker_extern_open) {
+  height: 180px;
+}
+.scores_1.betradar2_x .liveticker_half_open:not(.liveticker_extern_open) .sr-widgets-lmts .sr-lmts-momentum-holder {
+  margin-bottom:20px;
+}
+
+.betradar2_x .liveticker_half_open:not(.liveticker_extern_open) .gameBetradar {
+  height:100%;
+}
+
+.betradar2_x .liveticker_extern_closed iframe,
+.betradar2_x .liveticker_extern_closed .liveticker_extern_closed_iframe,
+.betradar2_x .liveticker_half_open:not(.liveticker_extern_open) iframe,
+.betradar2_x .liveticker_half_open:not(.liveticker_extern_open) .liveticker_extern_closed_iframe {
+  height:auto !important;
+}
+
+.betradar2_x .sr-nano-scroller>.sr-nano-scroller-pane {
+  background:none repeat scroll 0 0 #fff;
+  border-left:1px solid #fff;
+  border-right:1px solid #fff;
+}
+.betradar2_x .sr-nano-scroller>.sr-nano-scroller-pane>.sr-nano-scroller-slider {
+  background:none repeat scroll 0 0 #51595B;
+}
+
+/* ---------------------------
+ * End: BETRADAR 2.0 Widget Styling
+ * ---------------------------
+ */

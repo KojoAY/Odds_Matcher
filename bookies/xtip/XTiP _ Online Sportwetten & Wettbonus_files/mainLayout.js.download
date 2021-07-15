@@ -1,0 +1,125 @@
+/**
+ * @author Sebastian Holzer
+ * @date 05.12.2013 - edited the stateCasinoAccount function, to update the new casino bonus (16275)
+ * @date 04.09.2013 - added an check if autologout is returned by the URL, if so redirect to a page (14893)
+ */
+
+function stateCasinoAccount(refresh,site,controller)
+{
+    var postdata = "";
+    var url = stateCasinoAccountUrl+'?s='+site+"&controller="+controller;
+    if(controllerID == "casino")
+    {
+        postdata = "casinobonus=1";
+    }
+    $.post(url, {casino: postdata,s:site}).done(
+        function(data) {
+            var popup = false;
+            switch(data) {
+                case 'autologout':
+                    popup = 'autologout';
+                break;
+
+                case 'autologoutBackend':
+                    popup = 'autologoutBackend';
+                break;
+
+                case 'session_expiry':
+                case 'autologoutSession':
+                    popup = 'autologoutSession';
+                break;
+            }
+            if (popup !== false) {
+                location = location.protocol +'//'+ location.host +'/site/index.html?popup='+ popup;
+                return;
+            }
+
+                var state = $(data).find("state").text();
+                var casino = $(data).find("casino").text();
+                var balance = $(data).find("balance").text();
+                var sepmoney = $(data).find("has_money_flow").text();
+                var cashpoints = $(data).find("cashpoints").text();
+                var currency = $(data).find("currency").text();
+                var unreadMsg = $(data).find("unreadmessages").text();
+                var pendingBonus = $(data).find("pending_bonus").text();
+
+                if(sepmoney == 1) // separate money
+                {
+                    balance = $(data).find("balance_online").text();
+                }
+
+                // add bonus money items which are online (is_online==true)
+                var online_bonusmoney = 0;
+                if ($(data).find("bonusmoney").length > 0) {
+                    var bonus_items = $(data).find("bonusmoney").find("bonus");
+                    for (var i=0; i<bonus_items.length; i++) {
+                        var is_online = $(bonus_items[i]).attr("is_online");
+                        if (is_online == "true" || is_online == "1") {
+                            var bonus_amount = parseInt($(bonus_items[i]).attr("bonus"));
+                            online_bonusmoney = online_bonusmoney + bonus_amount;
+                        }
+                    }
+                }
+                balance = parseInt(balance) + online_bonusmoney;
+
+                if (state != "error")
+                {
+                    balance = new_round(balance);
+                    cashpoints = new_round(cashpoints, 0);
+                    pendingBonus= new_round(pendingBonus);
+                }
+                else
+                {
+                    balance = "-";
+                    cashpoints = "-";
+                    unreadMsg = "-";
+                    pendingBonus = "-";
+                    currency = stateCasinoAccountCurrency;
+                }
+                $("#unreadMessage").html(unreadMsg);
+                $("#balanceState").html(balance);
+                $("#cpstatus").html(cashpoints);
+                $("#currencyA").html(currency);
+                $("#pendingBonusState").html(pendingBonus);
+
+                if(controllerID == "casino")
+                {
+                    readCasinoBonus(data);
+                }
+
+                if(refresh == false){setTimeout("stateCasinoAccount(false,'"+site+"','"+controller+"')", 30000);}
+        }
+    );
+}
+
+function readCasinoBonus(data)
+{
+    var casinobon = $(data).find("totalBonus").attr("amount");
+    var state = $(data).find("state").text();
+    if (state != "error")
+    {
+        casinobon = new_round(casinobon);
+    }
+    else
+    {
+        casinobon = "-";
+    }
+    $("#casinobonusstatus").html(casinobon);
+}
+
+function setLiveButton(refresh)
+{
+    var url=liveButtonRefreshUrl;
+    $.post(url,
+        function(data) {
+            $("#livegamesAmount").empty();
+
+            if (data == "" || data === undefined) { $("#livegamesAmount").append("0"); }
+            else if (!isNaN(data) || data === 'X') {
+                $("#livegamesAmount").append(data);
+            }
+            
+            if(refresh==false){setTimeout("setLiveButton(false)",60000);}
+        }
+    );
+}

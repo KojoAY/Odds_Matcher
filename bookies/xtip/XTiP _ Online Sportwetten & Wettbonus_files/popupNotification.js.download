@@ -1,0 +1,566 @@
+/**
+ * Provides interface to popup notifications
+ * @param {String} id This must be a unique ID for HTML tag
+ * @returns {PopupNotification}
+ */
+function PopupNotification(id) {
+    this.id = id;
+
+    this.ui = {
+        showCloseIcon: false,
+        closeIconHtml: '<span class="PopupNotificationClose"></span>',
+        contentHtml: false,
+        closeOnBgClick: true,
+        notificationClass: false,
+        contentClass: false,
+        bgClass: false,
+        rendered: false,
+        duration: 'slow',
+        bgOpacity: 70,
+        bgColor: '#000',
+        hideScrollbars: true,
+        loadingAltText: 'Loading...',
+        closeOnLinkClick: true,
+        baseZIndex: 10,
+        applyDefaultStyling: true,
+
+        // for how long the popup close should be remembered
+        rememberCloseFor: false,
+        rememberCloseStorage: false
+    };
+
+    this.events = {};
+}
+
+/**
+ * @param {Boolean} flag
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setApplyDefaultStyling = function(flag) {
+    this.ui.applyDefaultStyling = !! flag;
+
+    return this;
+};
+
+/**
+ * @param {Number} zIndex CSS
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setBaseZIndex = function(zIndex) {
+    this.ui.baseZIndex = zIndex * 1;
+
+    return this;
+};
+
+/**
+ * @param {Boolean} flag
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setCloseOnLinkClick = function(flag) {
+    this.ui.closeOnLinkClick = !! flag;
+
+    return this;
+};
+
+/**
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.showLoading = function() {
+    var backgroundId = this.getBackgroundId();
+    var loadingId = this.getLoadingId();
+
+    $('#'+ backgroundId).css({'z-index': this.ui.baseZIndex + 9});
+
+    var loadingCss = [
+        'z-index:'+ (this.ui.baseZIndex + 10) +';'
+    ];
+    loadingCss = loadingCss.concat(this._getCenteringCss());
+
+    var $loading = $(
+        '<div id="'+ loadingId +'" style="'+ loadingCss.join(' ') +'">'+
+            '<img src="/images/progressbar.gif">'+
+        '</div>'
+    );
+    $loading.find('img').attr('alt', this.ui.loadingAltText);
+    $('body').append($loading);
+    
+    return this;
+};
+
+/**
+ * @param {Number} opacity Number from 0 to 100
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setBackgroundOpacity = function(opacity) {
+    this.ui.bgOpacity = opacity;
+
+    return this;
+};
+
+/**
+ * @param {String|Number} duration
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setDuration = function(duration) {
+    this.ui.duration = duration;
+
+    return this;
+};
+
+/**
+ * Makes the close button visible to the client
+ * @param {Boolean} flag
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setShowCloseIcon = function(flag) {
+    this.ui.showCloseIcon = !! flag;
+
+    return this;
+};
+
+/**
+ * @param {String} className
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setNotificationCssClass = function(className) {
+    this.ui.notificationClass = className;
+
+    return this;
+};
+
+/**
+ * @param {String} className
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setContentCssClass = function(className) {
+    this.ui.contentClass = className;
+
+    return this;
+};
+
+/**
+ * @param {String} className
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setBackgroundCssClass = function(className) {
+    this.ui.bgClass = className;
+
+    return this;
+};
+
+/**
+ * Makes it possible to close the popup by clickin on the greyed background around it
+ * @param {Boolean} flag
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setCloseOnBgClick = function(flag) {
+    this.ui.closeOnBgClick = !! flag;
+
+    return this;
+};
+
+/**
+ * Allows to change the HTML of the close button
+ * @param {String} html
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setCloseIconHtml = function(html) {
+    this.ui.closeIconHtml = html;
+
+    return this;
+};
+
+/**
+ * Stores HTML content that will be shown on render
+ * @param {String} html
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setContentHtml = function(html) {
+    this.ui.contentHtml = html;
+
+    return this;
+};
+
+/**
+ * @param {Function} callback
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.onHideStart = function(callback) {
+    this.events.onHideStart = callback;
+    
+    return this;
+};
+
+/**
+ * @param {Function} callback
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.onHideEnd = function(callback) {
+    this.events.onHideEnd = callback;
+    
+    return this;
+};
+
+/**
+ * @returns {String}
+ */
+PopupNotification.prototype.getContentId = function() {
+    return this.id +'_content';
+};
+
+/**
+ * @returns {String}
+ */
+PopupNotification.prototype.getLoadingId = function() {
+    return this.id +'_loading';
+};
+/**
+ * @returns {String}
+ */
+PopupNotification.prototype.getBackgroundId = function() {
+    return this.id +'_background';
+};
+
+/**
+ * @returns {String}
+ */
+PopupNotification.prototype._getOpacityCss = function() {
+    var css = 'filter:alpha(opacity='+ this.ui.bgOpacity +');';
+    css += 'opacity:'+ (this.ui.bgOpacity / 100) +';';
+
+    return css;
+};
+
+PopupNotification.prototype.setRememberCloseForSeconds = function(seconds) {
+    this.ui.rememberCloseStorage = localStorage;
+    this.rememberCloseFor = seconds;
+    
+    return this;
+};
+
+/**
+ * The banner should stay closed till the end of the session, if it is closed
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setRememberCloseSessionBased = function() {
+    this.ui.rememberCloseStorage = sessionStorage;
+
+    return this;
+};
+
+/**
+ * The banner should stay closed till the end of the session, if it is closed
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setRememberCloseForever = function() {
+    this.ui.rememberCloseStorage = localStorage;
+
+    return this;
+};
+
+/**
+ * The banner should open each time the page is loaded
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setRememberCloseNever = function() {
+    this.ui.rememberCloseStorage = false;
+
+    return this;
+};
+
+/**
+ * Returns if popup is shown or hidden
+ * @returns {Boolean}
+ */
+PopupNotification.prototype.isHidden = function() {
+    var rememberCloseName = this.getRememberCloseStorageName();
+    var rememberCloseVal = this.ui.rememberCloseStorage.getItem(rememberCloseName);
+
+    // basic rules, to check if popup was shown or not already
+    var isHidden = (rememberCloseVal !== false && rememberCloseVal !== null);
+
+    // if popup is not hidden, because it was already closed before
+    if (rememberCloseVal !== null && this.rememberCloseFor !== false) {
+        // lets now check if it should be hidden, because the time has not passed for it to re-appear
+        var now = this._getNowSeconds();
+        var rememberTill = Number(rememberCloseVal);
+
+        isHidden = (now < rememberTill);
+    }
+
+    return isHidden;
+};
+
+/**
+ * Renders HTML and assigns event listeners
+ * By default the popup is hidden. Call PopupNotification.show(); to display it.
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.renderHtml = function() {
+    // If popup was already closed manually, it should remain closed
+    var hidden = false;
+    if (!this.ui.rendered && this.ui.rememberCloseStorage !== false) {
+        hidden = this.isHidden();
+    }
+
+    if (!this.ui.rendered && !hidden) {
+        this.ui.rendered = true;
+
+        if (this.ui.applyDefaultStyling) {
+            this.ui.notificationClass = 'PopupNotification';
+            this.ui.contentClass = 'PopupNotificationContent';
+            this.ui.bgClass = 'PopupNotificationBg';
+        }
+
+        var backgroundId = this.getBackgroundId();
+        var notificationId = this.id;
+        var contentId = this.getContentId();
+        var closeId = this.id +'_close';
+
+        var $background = $('#'+ backgroundId);
+        if ($background.length !== 0) {
+            $background.remove();
+        }
+
+        {
+            var backgroundCss = [
+                'z-index:'+ (this.ui.baseZIndex + 6) +';',
+                'background:'+ this.ui.bgColor +';',
+                'display:none;'
+            ];
+            backgroundCss = backgroundCss.concat(this._getFullScreenCss());
+
+            $('body').append(
+                '<div id="'+ backgroundId +'" style="'+ backgroundCss.join(' ') +' '+ this._getOpacityCss() +'"'+
+                    (this.ui.bgClass !== false ? ' class="'+ this.ui.bgClass +'"' : '') +
+                '></div>'
+            );
+            $background = $('#'+ backgroundId);
+        }
+
+        {
+            var notificationCss = [
+                'z-index:'+ (this.ui.baseZIndex + 7) +';',
+                'display:none;'
+            ];
+            notificationCss = notificationCss.concat(this._getCenteringCss());
+
+            if (this.ui.notificationClass !== false) {
+                var notificationClass = ' class="'+ this.ui.notificationClass +'"';
+            } else {
+                var notificationClass = '';
+            }
+
+            if (this.ui.contentClass !== false) {
+                var contentClass = ' class="'+ this.ui.contentClass +'"';
+            } else {
+                var contentClass = '';
+            }
+
+            var $notication = $('#'+ notificationId);
+            if ($notication.length !== 0) {
+                $notication.remove();
+            }
+            $('body').append(
+                '<div id="'+ notificationId +'" style="'+ notificationCss.join(' ') +'"'+ notificationClass +'>'+
+                    '<span id="'+ contentId +'"'+ contentClass +'></span>'+
+                '</div>'
+            );
+            $notication = $('#'+ notificationId);
+
+        var $content = $('#'+ contentId);
+        }
+
+        // Prepare background
+        if (this.ui.closeOnBgClick) {
+            $background.click($.proxy(this.hide, this));
+        }
+
+        // Add close button
+        if (this.ui.showCloseIcon) {
+            var closeIconHtml = '<span id="'+ closeId +'">'+ this.ui.closeIconHtml +'</span>';
+            if(this.id == "em2016Popup") {
+                $notication.find('#em2016Popup_content').prepend(closeIconHtml)
+            } else {
+                $notication.append(closeIconHtml);
+            }
+            var $close = $('#'+ closeId);
+            $close.click($.proxy(this.hide, this));
+        }
+
+        // Add content
+        if (this.ui.contentHtml !== false) {
+            $content.append(this.ui.contentHtml);
+
+            if (this.ui.closeOnLinkClick) {
+                $content.find('a').click($.proxy(this.hide, this));
+            }
+        }
+    }
+
+    return this;
+};
+
+/**
+ * @returns {Array}
+ */
+PopupNotification.prototype._getCenteringCss = function() {
+    var css = [
+        'position:fixed;',
+        'top:50%;',
+        'left:50%;',
+        '-webkit-transform:translate(-50%,-50%);',
+        '-ms-transform:translate(-50%,-50%);',
+        'transform:translate(-50%,-50%);'
+    ];
+
+    return css;
+};
+
+/**
+ * @returns {Array}
+ */
+PopupNotification.prototype._getFullScreenCss = function() {
+    var css = [
+        'position:fixed;',
+        'top:0;',
+        'left:0;',
+        'right:0;',
+        'bottom: 0;'
+    ];
+
+    return css;
+};
+
+/**
+ * Shows popup
+ * @param {Number} duration
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.show = function(duration) {
+    if (!this.ui.rendered) {
+        this.renderHtml();
+    }
+
+    var $background = $('#'+ this.id +'_background');
+    var $notification = $('#'+ this.id);
+
+    if (this.ui.hideScrollbars && !this.isHidden()) {
+        var $body = $('body');
+        $body.css({
+            width: $body.width(),
+            overflow: 'hidden'
+        });
+    }
+
+    if (typeof duration === 'undefined') {
+        duration = this.ui.duration;
+    }
+
+    $background.fadeIn(duration);
+    $notification.fadeIn(duration);
+
+    return this;
+};
+
+/**
+ * Hides popup
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.hide = function() {
+    if (typeof this.events.onHideStart === 'function') {
+        (this.events.onHideStart)();
+    }
+
+    var $elems = $(
+        '#'+ this.getLoadingId() +','+
+        '#'+ this.getBackgroundId() +','+
+        '#'+ this.id
+    );
+
+    $elems.fadeOut(
+        this.ui.duration,
+        $.proxy(function() {
+            if (this.ui.hideScrollbars) {
+                $('body').css({
+                    width: '',
+                    overflow: ''
+                });
+
+            }
+
+            if (typeof this.events.onHideEnd === 'function') {
+                (this.events.onHideEnd)();
+            }
+        }, this)
+    );
+
+    // Setting Remember Close cookie
+    if (this.ui.rememberCloseStorage !== false) {
+        var rememberCloseName = this.getRememberCloseStorageName();
+
+        var rememberCloseVal;
+        if (this.rememberCloseFor === false) {
+            rememberCloseVal = '1';
+        } else {
+            rememberCloseVal = this._getNowSeconds() + this.rememberCloseFor;
+        }
+
+        this.ui.rememberCloseStorage.setItem(rememberCloseName, rememberCloseVal);
+    }
+
+    return this;
+};
+
+/**
+ * Returns how many seconds has passed from  1 Jan 1970
+ * @param {Number} seconds
+ * @returns {Number}
+ */
+PopupNotification.prototype._getNowSeconds = function() {
+    var nowSeconds = Math.floor(new Date().getTime() / 1000);
+    return nowSeconds;
+};
+
+/**
+ * @param {String} name
+ * @returns {String}
+ */
+PopupNotification.prototype._getCookie = function(name) {
+    var value = false;
+
+    if (document.cookie.length > 0) {
+        var start = document.cookie.indexOf(name +'=');
+
+        if (start !== -1) {
+            start = start + name.length + 1;
+            var end = document.cookie.indexOf(';', start);
+            if (end === -1) {
+                end = document.cookie.length;
+            }
+
+            value = unescape(document.cookie.substring(start, end));
+        }
+    }
+
+    return value;
+};
+
+/**
+ * @param {Boolean} flag
+ * @returns {PopupNotification.prototype}
+ */
+PopupNotification.prototype.setHideScrollbars = function(flag) {
+    this.ui.hideScrollbars = !! flag;
+    
+    return this;
+};
+
+/**
+ * @returns {String}
+ */
+PopupNotification.prototype.getRememberCloseStorageName = function() {
+    var name = 'pn'+ this.id +'closed';
+
+    return name;
+};

@@ -1,0 +1,207 @@
+var LeftMenu = {
+
+    activeTimeFilter: -1, // the time filter (default is "All")
+
+    /**
+     * Initialise Left Menu Timefilter click event handlers
+     */
+    initLeftMenuTimeFilter: function () {
+        var timefilter = $("#left_menu_time_filter");
+
+        // initialise button click event andlers
+        timefilter.find(".timefilter--btn").click(function () {
+            if (!$(this).hasClass("active")) {
+                var filter = $(this).attr("data-filter");
+                LeftMenu.loadSportsMenu(filter);
+            }
+        });
+
+        // set active time filter
+        var activeTimeFilter = timefilter.find(".timefilter--btn.active");
+        if (activeTimeFilter.length > 0) {
+            LeftMenu.activeTimeFilter = parseInt(activeTimeFilter.data("filter"));
+        }
+    },
+
+    /**
+     * Load Left Navigation Sports Menu with new filter
+     *
+     * @param filter
+     */
+    loadSportsMenu: function (filter) {
+
+        var timeFilterParent = $("#left_menu_time_filter");
+        if (timeFilterParent.length === 0 || filter === undefined
+            || timeFilterParent.hasClass("timefilter-loading")) return false;
+
+        LeftMenu.startSportsMenuLoading(filter);
+
+        var openSportId = LeftMenu.getOpenSportsMenuSport();
+
+        $.ajax({
+            type: "POST",
+            cache: false,
+            data: {
+                filter: filter,
+                openSportId: openSportId
+            },
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/leftMenu/sportsmenu',
+            dataType: "html",
+            success: function (html) {
+                if (html != '') {
+                    $('#left_menu_sports').replaceWith(html);
+
+                    LeftMenu.activeTimeFilter = parseInt(filter);
+
+                    // update time filter classes
+                    var timefilter = $("#left_menu_time_filter");
+                    timefilter.find(".timefilter--btn.active").removeClass("active");
+                    timefilter.find(".timefilter--btn[data-filter='" + filter + "']").addClass("active");
+
+                    // re-highlight open leagues
+                    LeftMenu.highlightOpenLeaguesMenuItems();
+
+                    // initialise event handlers
+                    LeftMenu.initSportsMenuEventHandlers();
+
+                    // update leagues which are already open in main area
+                    LeftMenu.updateOpenLeagues();
+                }
+
+                LeftMenu.endSportsMenuLoading();
+            },
+            timeout: 20000,
+            error: function () {
+                LeftMenu.endSportsMenuLoading();
+            }
+        });
+
+    },
+
+    /**
+     * Start Loading the Sports Menu with the selected filter
+     */
+    startSportsMenuLoading: function (filter) {
+        $("#left_menu_sports").find(".menu-item-loader").fadeIn("fast");
+
+        // update classes
+        var timefilter = $("#left_menu_time_filter");
+        timefilter.addClass("timefilter-loading");
+        timefilter.find(".timefilter--btn[data-filter='" + filter + "']").addClass("loading-in-progress");
+    },
+
+    /**
+     * Finish loading the sport menu with the selected filter
+     */
+    endSportsMenuLoading: function () {
+        $("#left_menu_sports").find(".menu-item-loader").fadeOut("fast");
+
+        // update classes
+        var timefilter = $("#left_menu_time_filter");
+        timefilter.removeClass("timefilter-loading");
+        timefilter.find(".timefilter--btn").removeClass("loading-in-progress");
+    },
+
+    /**
+     * Highlight the left menu items of leagues which are open in the main area
+     */
+    highlightOpenLeaguesMenuItems: function() {
+        $("#sports_sidebar_menu").find(".link_active").removeClass(".link_active");
+
+        var leagueId = 0;
+        if (Sportsbook.openLeagues !== undefined) {
+            for (var i= 0; i < Sportsbook.openLeagues.length; i++) {
+                leagueId = Sportsbook.openLeagues[i];
+                leftMenu_leagues_toggle_active_classes('add', '', '', leagueId);
+                if($("#left_menu_sports").find(".menu_link.toggleleague[data-league-id='"+leagueId+"']").length < 1) {
+                    var betGroup = $("#container_bets_groups .sportsbook_league_container[data-league-id='"+leagueId+"']");
+                    var group_id = betGroup.data("group-id");
+                    Bets.closeGroup(group_id, '');
+                }
+                
+            }
+        }
+    },
+
+    /**
+     * Get the Sport ID of the sport which is open in the left menu Sports section
+     *
+     * @return int sportId
+     */
+    getOpenSportsMenuSport: function() {
+        var sportId = 0;
+        var sportMenu = $("#left_menu_sports");
+        if (sportMenu.length > 0) {
+            var openMenuItem = sportMenu.find(".menu_item.sublevel1.submenu_open");
+            if (openMenuItem.length > 0) {
+                sportId = parseInt(openMenuItem.data("sport-id"));
+            }
+        }
+
+        return sportId;
+    },
+
+    /**
+     * Apply new time filter to all previously open leagues (reload them)
+     */
+    updateOpenLeagues: function() {
+        var groupIds = [];
+        var openLeagues = $("#container_bets").find(".sportsbook_league_container");
+        for(var i=0; i<openLeagues.length; i++) {
+            var league = $(openLeagues[i]);
+            groupIds.push(parseInt(league.data("group-id")));
+            league.addClass("loading");
+        }
+
+        if (groupIds.length === 0) return false; // no league open to reload
+
+        //get selected betting market filter
+        var market_filter = '';
+        $(".market-filter-li").each(function() { 
+            if($(this).hasClass('selected'))
+                market_filter = $(this).attr('data-marketid'); 
+        });
+        // for each league (group), reload it with new filter
+        $.ajax({
+            type: "POST",
+            cache: false,
+            data: {
+                filter: LeftMenu.activeTimeFilter,
+                groupIds: groupIds,
+                bettingMarket: market_filter
+            },
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/bets/reloadgroups',
+            dataType: "json",
+            success: function (groups) {
+                if (groups !== '') {
+                    for (var i=0; i<groups.length; i++) {
+                        var groupId = groups[i].groupId;
+                        var html = groups[i].html;
+                        $("#mc-gr"+groupId).replaceWith(html);
+                    }
+                }
+
+                Bets.checkBets();
+                Bets.remarkBets();
+
+                $("#container_bets").find(".sportsbook_league_container").removeClass("loading");
+            },
+            timeout: 20000,
+            error: function () {
+                $("#container_bets").find(".sportsbook_league_container").removeClass("loading");
+            }
+        });
+
+    },
+
+    /**
+     * When sports menu is loaded (or reloaded), initialise event handlers (ex: link clicks)
+     */
+    initSportsMenuEventHandlers: function () {
+
+        // general sports menu click event handlers
+        initialise_leftmenu_link_actions("left_menu_sports");
+
+    },
+
+}; // LeftMenu

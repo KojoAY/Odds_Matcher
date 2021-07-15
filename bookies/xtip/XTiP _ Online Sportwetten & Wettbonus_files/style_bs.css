@@ -1,0 +1,700 @@
+div.betslip_stepper {
+	text-align: right;
+	margin-left: 0;
+	margin-right: 0;
+        cursor: pointer;
+}
+
+div.betslip_stepper input {
+	float: left;
+	text-align: right;
+	height: 17px;
+	width: 64px;
+	margin-left: 0;
+	margin-right: 0;
+	padding: 0;
+	padding-right: 3px;
+	border: 1px solid #000;
+	border-right: 0px solid #000;
+}
+
+div.chip_trading_content_btn {
+	background: url(../images/betslip/updown_btn.jpg) no-repeat top;
+	float: left;
+	width: 11px;
+	height: 19px;
+	margin-left: 0px;
+	padding: 0;
+        position: relative;
+}
+
+div.chip_trading_content_btn_up {
+	background: url(../images/betslip/sys_up.png) no-repeat top;
+	width: 11px;
+	height: 9px;
+	margin-left: 0px;
+	padding: 0;
+        position: relative;
+}
+
+div.chip_trading_content_btn_down {
+	background: url(../images/betslip/sys_down.png) no-repeat top;
+	width: 11px;
+	height: 10px;
+	margin-left: 0px;
+	padding: 0;
+        position: relative;
+}
+
+div#betslip {
+	background-color: #000;
+	color: #fff;
+}
+
+div.betslip h3 {
+	font-size: 11px;
+	background: #000000;
+	line-height: 30px;
+	height: 30px;
+	margin-bottom: 5px;
+	padding-left: 10px;
+}
+
+
+div#betslip_tabs {
+	background: #000 url(../images/account/accountmenu_bg.jpg) top left repeat-x;
+	height: 26px;
+	overflow: hidden;
+        display: table;
+        width: 100%;
+}
+
+div.betslip_tabs_row {
+    display: table-row;
+}
+
+div.betslip_tabs_cell {
+    display: table-cell;
+    width: 33.33%;
+}
+
+div.betslip_tabs_cell a {
+    background: #1e1e1e url(../images/account/accountmenu_bg.jpg) repeat-x top left;
+    display: block;
+    font-weight: bold;
+    text-decoration: none !important;
+    line-height: 22px;
+    height: 26px;
+    padding: 0 5px;
+}
+
+#reiter_1, #reiter_2 {
+    margin: 0 2px 0 0;
+}
+
+div#betslip_tabs ul {
+	height: 26px;
+}
+
+div#betslip_tabs ul li {
+	width: 70px;
+	background: #000;
+	float: left;
+}
+
+div#betslip_tabs ul li:last-child a {
+	margin-right: 0 !important;
+}
+
+div#betslip_tabs a:link, div#betslip_tabs a:visited, div#betslip_tabs a:hover, div#betslip_tabs a:active {
+	font-size: 11px;
+	font-weight: bold;
+	text-decoration: none;
+	line-height: 22px;
+	display: block;
+	height: 26px;
+	padding: 0 5px;
+}
+
+div#betslip_tabs a:link, div#betslip_tabs a:visited, div#betslip_tabs a:hover {
+	background: #000 url(../images/account/accountmenu_bg.jpg) top left repeat-x;
+	color: #fff;
+}
+
+div#betslip_tabs a:active {
+	background-color: #FFF;
+	color: #000;
+}
+
+div#betslip_tabs .betslip_tabs_active {
+	color: #000 !important;
+}
+
+div#betslip_tabs_content {
+	min-height: 40px;
+	padding: 20px 15px 5px 15px;
+}
+
+div#betslip_tabs_content h4 {
+	font-size: 11px;
+}
+
+div#betslip_tabs_header {
+	background-color: #FFFFFF;
+	min-height: 20px;
+	color: #000000;
+	padding: 7px 7px 0px;
+	border-bottom: 1px solid #000000;
+}
+
+div#betslip_tabs_content {
+	min-height: 20px;
+	background-color: #e0e0e0;
+	color: #000;
+	padding: 0;
+}
+
+
+div#betslip_item_main_right {
+	text-align: right;
+}
+
+div#betslip_item_right {
+	margin: 0 0 0 15px;
+}
+
+div.betslip_item_tipp {
+	float: left;
+	width: 124px;
+	font-weight: bold;
+}
+
+div.betslip_item_odd {
+	text-align: right;
+	font-weight: bold;
+}
+
+span.betslip_item_odd_down {
+	background: url(../images/betslip/arrow_down.png) left no-repeat;
+	padding-left: 13px;
+}
+
+span.betslip_item_odd_up {
+	background: url(../images/betslip/arrow_up.png) left no-repeat;
+	padding-left: 13px;
+}
+
+div.bs_system_header {
+	min-height: 20px;
+	background-color: #FFF;
+	color: #000000;
+	line-height: 1.5em;
+	padding: 5px 7px 0px 7px;
+	font-weight: bold;
+	display: none;
+	float:left;
+    width:91px;
+}
+
+div.betslip_system_body {
+    min-height: 25px;
+    background: #888888 url(../images/betslip/system_body.jpg) top repeat-x;
+    color: #000000;
+    line-height: 1.5em;
+    padding: 10px 7px 0px 0px;
+    border-bottom: 1px solid #000;
+    display: none;
+}
+
+div.betslip_system_info {
+    background: none;
+    color: #000000;
+    line-height: 1.2;
+    min-height:17px;
+    padding: 8px 10px 9px 10px;
+    border-bottom:1px solid rgba(0,0,0,0.08);
+    display: none;
+    position:relative;
+    font-weight:bold;
+}
+
+div.betslip_system_info div {
+    line-height:22px;
+    min-height:22px;
+}
+
+div#betslip_footer {
+	min-height: 150px;
+	background: #f7f7f7;
+	color: #000000;
+	line-height: 1.5em;
+}
+
+div.betslip_footer_top {
+	padding: 10px 5px 0px 5px;
+}
+
+div#betslip_footer_bottom {
+	padding: 0px 7px 7px 7px;
+}
+
+div#betslip_footer_bottom_header {
+	padding: 0px 0px 5px 0px;
+	font-weight: bold;
+        cursor: default;
+}
+
+div.betslip_footer_bottom_item {
+	padding: 0px 0px 0px 9px;
+        cursor: default;
+}
+
+div.betslip_footer_left {
+	float:left;
+	width: 120px;
+}
+
+div.betslip_footer_right {
+	text-align: right;
+}
+
+input#betslip_stepper_value {
+	width: 50px;
+	height: 15px;
+}
+
+div#betslip_msg_red_top {
+    display: none;
+	background: url(../images/betslip/msg_red_top.png) no-repeat bottom;
+	width: 210px;
+	height: 12px;
+	margin: 0;
+	border: 0;
+	padding: 0;
+}
+
+div#betslip_msg_red_bottom {
+    display: none;
+	background: url(../images/betslip/msg_red_bottom.png) no-repeat top;
+	width: 210px;
+	height: 12px;
+	margin: 0;
+	border: 0;
+	padding: 0;
+}
+
+div#betslip_msg_red_middle {
+    display: none;
+	background: url(../images/betslip/msg_red_middle.png) repeat-y;
+	width: 186px;
+	margin: 0;
+	border: 0;
+	padding: 5px 12px 5px 12px;
+}
+
+div#betslip_msg_green_top {
+    display: none;
+	background: url(../images/betslip/msg_green_top.png) no-repeat bottom;
+	width: 210px;
+	height: 12px;
+	margin: 0;
+	border: 0;
+	padding: 0;
+}
+
+div#betslip_msg_green_bottom {
+    display: none;
+	background: url(../images/betslip/msg_green_bottom.png) no-repeat top;
+	width: 210px;
+	height: 12px;
+	margin: 0;
+	border: 0;
+	padding: 0;
+}
+
+div#betslip_msg_green_middle {
+    display: none;
+	background: url(../images/betslip/msg_green_middle.png) repeat-y;
+	width: 186px;
+	margin: 0;
+	border: 0;
+	padding: 5px 12px 5px 12px;
+}
+
+div.betslip_msg_text {
+	float: left;
+	width: 174px;
+}
+
+div#betslip__msg_close {
+	text-align: right;
+}
+
+
+
+div#betslip_btnbet {
+	cursor: pointer;
+}
+
+div#betslip_btnbet_yellow_l {
+	background: url(../images/betslip/btn_bet_yellow_left.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_btnbet_yellow_m {
+	background: url(../images/betslip/btn_bet_yellow_middle.png) repeat-x;
+	width: 190px;
+	height: 35px;
+	float: left;
+	text-align: center;
+	vertical-align: middle;
+	padding: 10px 0 10px 0;
+	font-weight: bold;
+}
+
+div#betslip_btnbet_yellow_r {
+	background: url(../images/betslip/btn_bet_yellow_right.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_btnbet_deactivated {
+	cursor: default;
+	color: #888;
+}
+
+div#betslip_btnbet_grey_l {
+	background: url(../images/betslip/btn_bet_grey_left.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_btnbet_grey_m {
+	background: url(../images/betslip/btn_bet_grey_middle.png) repeat-x;
+	width: 190px;
+	height: 35px;
+	float: left;
+	text-align: center;
+	vertical-align: middle;
+	padding: 10px 0 10px 0;
+	font-weight: bold;
+}
+
+div#betslip_btnbet_grey_r {
+	background: url(../images/betslip/btn_bet_grey_right.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+
+div#betslip_btnbet_changed {
+	cursor: pointer;
+}
+
+div#betslip_btnbet_white_l {
+	background: url(../images/betslip/btn_bet_white_left.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_btnbet_white_m {
+	background: url(../images/betslip/btn_bet_white_middle.png) repeat-x;
+	width: 190px;
+	height: 35px;
+	float: left;
+	text-align: center;
+	vertical-align: middle;
+	padding: 10px 0 10px 0;
+	font-weight: bold;
+}
+
+div#betslip_btnbet_icons_closed {
+	background: url(../images/betslip/btn_bet_white_icons_closed.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_btnbet_icons_odd_down {
+	background: url(../images/betslip/btn_bet_white_icons_odd_down.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_btnbet_icons_odd_up {
+	background: url(../images/betslip/btn_bet_white_icons_odd_up.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_btnbet_icons_odd_both {
+	background: url(../images/betslip/btn_bet_white_icons_odd_both.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_btnbet_white_r {
+	background: url(../images/betslip/btn_bet_white_right.png) no-repeat;
+	width: 10px;
+	height: 35px;
+	float: left;
+}
+
+div#betslip_xtrembonus {
+        background: #fbfbfb url(../images/betslip_rate_bg.jpg) repeat-x top left;
+        border-top: 1px solid #c9c9c9;
+        border-bottom: 1px solid #c9c9c9;
+        height: 23px;
+        line-height: 23px;
+        padding: 0 5px;
+        overflow: hidden;
+
+}
+
+/* New non-image betslip button styles */
+#betslip .btn-betslip {
+	display:block;
+	margin:8px 6px 25px 6px;
+	padding:5px 12px;
+	border:1px solid #fff;
+	-webkit-box-shadow:0 0 4px 0 rgba(0,0,0,0.45);
+	-moz-box-shadow:0 0 4px 0 rgba(0,0,0,0.45);
+	box-shadow:0 0 4px 0 rgba(0,0,0,0.45);
+	color:#000;
+	vertical-align:middle;
+	text-align:center;
+	font-weight:700;
+	font-size:11px;
+	font-family:Verdana,Geneva,sans-serif;
+	line-height:1.2em;
+	filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#d9d9d9',endColorstr='#bbbbbb',GradientType=0);
+	position:relative;
+}
+
+#betslip .btn-betslip.btn-white {
+	background:#ededed;
+	background:-moz-linear-gradient(top,#fcfcfc 0%,#ebebeb 100%);
+	background:-webkit-gradient(linear,left top,left bottom,color-stop(0%,#fcfcfc),color-stop(100%,#ebebeb));
+	background:-webkit-linear-gradient(top,#fcfcfc 0%,#ebebeb 100%);
+	background:-o-linear-gradient(top,#fcfcfc 0%,#ebebeb 100%);
+	background:-ms-linear-gradient(top,#fcfcfc 0%,#ebebeb 100%);
+	background:linear-gradient(to bottom,#fcfcfc 0%,#ebebeb 100%);
+	cursor:pointer !important;
+	padding-right:30px;
+	color:#000;
+}
+
+#betslip .btn-betslip.btn-white:hover, #betslip .btn-betslip.btn-white:active {
+	background:#F4F4F4;
+	background:-moz-linear-gradient(top,#ffffff 0%,#F7F7F7 100%);
+	background:-webkit-gradient(linear,left top,left bottom,color-stop(0%,#ffffff),color-stop(100%,#F7F7F7));
+	background:-webkit-linear-gradient(top,#ffffff 0%,#F7F7F7 100%);
+	background:-o-linear-gradient(top,#ffffff 0%,#F7F7F7 100%);
+	background:-ms-linear-gradient(top,#ffffff 0%,#F7F7F7 100%);
+	background:linear-gradient(to bottom,#ffffff 0%,#F7F7F7 100%);
+}
+
+#betslip .btn-betslip.btn-grey {
+	background:#d9d9d9;
+	background:url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgdmlld0JveD0iMCAwIDEgMSIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSI+CiAgPGxpbmVhckdyYWRpZW50IGlkPSJncmFkLXVjZ2ctZ2VuZXJhdGVkIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIwJSIgeTI9IjEwMCUiPgogICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2Q5ZDlkOSIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNiYmJiYmIiIHN0b3Atb3BhY2l0eT0iMSIvPgogIDwvbGluZWFyR3JhZGllbnQ+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0idXJsKCNncmFkLXVjZ2ctZ2VuZXJhdGVkKSIgLz4KPC9zdmc+);
+	background:-moz-linear-gradient(top,#d9d9d9 0%,#bbb 100%);
+	background:-webkit-gradient(linear,left top,left bottom,color-stop(0%,#d9d9d9),color-stop(100%,#bbb));
+	background:-webkit-linear-gradient(top,#d9d9d9 0%,#bbb 100%);
+	background:-o-linear-gradient(top,#d9d9d9 0%,#bbb 100%);
+	background:-ms-linear-gradient(top,#d9d9d9 0%,#bbb 100%);
+	background:linear-gradient(to bottom,#d9d9d9 0%,#bbb 100%);
+	cursor:default !important;
+	color:#888;
+}
+
+#betslip .btn-betslip.btn-yellow {
+	background:#f9ee84;
+	background:url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgdmlld0JveD0iMCAwIDEgMSIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSI+CiAgPGxpbmVhckdyYWRpZW50IGlkPSJncmFkLXVjZ2ctZ2VuZXJhdGVkIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIwJSIgeTI9IjEwMCUiPgogICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2Y5ZWU4NCIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNmNWQ1MDYiIHN0b3Atb3BhY2l0eT0iMSIvPgogIDwvbGluZWFyR3JhZGllbnQ+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0idXJsKCNncmFkLXVjZ2ctZ2VuZXJhdGVkKSIgLz4KPC9zdmc+);
+	background:-moz-linear-gradient(top,#f9ee84 0%,#f5d506 100%);
+	background:-webkit-gradient(linear,left top,left bottom,color-stop(0%,#f9ee84),color-stop(100%,#f5d506));
+	background:-webkit-linear-gradient(top,#f9ee84 0%,#f5d506 100%);
+	background:-o-linear-gradient(top,#f9ee84 0%,#f5d506 100%);
+	background:-ms-linear-gradient(top,#f9ee84 0%,#f5d506 100%);
+	background:linear-gradient(to bottom,#f9ee84 0%,#f5d506 100%);
+	color:#000;
+	filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#f9ee84',endColorstr='#f5d506',GradientType=0);
+	cursor:pointer !important;
+}
+
+#betslip .btn-betslip.btn-yellow:hover, #betslip .btn-betslip.btn-yellow:focus {
+	background:#f4ea8b;
+	background:url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgdmlld0JveD0iMCAwIDEgMSIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSI+CiAgPGxpbmVhckdyYWRpZW50IGlkPSJncmFkLXVjZ2ctZ2VuZXJhdGVkIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIwJSIgeTI9IjEwMCUiPgogICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2Y0ZWE4YiIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNmMmRjNWUiIHN0b3Atb3BhY2l0eT0iMSIvPgogIDwvbGluZWFyR3JhZGllbnQ+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0idXJsKCNncmFkLXVjZ2ctZ2VuZXJhdGVkKSIgLz4KPC9zdmc+);
+	background:-moz-linear-gradient(top,#f4ea8b 0%,#f2dc5e 100%);
+	background:-webkit-gradient(linear,left top,left bottom,color-stop(0%,#f4ea8b),color-stop(100%,#f2dc5e));
+	background:-webkit-linear-gradient(top,#f4ea8b 0%,#f2dc5e 100%);
+	background:-o-linear-gradient(top,#f4ea8b 0%,#f2dc5e 100%);
+	background:-ms-linear-gradient(top,#f4ea8b 0%,#f2dc5e 100%);
+	background:linear-gradient(to bottom,#f4ea8b 0%,#f2dc5e 100%);
+	filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#f4ea8b',endColorstr='#f2dc5e',GradientType=0);
+}
+
+#betslip .btn-betslip.btn-yellow-active, #betslip .btn-betslip.btn-yellow:active {
+	outline: 0;
+	-webkit-box-shadow:none;
+	-moz-box-shadow:none;
+	box-shadow:none;
+	margin-top: 9px;
+}
+
+#betslip .btn-betslip .icons_container {
+	height:20px;
+	position:absolute;
+	top:50%;
+	margin-top:-10px;
+	right:4px;
+	z-index:5;
+}
+
+#betslip .btn-betslip #betslip_btnbet_icons_closed {
+	background: url(../images/betslip/btn_bet_white_icons_closed_transp.png) no-repeat;
+	width: 14px;
+	height: 20px;
+	float: left;
+}
+
+#betslip .btn-betslip #betslip_btnbet_icons_odd_down {
+	background: url(../images/betslip/btn_bet_white_icons_odd_down_transp.png) no-repeat;
+	width: 14px;
+	height: 20px;
+	float: left;
+}
+
+#betslip .btn-betslip #betslip_btnbet_icons_odd_up {
+	background: url(../images/betslip/btn_bet_white_icons_odd_up_transp.png) no-repeat;
+	width: 14px;
+	height: 20px;
+	float:left;
+}
+
+#betslip .btn-betslip #betslip_btnbet_icons_odd_both {
+	background: url(../images/betslip/btn_bet_white_icons_odd_both_transp.png) no-repeat;
+	width: 14px;
+	height: 20px;
+	float: left;
+}
+/* end: New non-image betslip button styles */
+
+
+div#betslip_xtrembonus_img {
+    margin-top: 5px;
+}
+
+div#betslip_xtrembonus_text {
+        font-weight: bold;
+        color: #000000;
+        float: right;
+}
+
+/*****************************************/
+/* Betslip
+------------------------------------------------------------- */
+
+div.betslip_status {
+	background: #dfdfdf url(../images/betslip_status_bg.jpg) repeat-x top left;
+	border-top: 1px solid #c9c9c9;
+	font-weight: bold;
+	color: #000000;
+	overflow: hidden;
+}
+
+div.betslip_rate {
+	border-right: 1px solid #fff;
+	border-bottom: 1px solid #c9c9c9;
+	border-left: 1px solid #fff;
+	height: 23px;
+	line-height: 23px;
+	padding: 0 0 0 5px;
+	overflow: hidden;
+}
+
+div.betslip_cp {
+	border-right: 1px solid #fff;
+	border-bottom: 1px solid #c9c9c9;
+	border-left: 1px solid #c9c9c9;
+	text-align: right;
+	float: right;
+	line-height: 23px;
+	color: #000;
+	min-width: 45px;
+	height: 23px;
+	padding: 0 5px 0 21px;
+	position: relative;
+}
+
+div.betslip_cp img {
+	position: absolute;
+	margin-top: 5px;
+	left: 5px;
+}
+
+div.betslip_rate img {
+	margin-top: 5px;
+}
+
+div.betslip_rate span {
+	float: right;
+}
+
+div#betslip a, div#betslip img[onclick], div#betslip div[onclick]{
+    cursor: pointer;
+}
+
+.disabled_checkbox img
+{
+	filter: alpha(opacity=20);
+	opacity:0.20;
+}
+
+.disabled_checkbox span
+{
+	display: inline-block;
+	filter:Alpha(Opacity=20);
+	opacity:0.20;
+}
+
+.betslip_item.odd--update {
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255, 255, 255, 0.498039) 20px, rgba(255, 255, 255, 0.498039) 40px) !important;
+    color: rgb(176, 176, 176);
+    border-color: rgb(176, 176, 176);
+}
+
+.betslip_item.odd--update .betslip_item_left {
+    visibility: hidden;
+}
+
+/* Add <div class="odd--warning">TEXT</div> to .betslip_item container */
+.odd--warning {
+    color: rgb(187, 85, 85);
+    text-align: center;
+    padding: 0.3em;
+    background-color: rgb(245, 245, 245);
+    border: 1px solid rgb(187, 85, 85);
+    border-left: 3px solid rgb(187, 85, 85);
+    margin: 0.5em -0.3em -0.2em -0.2em;
+    font-size: 0.9em;
+}
+
+div#btn-betslip-loading:before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    /* background-color: red; */
+    display: inline-block;
+    margin-left: -0.5em;
+    margin-right: 0.3em;
+    background-image: url("../images/icon/bets_small_loader.gif");
+}

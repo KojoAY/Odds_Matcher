@@ -1,0 +1,166 @@
+@charset "utf-8";
+/* CSS Document */
+
+/* top service request form */
+form,
+form *{
+	color:#333;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size:13px;
+	margin:0;
+	padding:0;
+}
+
+header .services-request-form{
+	display: none;
+}
+
+.oddsFilter-darkHover {
+	background-color: rgba(0,0,0,.7);
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 100vh;
+	width: 100%;
+	z-index: 1000;
+	display: none;
+}
+
+.oddsFilter-container {
+	background-color: #fff;
+	border: 1px solid #eee;
+	border-radius: 4px;
+	box-shadow: 0 0 10px -2px #333;
+	margin: 3% auto;
+	padding: 3%;
+	min-height: 150px;
+	min-width: 250px;
+	width: 80%;
+	overflow: hidden;
+	
+	z-index: 100000;
+}
+
+.oddsFilter-container .fa-times {
+	font-size: 40px;
+	position: absolute;
+	right: 15px;
+	top: 10px;
+	color: #ad2222;
+}
+
+.oddsFilter-container .fa-times:hover {
+	color: #ad0000;
+}
+
+.oddsFilter-container h1 {
+	color: #999;
+	font-size: 30px;
+	margin: 0 0 10px 1%;
+}
+
+.oddsFilter-container h2,
+.oddsFilter-container .oddsFilter div#searchBox h2 {
+	color: #999;
+	font-size: 16px;
+	margin: 0 0 10px 0%;
+}
+
+.oddsFilter-container h1 i {
+	font-size: 18px;
+	border-radius: 50%;
+	background-color: #999;
+	color: #fff;
+	padding: 8px 10px;
+	vertical-align: middle;
+}
+
+.oddsFilter-container .oddsFilter {
+}
+
+.oddsFilter-container .oddsFilter article {
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	float: left;
+	margin: 1%;
+	padding: 10px;
+	height: 250px;
+	min-width: 150px;
+	width: 15%;
+	overflow: auto;
+}
+
+.oddsFilter-container .oddsFilter article label {
+	display: block;
+	margin: 10px 0;
+}
+
+.oddsFilter-container .oddsFilter article#rates_odds {
+	width: 38.5%;
+}
+
+.oddsFilter-container .oddsFilter article#rates_odds div {
+	margin: 5px 0 10px 0;
+}
+
+.oddsFilter-container .oddsFilter article#rates_odds [type="text"] {
+	border: 1px solid #ccc;
+	border-radius: 3px;
+	padding: 10px 15px;
+	margin: 0 0 5px 0;
+	min-width: 80px;
+	width: 41%;
+}
+.oddsFilter-container .oddsFilter article#rates_odds #avail-lbl {
+	border: 1px solid #ccc; 
+	border-radius: 3px;
+	padding: 0 15px; 
+	width: 90.6%; 
+	min-width: 200px; 
+}
+
+.oddsFilter-container .oddsFilter div#searchBox {
+	display: block;
+	clear: both;
+	margin-top: 2%;
+	padding: 40px 0 0 0;
+	width: 100%;
+}
+
+.oddsFilter-container .oddsFilter div#searchBox h2 {
+	margin: 20px 0 10px 1%;
+}
+
+.oddsFilter-container .oddsFilter div#searchBox [type="text"] {
+	border: 1px solid #ccc;
+	border-radius: 3px;
+	padding: 10px 15px;
+	margin: 0% 0 5px 1%;
+	min-width: 150px;
+	width: 52%;
+}
+
+.oddsFilter-container .oddsFilter div#searchBox [type="button"],
+.oddsFilter-container .oddsFilter div#searchBox [type="submit"],
+.oddsFilter-container .oddsFilter div#searchBox [type="reset"] {
+	background-color: #ad2222;
+	border-radius: 3px;
+	border: none;
+	color: #fff;
+	cursor: pointer;
+	padding: 10px 10px;
+}
+
+.oddsFilter-container .oddsFilter div#searchBox [type="button"]:hover,
+.oddsFilter-container .oddsFilter div#searchBox [type="submit"]:hover{
+	background-color: #ad0000;
+}
+
+.oddsFilter-container .oddsFilter div#searchBox [type="reset"] {
+	background-color: #aaa;
+}
+
+.oddsFilter-container .oddsFilter div#searchBox span {
+	float: right;
+	margin: 0 1.3% 0 0;
+}

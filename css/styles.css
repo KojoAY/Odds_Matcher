@@ -1,0 +1,189 @@
+@charset "utf-8";
+/* CSS Document */
+
+html{
+	height: 100%;
+	width: 100%;
+}
+
+body{
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 13px;
+}
+
+a{
+	cursor: pointer;
+	text-decoration: none;
+	color: #900;
+}
+
+.main-container{
+	padding: 2% 3%;
+	width: 94%;
+}
+
+.topbtn {
+	display: block;
+	overflow: hidden;
+	margin-bottom: 30px;
+}
+
+
+#openFilters {
+	clear: both;
+	border-radius: 3px;
+	display: inline-block;
+	background-color: #ad2222;
+	color: #fff;
+	font-size: 18px;
+	padding: 10px 20px;
+}
+
+#openFilters:hover {
+	background-color: #ad0000;
+}
+
+/*  */
+.main-container header.list-caption,
+.main-container .event-list-rows{
+	padding:  0;
+}
+.main-container header.list-caption ul,
+.main-container .event-list-rows ul{
+	border-bottom: 1px solid #ddd;
+	margin: 0;
+	padding: 5px 0;
+	position: relative;
+	list-style: none;
+	z-index: 10;
+}
+
+.main-container header.list-caption li{
+	border-right: 1px #fff solid;
+	color: #888;
+	display: inline-block;
+	font-size: 12px;
+	font-weight: bold;
+	padding: 0px 10px;
+	text-transform: uppercase;
+}
+
+.main-container header.list-caption li .fa-exchange {
+	color: #ccc;
+}
+
+.main-container .event-list-rows li{
+	border-right: 1px #ddd solid;
+	display: inline-block;
+	min-height: 30px;
+	padding: 10px;
+	position: relative;
+	vertical-align: top;
+}
+
+.main-container header.list-caption li#tb-competition,
+.main-container .event-list-rows li#tb-competition{ font-size: 10px; min-width: 250px; width: 25%; }
+.main-container .event-list-rows li#tb-competition strong{ display: block; font-size: 15px; }
+.main-container header.list-caption li#tb-competition{font-size: 12px;}
+
+.main-container header.list-caption li#tb-datetime,
+.main-container .event-list-rows li#tb-datetime{ min-width: 80px; width: 7%; }
+
+.main-container header.list-caption li#tb-outcome,
+.main-container .event-list-rows li#tb-outcome{ min-width: 130px; width: 14%; }
+
+.main-container header.list-caption li#tb-bookie,
+.main-container .event-list-rows li#tb-bookie{ min-width: 100px; width: 10%; }
+
+.main-container header.list-caption li#tb-back,
+.main-container .event-list-rows li#tb-back{ min-width: 50px; width: 3%; }
+.main-container .event-list-rows li#tb-back{ background-color: #D5E5FE; }
+.main-container .event-list-rows li#tb-back span{ display:block; font-size: 10px; }
+.main-container .event-list-rows li#tb-back a{ background-color: #8AB8FD; color: #fff; position: absolute; left: 0; bottom: 0; width: 100%; text-align: center; display: block; font-size: 10px; margin-top: 2px; }
+.main-container .event-list-rows li#tb-back:hover{ background-color: #8AB8FD; }
+.main-container .event-list-rows li#tb-back a:hover,
+.main-container .event-list-rows li#tb-back:hover a{ background-color: #5698FC; }
+.main-container .event-list-rows li#tb-back a span{ margin: 0 10px; display: inline; }
+
+
+.main-container header.list-caption li#tb-exchange,
+.main-container .event-list-rows li#tb-exchange{ min-width: 100px; width: 10%; }
+
+.main-container header.list-caption li#tb-lay,
+.main-container .event-list-rows li#tb-lay{ min-width: 50px; width: 3%; }
+.main-container .event-list-rows li#tb-lay{ background-color: #FCC7D4; }
+.main-container .event-list-rows li#tb-lay span{ display:block; font-size: 10px; }
+.main-container .event-list-rows li#tb-lay a{ background-color: #F8819E; color: #fff; position: absolute; left: 0; bottom: 0; width: 100%; text-align: center; display: block; font-size: 10px; margin-top: 2px; }
+.main-container .event-list-rows li#tb-lay:hover{ background-color: #F8819E; }
+.main-container .event-list-rows li#tb-lay a:hover,
+.main-container .event-list-rows li#tb-lay:hover a{ background-color: #F5527B; }
+.main-container .event-list-rows li#tb-lay a span{ margin: 0 10px; display: inline; }
+
+
+.main-container .event-list-rows li#tb-back nav,
+.main-container .event-list-rows li#tb-lay nav{ 
+	position: relative;
+	display: none;
+	z-index: 9999999;
+}
+
+
+.main-container .event-list-rows li#tb-back:hover nav,
+.main-container .event-list-rows li#tb-lay:hover nav{ 
+	background-color: #fff; 
+	box-shadow: 0 0 10px -2px #000;
+	display: inline-block;
+	padding: 10px; 
+	position: absolute; 
+	right: 90%;
+	bottom: 12px;
+	overflow: hidden;
+	text-align: center;
+	min-height: 60px;
+	width: 250px;
+}
+
+.main-container .event-list-rows li#tb-back nav article,
+.main-container .event-list-rows li#tb-lay nav article{
+	margin-top: 10px;
+}
+
+.main-container .event-list-rows li#tb-back nav article div,
+.main-container .event-list-rows li#tb-lay nav article div{
+	display: inline-block;
+	width: 60px;
+}
+
+.main-container .event-list-rows li#tb-back nav article div span,
+.main-container .event-list-rows li#tb-lay nav article div span{
+	display: block;
+	margin-bottom: 5px;
+}
+
+.main-container .event-list-rows li#tb-back nav article div#mid,
+.main-container .event-list-rows li#tb-lay nav article div#mid{
+	border: 1px solid #ddd;
+	border-top: none;
+	border-bottom: none;
+}
+
+
+.main-container header.list-caption li#tb-rating,
+.main-container .event-list-rows li#tb-rating{ min-width: 60px; width: 4%; }
+
+.main-container header.list-caption li#tb-calc,
+.main-container .event-list-rows li#tb-calc{ border-right: none; min-width: 25px; width: 2%; font-size: 16px; }
+
+.main-container .event-list-rows li#tb-calc a{ color: #ccc; }
+.main-container .event-list-rows li#tb-calc a:hover{ color: #f00; }
+
+#pg-nav{
+	font-size: 12px;
+	margin: 20px 0;
+	text-align: center;
+}
+
+#pg-nav .fa-chevron-right,
+#pg-nav .fa-chevron-left{
+	font-size: 14px;
+}

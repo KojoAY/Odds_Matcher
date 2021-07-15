@@ -1,0 +1,169 @@
+var BettingMarketFilter = {
+
+    infoBubbleTimeouts: null, // will store the timeouts for hiding betting market info bubbles
+
+    toggleSelectedBetmarketFilter: function (element, groupId, sportId) {
+        // console.log(groupId);
+        // console.log($(".filter__markets[data-groupid='"+groupId+"']"));
+        var toggleTrigger = $(element);//;
+        var leftImage = "<img src='/images/icon/btn_arrow_disabled.png' style='margin-left:3px; transform: rotate(90deg)'>";
+        var rightImage = "<img src='/images/icon/btn_arrow_disabled_left.png' style='margin-left:3px; margin-bottom: -2px; transform: rotate(90deg) '>";
+
+        if (toggleTrigger.find('.toggle_text').text() === bettingMarketShow) {
+            $(".filter__markets[data-groupid='" + groupId + "']").toggle(0);
+            toggleTrigger.html('<span class="toggle_text">' + bettingMarketHide + '</span>' + rightImage);
+        } else {
+            $(".timefilter--btn[data-sportid='" + sportId + "']").html('<span class="toggle_text">' + bettingMarketShow + '</span>' + leftImage);
+            $(".filter__markets[data-sportid='" + sportId + "']").hide();
+        }
+
+    },
+
+    initBettingMarketFilter: function (element) {
+        if (bettingMarketEnabled) {
+            var clickedFilter = $(element);
+            var groupId = clickedFilter.attr('data-groupid');
+            var sportId = clickedFilter.attr('data-sportid');
+
+            var bettingMarket = clickedFilter.attr('data-marketid');
+            var itemsClass = clickedFilter.attr('class');
+            if (!clickedFilter.hasClass('selected')) {
+                var timeFilterSetting = -1;
+
+                if (LeftMenu.activeTimeFilter !== 'undefined') {
+                    timeFilterSetting = LeftMenu.activeTimeFilter;
+                }
+
+                BettingMarketFilter.updateSelectedLeague(sportId, timeFilterSetting, bettingMarket);
+
+                $("#mc-gr" + groupId + "." + itemsClass).removeClass('selected');
+                clickedFilter.addClass('selected');
+            } else {
+                clickedFilter.removeClass('selected');
+                BettingMarketFilter.cancelBettingMarketFilter(groupId, itemsClass, sportId);
+                BettingMarketFilter.updateSelectedLeague(sportId, timeFilterSetting, '');
+            }
+        }
+    },
+
+
+    /**
+     * Apply new bettingmarket filter to selected league
+     */
+    // updateSelectedLeague: function(groupId, timeFilterSetting,bettingMarket) {
+    //
+    //
+    //     var league = $('#mc-gr'+groupId);
+    //     league.addClass("loading");
+    //     var groupIds = [];
+    //     groupIds.push(parseInt(groupId));
+    //
+    //     //for each league (group), reload it with new filter
+    //     $.ajax({
+    //         type: "POST",
+    //         cache: false,
+    //         data: {
+    //             filter: timeFilterSetting,
+    //             bettingMarket: bettingMarket,
+    //             groupIds: groupIds
+    //         },
+    //         url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/bets/reloadgroups',
+    //         dataType: "json",
+    //         success: function (groups) {
+    //             if (groups !== '') {
+    //                 for (var i=0; i<groups.length; i++) {
+    //                     var html = groups[i].html;
+    //                     $("#mc-gr"+groupId).replaceWith(html);
+    //                 }
+    //             }
+    //
+    //             Bets.checkBets();
+    //             Bets.remarkBets();
+    //
+    //             $("#container_bets").find(".sportsbook_league_container").removeClass("loading");
+    //         },
+    //         timeout: 20000,
+    //         error: function () {
+    //             $("#container_bets").find(".sportsbook_league_container").removeClass("loading");
+    //         }
+    //     });
+    //
+    // },
+    /**
+     * Apply new bettingmarket filter to selected league
+     */
+    updateSelectedLeague: function (sportId, timeFilterSetting, bettingMarket) {
+        var groupIds = [];
+        var openLeagues = $("#container_bets").find(".spgrp_league_" + sportId);
+        for (var i = 0; i < openLeagues.length; i++) {
+            var league = $(openLeagues[i]);
+            groupIds.push(parseInt(league.data("group-id")));
+            league.addClass("loading");
+        }
+
+        if (groupIds.length === 0) return false; // no league open to reload
+
+        // var league = $('#mc-gr'+groupId);
+        // league.addClass("loading");
+        // var groupIds = [];
+        // groupIds.push(parseInt(groupId));
+
+        //for each league (group), reload it with new filter
+        $.ajax({
+            type: "POST",
+            cache: false,
+            data: {
+                filter: timeFilterSetting,
+                bettingMarket: bettingMarket,
+                groupIds: groupIds
+
+            },
+            url: (typeof cpAjaxBaseUrl !== "undefined" ? cpAjaxBaseUrl : "") + '/bets/reloadgroups',
+            dataType: "json",
+            success: function (groups) {
+                if (groups !== '') {
+                    for (var i = 0; i < groups.length; i++) {
+                        var html = groups[i].html;
+                        $("#mc-gr" + groups[i].groupId).replaceWith(html);
+                    }
+                }
+
+                Bets.checkBets();
+                Bets.remarkBets();
+                BettingMarketFilter.saveBettingMarketCookie(sportId, bettingMarket);
+                //selectedBettingMarket=bettingMarket;
+                $("#container_bets").find(".sportsbook_league_container").removeClass("loading");
+            },
+            timeout: 20000,
+            error: function () {
+                $("#container_bets").find(".sportsbook_league_container").removeClass("loading");
+            }
+        });
+
+    },
+    saveBettingMarketCookie: function (sportId, bettingMarket) {
+        var existingFilters=BettingMarketFilter.getBettingMarketCookie("selectedBettingMarket");
+        //console.log(existingFilters);
+        var tenminutes = 600 * 1 * 1000;
+        var myTime = new Date();
+        myTime.setTime(myTime.getTime() + tenminutes);
+        var expirationTime = myTime.toGMTString();
+        var expire = " expires=" + expirationTime;
+        var tempCookie={"bettingMarkets":[{"sportId":sportId,"bettingFilter":bettingMarket}]};
+        document.cookie = "selectedBettingMarket=" + JSON.stringify(tempCookie) + "; " + expire + "; path=/" + secureCookie;
+   
+    },
+    getBettingMarketCookie: function (name) {
+        var value = "; " + document.cookie;
+        var parts = value.split("; " + name + "=");
+        //console.log(parts);
+        if (parts.length == 2) return parts.pop().split(";").shift();
+    },
+    cancelBettingMarketFilter: function (groupId,itemsClass,sportId) {
+
+        document.cookie = "selectedBettingMarket" + '=;expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+
+    }
+
+
+}; // BettingMarketFilter
